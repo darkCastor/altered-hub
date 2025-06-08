@@ -12,8 +12,8 @@ export default function CardDisplay({ card, className }: CardDisplayProps) {
   const aiHint = card.name ? card.name.toLowerCase().split(' ').slice(0, 2).join(' ') : 'card image';
 
   return (
-    <Card className={`w-full max-w-sm overflow-hidden shadow-xl hover:shadow-primary/40 transition-all duration-300 transform hover:scale-150 ${className || ''} bg-card text-card-foreground rounded-xl border-2 border-border`}>
-      <CardHeader className="p-0 relative">
+    <Card className={`relative w-full max-w-sm overflow-hidden shadow-xl hover:shadow-primary/40 transition-all duration-300 transform hover:scale-150 hover:z-20 ${className || ''} bg-card text-card-foreground rounded-xl border-2 border-border`}>
+      <CardHeader className="p-0">
         {card.imageUrl ? (
           <Image
             src={card.imageUrl}
