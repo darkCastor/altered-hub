@@ -1,9 +1,7 @@
 
 import type { AlteredCard } from '@/types';
 import Image from 'next/image';
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Heart, Sword, Gem, Tag, Palette, BookText, Hash, Sparkles, Zap, Shield } from 'lucide-react'; // Added Sparkles for powerM, Zap for recallCost, Shield for health
+import { Card, CardHeader } from '@/components/ui/card';
 
 interface CardDisplayProps {
   card: AlteredCard;
@@ -11,7 +9,7 @@ interface CardDisplayProps {
 }
 
 export default function CardDisplay({ card, className }: CardDisplayProps) {
-  const aiHint = card.name.toLowerCase().split(' ').slice(0, 2).join(' ');
+  const aiHint = card.name ? card.name.toLowerCase().split(' ').slice(0, 2).join(' ') : 'card image';
 
   return (
     <Card className={`w-full max-w-sm overflow-hidden shadow-xl hover:shadow-primary/40 transition-all duration-300 transform hover:scale-105 ${className || ''} bg-card text-card-foreground rounded-xl border-2 border-border`}>
@@ -19,105 +17,19 @@ export default function CardDisplay({ card, className }: CardDisplayProps) {
         {card.imageUrl ? (
           <Image
             src={card.imageUrl}
-            alt={card.name}
+            alt={card.name || 'Altered TCG Card'}
             width={300}
             height={420}
             className="object-cover w-full aspect-[300/420]"
             data-ai-hint={aiHint}
+            priority // Helps with LCP for images that are likely to be visible early
           />
         ) : (
           <div className="w-full aspect-[300/420] bg-muted flex items-center justify-center" data-ai-hint={aiHint}>
             <span className="text-muted-foreground">No Image</span>
           </div>
         )}
-        <div className="absolute top-0 left-0 w-full p-4 bg-gradient-to-b from-black/70 to-transparent">
-          <CardTitle className="font-headline text-xl text-primary-foreground truncate" title={card.name}>{card.name}</CardTitle>
-        </div>
       </CardHeader>
-      <CardContent className="p-4 space-y-3">
-        <div className="flex justify-between items-center text-sm">
-          <Badge variant="secondary" className="capitalize bg-secondary text-secondary-foreground">{card.type}</Badge>
-          {card.faction && <Badge variant="outline" className="capitalize" style={{ borderColor: card.factionColor, color: card.factionColor }}>{card.faction}</Badge>}
-        </div>
-
-        <div className="grid grid-cols-2 gap-2 text-sm">
-          {typeof card.cost === 'number' && (
-            <div className="flex items-center gap-1.5" title="Cost">
-              <Gem className="h-4 w-4 text-accent" />
-              <span className="font-semibold">Cost:</span>
-              <span>{card.cost}</span>
-            </div>
-          )}
-          {typeof card.recallCost === 'number' && (
-            <div className="flex items-center gap-1.5" title="Recall Cost">
-              <Zap className="h-4 w-4 text-accent" />
-              <span className="font-semibold">Recall:</span>
-              <span>{card.recallCost}</span>
-            </div>
-          )}
-          {typeof card.attack === 'number' && (
-            <div className="flex items-center gap-1.5" title="Attack">
-              <Sword className="h-4 w-4 text-accent" />
-              <span className="font-semibold">Atk:</span>
-              <span>{card.attack}</span>
-            </div>
-          )}
-          {typeof card.health === 'number' && (
-            <div className="flex items-center gap-1.5" title="Health">
-              <Shield className="h-4 w-4 text-accent" /> {/* Changed from Heart to Shield for Health */}
-              <span className="font-semibold">HP:</span>
-              <span>{card.health}</span>
-            </div>
-          )}
-          {typeof card.powerM === 'number' && (
-             <div className="flex items-center gap-1.5" title="Power M">
-              <Sparkles className="h-4 w-4 text-accent" />
-              <span className="font-semibold">Pwr(M):</span>
-              <span>{card.powerM}</span>
-            </div>
-          )}
-          <div className="flex items-center gap-1.5">
-            <Tag className="h-4 w-4 text-accent" />
-            <span className="font-semibold">Rarity:</span>
-            <span className="capitalize">{card.rarity}</span>
-          </div>
-        </div>
-
-        {card.description && card.description !== `Details for ${card.name}.` && (
-          <div>
-            <h4 className="font-semibold text-sm mb-1 flex items-center gap-1.5">
-              <BookText className="h-4 w-4 text-accent" />
-              Ability:
-            </h4>
-            <p className="text-xs text-muted-foreground leading-relaxed">{card.description}</p>
-          </div>
-        )}
-
-        {card.keywords && card.keywords.length > 0 && (
-          <div>
-            <h4 className="font-semibold text-sm mb-1">Keywords:</h4>
-            <div className="flex flex-wrap gap-1.5">
-              {card.keywords.map(keyword => (
-                <Badge key={keyword} variant="outline" className="text-xs">{keyword}</Badge>
-              ))}
-            </div>
-          </div>
-        )}
-      </CardContent>
-      <CardFooter className="p-4 border-t border-border/50 text-xs text-muted-foreground space-y-1 flex-col items-start">
-        {card.artist && (
-          <div className="flex items-center gap-1.5">
-            <Palette className="h-3.5 w-3.5" />
-            <span>Artist: {card.artist}</span>
-          </div>
-        )}
-        {card.id && ( // Using card.id as a fallback for cardNumber
-          <div className="flex items-center gap-1.5">
-            <Hash className="h-3.5 w-3.5" />
-            <span>ID: {card.id}</span>
-          </div>
-        )}
-      </CardFooter>
     </Card>
   );
 }
