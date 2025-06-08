@@ -5,27 +5,34 @@ import { useState, useEffect, useCallback } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import Image from 'next/image';
 import { Trash2, Save, X } from 'lucide-react';
-import type { AlteredCard, Deck } from '@/types';
-import { allCards as availableCardsData } from '@/data/cards';
-import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import type { AlteredCard } from '@/types';
+import { allCards as availableCardsData, cardTypesLookup, raritiesLookup } from '@/data/cards';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { useToast } from '@/hooks/use-toast';
 
 const deckFormats = ["Standard", "Legacy", "Commander", "Pauper", "Singleton", "Custom"] as const;
+
+// --- Deck Validation Rules ---
+const MIN_DECK_CARDS = 40; // Excluding Hero
+const MAX_DECK_CARDS = 60; // Excluding Hero
+const EXACT_HERO_COUNT = 1;
+const MAX_DUPLICATES_NON_HERO = 3;
+const MAX_DUPLICATES_HERO = 1; // Effectively handled by EXACT_HERO_COUNT
+const MAX_RARE_CARDS = 10; // Example limit for rare cards
 
 const deckFormSchema = z.object({
   name: z.string().min(1, "Deck name is required."),
   description: z.string().optional(),
   format: z.enum(deckFormats).optional(),
-  cardIds: z.array(z.string()).min(1, "A deck must contain at least one card."),
+  cardIds: z.array(z.string()).min(1, "A deck must contain at least one card (a Hero)."), // Hero is a card
 });
 
 export type DeckFormValues = z.infer<typeof deckFormSchema>;
@@ -39,6 +46,7 @@ interface DeckFormProps {
 
 export default function DeckForm({ onSubmit, initialData, isEditing, onCancel }: DeckFormProps) {
   const [selectedCards, setSelectedCards] = useState<AlteredCard[]>([]);
+  const { toast } = useToast();
   
   const form = useForm<DeckFormValues>({
     resolver: zodResolver(deckFormSchema),
@@ -59,22 +67,61 @@ export default function DeckForm({ onSubmit, initialData, isEditing, onCancel }:
     }
   }, [initialData]);
 
-  const handleCardToggle = useCallback((card: AlteredCard) => {
+  const handleCardToggle = useCallback((cardToAddOrRemove: AlteredCard) => {
     const currentCardIds = form.getValues('cardIds') || [];
-    const isSelected = currentCardIds.includes(card.id);
-    let newCardIds: string[];
-    let newSelectedCards: AlteredCard[];
+    const isCurrentlySelected = currentCardIds.includes(cardToAddOrRemove.id);
+    
+    let updatedCardIds: string[];
+    let updatedFullSelectedCards: AlteredCard[];
 
-    if (isSelected) {
-      newCardIds = currentCardIds.filter(id => id !== card.id);
-      newSelectedCards = selectedCards.filter(c => c.id !== card.id);
-    } else {
-      newCardIds = [...currentCardIds, card.id];
-      newSelectedCards = [...selectedCards, card];
+    if (isCurrentlySelected) { // Card is being removed
+      updatedCardIds = currentCardIds.filter(id => id !== cardToAddOrRemove.id);
+      updatedFullSelectedCards = selectedCards.filter(c => c.id !== cardToAddOrRemove.id);
+    } else { // Card is being added
+      const potentialSelectedCards = [...selectedCards, cardToAddOrRemove];
+      const nonHeroCardsInPotentialDeck = potentialSelectedCards.filter(c => c.type !== cardTypesLookup.HERO.name);
+
+      // Check Hero limit
+      if (cardToAddOrRemove.type === cardTypesLookup.HERO.name) {
+        const existingHeroes = selectedCards.filter(c => c.type === cardTypesLookup.HERO.name);
+        if (existingHeroes.length >= EXACT_HERO_COUNT) {
+          toast({ title: "Deck Rule Violation", description: `Cannot add more than ${EXACT_HERO_COUNT} Hero.`, variant: "destructive" });
+          return;
+        }
+      }
+
+      // Check Duplicate limit (for non-heroes)
+      if (cardToAddOrRemove.type !== cardTypesLookup.HERO.name) {
+        const existingCopies = selectedCards.filter(c => c.id === cardToAddOrRemove.id).length;
+        if (existingCopies >= MAX_DUPLICATES_NON_HERO) {
+          toast({ title: "Deck Rule Violation", description: `Cannot add more than ${MAX_DUPLICATES_NON_HERO} copies of "${cardToAddOrRemove.name}".`, variant: "destructive" });
+          return;
+        }
+      }
+      
+      // Check Rare card limit (for non-heroes)
+      if (cardToAddOrRemove.type !== cardTypesLookup.HERO.name && cardToAddOrRemove.rarity === raritiesLookup.RARE.name) {
+        const currentRareCount = nonHeroCardsInPotentialDeck.filter(c => c.rarity === raritiesLookup.RARE.name).length;
+        // If adding this card makes it currentRareCount + 1 (as it's not yet in selectedCards)
+        if ((selectedCards.filter(c => c.rarity === raritiesLookup.RARE.name && c.type !== cardTypesLookup.HERO.name).length + 1) > MAX_RARE_CARDS) {
+           toast({ title: "Deck Rule Violation", description: `Cannot add more than ${MAX_RARE_CARDS} Rare cards (excluding Hero).`, variant: "destructive" });
+           return;
+        }
+      }
+
+      // Check Max total card limit (excluding hero)
+      if (nonHeroCardsInPotentialDeck.length > MAX_DECK_CARDS) {
+         toast({ title: "Deck Rule Violation", description: `Deck cannot exceed ${MAX_DECK_CARDS} non-Hero cards.`, variant: "destructive" });
+         return;
+      }
+
+      updatedCardIds = [...currentCardIds, cardToAddOrRemove.id];
+      updatedFullSelectedCards = potentialSelectedCards;
     }
-    form.setValue('cardIds', newCardIds, { shouldValidate: true });
-    setSelectedCards(newSelectedCards);
-  }, [form, selectedCards]);
+    
+    form.setValue('cardIds', updatedCardIds, { shouldValidate: true });
+    setSelectedCards(updatedFullSelectedCards);
+  }, [form, selectedCards, toast]);
 
   const { watch } = form;
   const watchedCardIds = watch('cardIds', initialData?.cardIds || []);
@@ -86,10 +133,58 @@ export default function DeckForm({ onSubmit, initialData, isEditing, onCancel }:
     setSelectedCards(currentlySelectedCards);
   }, [watchedCardIds]);
 
+  const internalOnSubmit = (data: DeckFormValues) => {
+    const finalSelectedCards = data.cardIds
+        .map(id => availableCardsData.find(card => card.id === id))
+        .filter(Boolean) as AlteredCard[];
+    
+    const errors: string[] = [];
+
+    // 1. Hero check
+    const heroesInDeck = finalSelectedCards.filter(c => c.type === cardTypesLookup.HERO.name);
+    if (heroesInDeck.length !== EXACT_HERO_COUNT) {
+        errors.push(`Deck must contain exactly ${EXACT_HERO_COUNT} Hero. Found: ${heroesInDeck.length}.`);
+    }
+
+    const nonHeroCardsInDeck = finalSelectedCards.filter(c => c.type !== cardTypesLookup.HERO.name);
+
+    // 2. Total card count (non-Hero cards)
+    if (nonHeroCardsInDeck.length < MIN_DECK_CARDS || nonHeroCardsInDeck.length > MAX_DECK_CARDS) {
+        errors.push(`Deck must contain between ${MIN_DECK_CARDS} and ${MAX_DECK_CARDS} non-Hero cards. Found: ${nonHeroCardsInDeck.length}.`);
+    }
+
+    // 3. Duplicate check
+    const cardCounts: { [id: string]: { count: number, card: AlteredCard } } = {};
+    finalSelectedCards.forEach(card => {
+        cardCounts[card.id] = { count: (cardCounts[card.id]?.count || 0) + 1, card };
+    });
+
+    for (const cardId in cardCounts) {
+        const { count, card } = cardCounts[cardId];
+        const limit = card.type === cardTypesLookup.HERO.name ? MAX_DUPLICATES_HERO : MAX_DUPLICATES_NON_HERO;
+        if (count > limit) {
+            errors.push(`Too many copies of "${card.name}". Max allowed: ${limit}, Found: ${count}.`);
+        }
+    }
+
+    // 4. Rare card limit (for non-heroes)
+    const rareNonHeroCards = nonHeroCardsInDeck.filter(c => c.rarity === raritiesLookup.RARE.name);
+    if (rareNonHeroCards.length > MAX_RARE_CARDS) {
+        errors.push(`Too many Rare cards (excluding Hero). Max allowed: ${MAX_RARE_CARDS}, Found: ${rareNonHeroCards.length}.`);
+    }
+    
+    if (errors.length > 0) {
+        errors.forEach(err => toast({ title: "Deck Validation Error", description: err, variant: "destructive", duration: 5000 }));
+        return; 
+    }
+
+    onSubmit(data); // Call the prop onSubmit if all validations pass
+  };
+
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+      <form onSubmit={form.handleSubmit(internalOnSubmit)} className="space-y-8">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {/* Column 1: Deck Details & Selected Cards */}
           <div className="md:col-span-1 space-y-6">
@@ -143,7 +238,11 @@ export default function DeckForm({ onSubmit, initialData, isEditing, onCancel }:
             />
             <div>
               <h3 className="font-semibold mb-2 text-lg">Selected Cards ({selectedCards.length})</h3>
-              <ScrollArea className="h-[300px] md:h-[calc(100vh-450px)] border rounded-md p-2 bg-muted/30">
+               <p className="text-xs text-muted-foreground mb-2">
+                Non-Hero: {selectedCards.filter(c => c.type !== cardTypesLookup.HERO.name).length} (Min: {MIN_DECK_CARDS}, Max: {MAX_DECK_CARDS})<br/>
+                Rares (non-Hero): {selectedCards.filter(c => c.rarity === raritiesLookup.RARE.name && c.type !== cardTypesLookup.HERO.name).length} / {MAX_RARE_CARDS}
+              </p>
+              <ScrollArea className="h-[300px] md:h-[calc(100vh-550px)] border rounded-md p-2 bg-muted/30">
                 {selectedCards.length === 0 && (
                   <p className="text-sm text-muted-foreground p-4 text-center">
                     No cards selected yet. Add cards from the list on the right.
@@ -152,7 +251,7 @@ export default function DeckForm({ onSubmit, initialData, isEditing, onCancel }:
                 <div className="space-y-2">
                   {selectedCards.map(card => (
                     <div key={card.id} className="flex items-center justify-between p-2 bg-background rounded shadow">
-                      <span className="text-sm font-medium">{card.name}</span>
+                      <span className="text-sm font-medium">{card.name} ({card.type === cardTypesLookup.HERO.name ? 'Hero' : card.rarity})</span>
                       <Button variant="ghost" size="icon" type="button" onClick={() => handleCardToggle(card)} aria-label={`Remove ${card.name}`}>
                         <Trash2 className="h-4 w-4 text-destructive" />
                       </Button>
@@ -182,7 +281,7 @@ export default function DeckForm({ onSubmit, initialData, isEditing, onCancel }:
                       </div>
                     )}
                     <p className="text-xs font-medium truncate text-center mt-1">{card.name}</p>
-                    <p className="text-[10px] text-muted-foreground capitalize text-center truncate">{card.type}</p>
+                    <p className="text-[10px] text-muted-foreground capitalize text-center truncate">{card.type} - {card.rarity}</p>
                   </Card>
                 ))}
               </div>
@@ -202,4 +301,3 @@ export default function DeckForm({ onSubmit, initialData, isEditing, onCancel }:
     </Form>
   );
 }
-

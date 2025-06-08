@@ -6,7 +6,7 @@ import DeckForm, { type DeckFormValues } from '@/components/decks/DeckForm';
 import useLocalStorage from '@/hooks/useLocalStorage';
 import type { Deck, AlteredCard } from '@/types';
 import { useToast } from '@/hooks/use-toast';
-import { allCards } from '@/data/cards';
+import { allCards, cardTypesLookup } from '@/data/cards'; // Updated import
 
 const DECK_STORAGE_KEY = 'alterdeck-decks';
 
@@ -17,7 +17,7 @@ export default function CreateDeckPage() {
 
   const handleSubmit = (data: DeckFormValues) => {
     const now = new Date().toISOString();
-    const selectedCards: AlteredCard[] = data.cardIds
+    const selectedFullCards: AlteredCard[] = data.cardIds
       .map(id => allCards.find(card => card.id === id))
       .filter(Boolean) as AlteredCard[];
 
@@ -26,10 +26,10 @@ export default function CreateDeckPage() {
       name: data.name,
       description: data.description,
       format: data.format,
-      cards: selectedCards,
+      cards: selectedFullCards,
       createdAt: now,
       updatedAt: now,
-      hero: selectedCards.find(c => c.type === allCards.find(ac => ac.type === 'Héros')?.type), // Basic hero selection logic
+      hero: selectedFullCards.find(c => c.type === cardTypesLookup.HERO.name),
     };
 
     setDecks(prevDecks => [...prevDecks, newDeck]);

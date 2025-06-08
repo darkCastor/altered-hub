@@ -7,7 +7,7 @@ import DeckForm, { type DeckFormValues } from '@/components/decks/DeckForm';
 import useLocalStorage from '@/hooks/useLocalStorage';
 import type { Deck, AlteredCard } from '@/types';
 import { useToast } from '@/hooks/use-toast';
-import { allCards } from '@/data/cards';
+import { allCards, cardTypesLookup } from '@/data/cards'; // Updated import
 
 const DECK_STORAGE_KEY = 'alterdeck-decks';
 
@@ -28,12 +28,12 @@ export default function EditDeckPage() {
         setInitialDeckData({
           name: deckToEdit.name,
           description: deckToEdit.description || '',
-          format: deckToEdit.format as DeckFormValues['format'],
+          format: deckToEdit.format as DeckFormValues['format'], // Ensure format is included
           cardIds: deckToEdit.cards.map(c => c.id),
         });
       } else {
         toast({ title: "Error", description: "Deck not found.", variant: "destructive" });
-        router.replace('/decks'); // Use replace to avoid adding a bad route to history
+        router.replace('/decks'); 
       }
     }
     setIsLoading(false);
@@ -41,7 +41,7 @@ export default function EditDeckPage() {
 
   const handleSubmit = (data: DeckFormValues) => {
     const now = new Date().toISOString();
-    const selectedCards: AlteredCard[] = data.cardIds
+    const selectedFullCards: AlteredCard[] = data.cardIds
       .map(id => allCards.find(card => card.id === id))
       .filter(Boolean) as AlteredCard[];
 
@@ -51,10 +51,10 @@ export default function EditDeckPage() {
             ...d, 
             name: data.name, 
             description: data.description, 
-            format: data.format,
-            cards: selectedCards, 
+            format: data.format, // Save the format
+            cards: selectedFullCards, 
             updatedAt: now,
-            hero: selectedCards.find(c => c.type === allCards.find(ac => ac.type === 'Héros')?.type), // Basic hero selection logic
+            hero: selectedFullCards.find(c => c.type === cardTypesLookup.HERO.name),
           }
         : d
     );
