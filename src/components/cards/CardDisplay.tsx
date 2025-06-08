@@ -44,13 +44,12 @@ export default function CardDisplay({ card, className, onStartNewDeck }: CardDis
       </CardHeader>
       
       <Button
-        variant="secondary"
-        size="sm"
+        variant="ghost" // Changed to ghost for a more overlay-like feel
         onClick={handleButtonClick}
-        className="absolute right-2 top-1/2 transform -translate-y-1/2 p-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 ease-in-out z-30 scale-[66.67%] group-hover:scale-[66.67%]"
+        className="absolute bottom-2 right-2 h-14 w-14 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 ease-in-out z-30"
         aria-label={`Start new deck with ${card.name}`}
       >
-        <Plus className="h-4 w-4" /> 
+        <Plus className="h-8 w-8" /> 
       </Button>
     </Card>
   );
