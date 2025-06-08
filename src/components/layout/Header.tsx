@@ -5,9 +5,7 @@ import { Button } from '@/components/ui/button';
 const navItems = [
   { href: '/cards', label: 'Card Viewer' },
   { href: '/decks', label: 'Deck Builder' },
-  { href: '/looks', label: 'Look Cards' },
   { href: '/ai-advisor', label: 'AI Deck Advisor' },
-  { href: '/ai-look-suggester', label: 'AI Look Suggestion' },
 ];
 
 export default function Header() {

@@ -34,15 +34,6 @@ export interface Deck {
   format?: string; // Added format field
 }
 
-export interface Look {
-  id: string;
-  name: string;
-  description?: string;
-  cards: AlteredCard[]; 
-  createdAt: string; 
-  updatedAt: string; 
-}
-
 export interface CardInCollection {
   card: AlteredCard;
   quantity: number;
@@ -55,12 +46,4 @@ export interface DeckListItem {
   updatedAt: string;
   heroImageUrl?: string;
   format?: string; // Optionally add format here if you want to display it on the list
-}
-
-export interface LookListItem {
-  id: string;
-  name: string;
-  cardCount: number;
-  updatedAt: string;
-  previewImageUrls?: string[];
 }
