@@ -11,9 +11,16 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import Image from 'next/image';
 import { XCircle, Search, Loader2 } from 'lucide-react';
+import { useRouter } from 'next/navigation'; // Import useRouter
+import { useToast } from '@/hooks/use-toast'; // Import useToast
+import useLocalStorage from '@/hooks/useLocalStorage'; // Import useLocalStorage
+import type { Deck } from '@/types'; // Import Deck type
+import { cardTypesLookup } from '@/data/cards'; // Import cardTypesLookup
 
 const ALL_OPTION = "all";
 const CARDS_PER_LOAD = 20; // Number of cards to load at a time
+const DECK_STORAGE_KEY = 'alterdeck-decks'; // For saving new decks
+
 
 export default function CardViewerPage() {
   const [cards, setCards] = useState<AlteredCard[]>([]);
@@ -25,6 +32,10 @@ export default function CardViewerPage() {
   const [displayCount, setDisplayCount] = useState<number>(CARDS_PER_LOAD);
   const [isLoadingMore, setIsLoadingMore] = useState<boolean>(false);
   const observerRef = useRef<HTMLDivElement | null>(null);
+
+  const router = useRouter(); // Initialize useRouter
+  const { toast } = useToast(); // Initialize useToast
+  const [decks, setDecks] = useLocalStorage<Deck[]>(DECK_STORAGE_KEY, []); // For managing decks
 
   useEffect(() => {
     setCards(allCards);
@@ -108,6 +119,38 @@ export default function CardViewerPage() {
     setSelectedRarity(ALL_OPTION);
   };
 
+  const handleStartNewDeck = (card: AlteredCard) => {
+    const now = new Date().toISOString();
+    const newDeck: Deck = {
+      id: `deck-${Date.now()}`,
+      name: `Deck with ${card.name}`,
+      description: `A new deck started with ${card.name}.`,
+      cards: [card],
+      createdAt: now,
+      updatedAt: now,
+      hero: card.type === cardTypesLookup.HERO.name ? card : undefined,
+      faction: card.type === cardTypesLookup.HERO.name ? card.faction : undefined, 
+      format: "Standard", // Default format, can be changed in edit page
+    };
+
+    // Validate if the selected card is a Hero if it's the only card
+    if (newDeck.cards.length === 1 && newDeck.cards[0].type !== cardTypesLookup.HERO.name) {
+      // If it's not a Hero, we might allow starting the deck but flag it,
+      // or prompt the user, or automatically add a default hero etc.
+      // For now, let's allow it and user can fix in edit.
+      // Alternatively, only allow starting with a hero:
+      // if (card.type !== cardTypesLookup.HERO.name) {
+      //   toast({ title: "Cannot Start Deck", description: "Please select a Hero card to start a new deck.", variant: "destructive"});
+      //   return;
+      // }
+    }
+    
+    setDecks(prevDecks => [...prevDecks, newDeck]);
+    toast({ title: "Deck Started", description: `New deck with "${card.name}" created. Editing now...` });
+    router.push(`/decks/edit/${newDeck.id}`);
+  };
+
+
   return (
     <div className="space-y-8">
       <section className="text-center">
@@ -167,7 +210,7 @@ export default function CardViewerPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
           {cardsToShow.map(card => (
             <div key={card.id} onClick={() => setSelectedCard(card)}>
-              <CardDisplay card={card} />
+              <CardDisplay card={card} onStartNewDeck={handleStartNewDeck} />
             </div>
           ))}
         </div>
@@ -199,7 +242,7 @@ export default function CardViewerPage() {
             onClick={(e) => e.stopPropagation()}
             className="max-w-md w-full bg-card rounded-lg shadow-2xl overflow-hidden"
           >
-             <CardDisplay card={selectedCard} />
+             <CardDisplay card={selectedCard} onStartNewDeck={handleStartNewDeck} />
              <h2 id="card-details-title" className="sr-only">{selectedCard.name} Details</h2>
           </div>
           <Button variant="ghost" size="icon" className="absolute top-4 right-4 text-white hover:text-primary" onClick={() => setSelectedCard(null)} aria-label="Close card details">
