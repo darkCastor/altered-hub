@@ -3,7 +3,7 @@ import type { AlteredCard } from '@/types';
 import Image from 'next/image';
 import { Card, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Plus } from 'lucide-react'; // Changed from PlusSquare
+import { Plus } from 'lucide-react';
 
 interface CardDisplayProps {
   card: AlteredCard;
@@ -45,9 +45,9 @@ export default function CardDisplay({ card, className, onStartNewDeck }: CardDis
       
       <Button
         variant="secondary"
-        size="sm" // Kept sm size, could be "icon" if preferred but sm is smaller for an icon only button
+        size="sm"
         onClick={handleButtonClick}
-        className="absolute top-2 right-2 p-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 ease-in-out z-30 transform scale-[66.67%] group-hover:scale-[66.67%]"
+        className="absolute right-2 top-1/2 transform -translate-y-1/2 p-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 ease-in-out z-30 scale-[66.67%] group-hover:scale-[66.67%]"
         aria-label={`Start new deck with ${card.name}`}
       >
         <Plus className="h-4 w-4" /> 
