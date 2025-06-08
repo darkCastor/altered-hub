@@ -10,9 +10,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import Image from 'next/image';
-import { XCircle, Search, LayoutGrid, List } from 'lucide-react';
+import { XCircle, Search, LayoutGrid, List, Loader2 } from 'lucide-react';
 
 const ALL_OPTION = "all";
+const CARDS_PER_LOAD = 20; // Number of cards to load at a time
 
 export default function CardViewerPage() {
   const [cards, setCards] = useState<AlteredCard[]>([]);
@@ -22,6 +23,8 @@ export default function CardViewerPage() {
   const [selectedRarity, setSelectedRarity] = useState<string>(ALL_OPTION);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [selectedCard, setSelectedCard] = useState<AlteredCard | null>(null);
+  const [displayCount, setDisplayCount] = useState<number>(CARDS_PER_LOAD);
+  const [isLoadingMore, setIsLoadingMore] = useState<boolean>(false);
 
   useEffect(() => {
     setCards(mockCards);
@@ -55,11 +58,31 @@ export default function CardViewerPage() {
     });
   }, [cards, searchTerm, selectedFaction, selectedType, selectedRarity]);
 
+  // Reset display count when filters change
+  useEffect(() => {
+    setDisplayCount(CARDS_PER_LOAD);
+  }, [searchTerm, selectedFaction, selectedType, selectedRarity]);
+
+
+  const cardsToShow = useMemo(() => {
+    return filteredCards.slice(0, displayCount);
+  }, [filteredCards, displayCount]);
+
+  const handleLoadMore = () => {
+    setIsLoadingMore(true);
+    // Simulate a delay for loading more cards if needed, or just update count
+    setTimeout(() => {
+      setDisplayCount(prevCount => Math.min(prevCount + CARDS_PER_LOAD, filteredCards.length));
+      setIsLoadingMore(false);
+    }, 300); // Adjust delay as needed, or remove for instant load
+  };
+
   const clearFilters = () => {
     setSearchTerm('');
     setSelectedFaction(ALL_OPTION);
     setSelectedType(ALL_OPTION);
     setSelectedRarity(ALL_OPTION);
+    //setDisplayCount(CARDS_PER_LOAD); // Already handled by useEffect on filter change
   };
 
   return (
@@ -125,24 +148,24 @@ export default function CardViewerPage() {
         </CardContent>
       </Card>
 
-      {filteredCards.length > 0 ? (
+      {cardsToShow.length > 0 ? (
         viewMode === 'grid' ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
-            {filteredCards.map(card => (
+            {cardsToShow.map(card => (
               <CardDisplay key={card.id} card={card} />
             ))}
           </div>
         ) : (
-          <div className="space-y-4">
-            {filteredCards.map(card => (
+          <div className="space-y-2">
+            {cardsToShow.map(card => (
               <Card key={card.id} className="p-2 flex items-center justify-between gap-2 hover:shadow-md transition-shadow">
                 <Image
-                  src={card.imageUrl || 'https://placehold.co/100x140.png'}
-                  alt="Altered TCG Card"
+                  src={card.imageUrl || 'https://placehold.co/75x105.png'}
+                  alt={card.name || 'Altered TCG Card'}
                   width={75}
                   height={105}
                   className="rounded object-cover"
-                  data-ai-hint={card.name.toLowerCase().split(' ').slice(0,2).join(' ')}
+                  data-ai-hint={card.name ? card.name.toLowerCase().split(' ').slice(0,2).join(' ') : 'card game'}
                 />
                 <Button variant="outline" size="sm" onClick={() => setSelectedCard(card)}>View</Button>
               </Card>
@@ -152,6 +175,21 @@ export default function CardViewerPage() {
       ) : (
         <div className="text-center py-12">
           <p className="text-xl text-muted-foreground">No cards match your criteria.</p>
+        </div>
+      )}
+
+      {filteredCards.length > displayCount && (
+        <div className="flex justify-center mt-8">
+          <Button onClick={handleLoadMore} disabled={isLoadingMore} variant="outline" className="border-primary text-primary hover:bg-primary/10">
+            {isLoadingMore ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Loading...
+              </>
+            ) : (
+              'Load More Cards'
+            )}
+          </Button>
         </div>
       )}
 
