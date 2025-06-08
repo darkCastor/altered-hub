@@ -3,14 +3,14 @@
 
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import type { AlteredCard } from '@/types';
-import { allCards } from '@/data/cards'; // Updated import
+import { allCards } from '@/data/cards';
 import CardDisplay from '@/components/cards/CardDisplay';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import Image from 'next/image';
-import { XCircle, Search, LayoutGrid, List, Loader2 } from 'lucide-react';
+import { XCircle, Search, Loader2 } from 'lucide-react';
 
 const ALL_OPTION = "all";
 const CARDS_PER_LOAD = 20; // Number of cards to load at a time
@@ -21,14 +21,13 @@ export default function CardViewerPage() {
   const [selectedFaction, setSelectedFaction] = useState<string>(ALL_OPTION);
   const [selectedType, setSelectedType] = useState<string>(ALL_OPTION);
   const [selectedRarity, setSelectedRarity] = useState<string>(ALL_OPTION);
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [selectedCard, setSelectedCard] = useState<AlteredCard | null>(null);
   const [displayCount, setDisplayCount] = useState<number>(CARDS_PER_LOAD);
   const [isLoadingMore, setIsLoadingMore] = useState<boolean>(false);
   const observerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    setCards(allCards); // Use allCards here
+    setCards(allCards);
   }, []);
 
   const factions = useMemo(() => {
@@ -156,48 +155,22 @@ export default function CardViewerPage() {
               </SelectContent>
             </Select>
           </div>
-          <div className="flex justify-between items-center">
+          <div className="flex justify-start items-center">
             <Button variant="ghost" onClick={clearFilters} className="text-muted-foreground hover:text-primary">
               <XCircle className="mr-2 h-4 w-4" /> Clear Filters
             </Button>
-            <div className="flex gap-2">
-              <Button variant={viewMode === 'grid' ? 'default' : 'outline'} size="icon" onClick={() => setViewMode('grid')} aria-label="Grid view">
-                <LayoutGrid className="h-5 w-5" />
-              </Button>
-              <Button variant={viewMode === 'list' ? 'default' : 'outline'} size="icon" onClick={() => setViewMode('list')} aria-label="List view">
-                <List className="h-5 w-5" />
-              </Button>
-            </div>
           </div>
         </CardContent>
       </Card>
 
       {cardsToShow.length > 0 ? (
-        viewMode === 'grid' ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
-            {cardsToShow.map(card => (
-              <CardDisplay key={card.id} card={card} />
-            ))}
-          </div>
-        ) : (
-           <div className="space-y-1">
-            {cardsToShow.map(card => (
-              <Card key={card.id} className="p-2 flex items-center justify-between gap-2 hover:shadow-md transition-shadow min-h-[100px]">
-                <div className="flex-shrink-0 w-[60px] h-[84px] relative">
-                  <Image
-                    src={card.imageUrl || 'https://placehold.co/60x84.png'}
-                    alt={'Altered TCG Card'}
-                    fill
-                    sizes="(max-width: 768px) 60px, 60px"
-                    className="rounded object-cover"
-                    data-ai-hint={card.name ? card.name.toLowerCase().split(' ').slice(0,2).join(' ') : 'card game'}
-                  />
-                </div>
-                <Button variant="outline" size="sm" onClick={() => setSelectedCard(card)}>View</Button>
-              </Card>
-            ))}
-          </div>
-        )
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+          {cardsToShow.map(card => (
+            <div key={card.id} onClick={() => setSelectedCard(card)}>
+              <CardDisplay card={card} />
+            </div>
+          ))}
+        </div>
       ) : (
         <div className="text-center py-12">
           <p className="text-xl text-muted-foreground">No cards match your criteria.</p>
