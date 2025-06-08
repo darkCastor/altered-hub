@@ -44,9 +44,9 @@ export default function CardDisplay({ card, className, onStartNewDeck }: CardDis
       </CardHeader>
       
       <Button
-        variant="ghost" 
+        variant="default" 
         onClick={handleButtonClick}
-        className="absolute bottom-[18px] right-2 h-14 w-14 flex items-center justify-center transition-opacity duration-200 ease-in-out z-30"
+        className="absolute bottom-[18px] right-2 h-14 w-14 flex items-center justify-center z-30"
         aria-label={`Start new deck with ${card.name}`}
       >
         <Plus className="h-8 w-8" /> 
