@@ -58,6 +58,16 @@ const processedCards: AlteredCard[] = Object.entries(typedRawCardData.cards).map
   const rarityInfo = typedRawCardData.lookup_tables.rarities[rawCard.rarity_ref];
   const rarity = rarityInfo ? rarityInfo.name : rawCard.rarity_ref;
 
+  // Attempt to generate a basic description if one is not provided
+  let description = rawCard.description;
+  if (!description && type !== typedRawCardData.lookup_tables.card_types.TOKEN_MANA?.name && type !== typedRawCardData.lookup_tables.card_types.FOILER?.name) {
+    // description = `This is ${rawCard.name}, a ${rarity} ${type} card${faction ? ` of the ${faction} faction` : ''}.`;
+    // For now, we'll leave it undefined if not present in JSON, as per previous behavior.
+    // If specific auto-generation rules are needed, they can be added here.
+  }
+  
+  const keywords = rawCard.keywords || [];
+
   return {
     id,
     name: rawCard.name,
@@ -72,18 +82,18 @@ const processedCards: AlteredCard[] = Object.entries(typedRawCardData.cards).map
     attack: rawCard.power?.o,
     health: rawCard.power?.f,
     powerM: rawCard.power?.m,
-    description: rawCard.description,
+    description,
     flavorText: rawCard.flavorText,
     artist: rawCard.artist,
     cardNumber: rawCard.card_number,
-    keywords: rawCard.keywords,
+    keywords,
   };
 });
 
-export const mockCards: AlteredCard[] = processedCards;
+export const allCards: AlteredCard[] = processedCards;
 
 export const getCardById = (id: string): AlteredCard | undefined => {
-  return mockCards.find(card => card.id === id);
+  return allCards.find(card => card.id === id);
 };
 
 export const factionsLookup = typedRawCardData.lookup_tables.factions;

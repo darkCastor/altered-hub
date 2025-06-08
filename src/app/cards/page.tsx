@@ -3,7 +3,7 @@
 
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import type { AlteredCard } from '@/types';
-import { mockCards } from '@/data/mockCards';
+import { allCards } from '@/data/cards'; // Updated import
 import CardDisplay from '@/components/cards/CardDisplay';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -28,7 +28,7 @@ export default function CardViewerPage() {
   const observerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    setCards(mockCards);
+    setCards(allCards); // Use allCards here
   }, []);
 
   const factions = useMemo(() => {
@@ -71,10 +71,10 @@ export default function CardViewerPage() {
     if (isLoadingMore || displayCount >= filteredCards.length) return;
 
     setIsLoadingMore(true);
-    setTimeout(() => { // Simulate network delay or processing time
+    setTimeout(() => { 
       setDisplayCount(prevCount => Math.min(prevCount + CARDS_PER_LOAD, filteredCards.length));
       setIsLoadingMore(false);
-    }, 500); // Adjust delay as needed
+    }, 500); 
   }, [isLoadingMore, displayCount, filteredCards.length]);
 
   useEffect(() => {
@@ -86,7 +86,7 @@ export default function CardViewerPage() {
       },
       { 
         threshold: 1.0,
-        rootMargin: "0px 0px 300px 0px" // Trigger 300px before the element is fully in view from the bottom
+        rootMargin: "0px 0px 300px 0px" 
       } 
     );
 
@@ -180,17 +180,19 @@ export default function CardViewerPage() {
             ))}
           </div>
         ) : (
-          <div className="space-y-1">
+           <div className="space-y-1">
             {cardsToShow.map(card => (
-              <Card key={card.id} className="p-2 flex items-center justify-between gap-2 hover:shadow-md transition-shadow">
-                 <Image
-                  src={card.imageUrl || 'https://placehold.co/75x105.png'}
-                  alt={card.name || 'Altered TCG Card'}
-                  width={60} // Slightly smaller for list view
-                  height={84}
-                  className="rounded object-cover"
-                  data-ai-hint={card.name ? card.name.toLowerCase().split(' ').slice(0,2).join(' ') : 'card game'}
-                />
+              <Card key={card.id} className="p-2 flex items-center justify-between gap-2 hover:shadow-md transition-shadow min-h-[100px]">
+                <div className="flex-shrink-0 w-[60px] h-[84px] relative">
+                  <Image
+                    src={card.imageUrl || 'https://placehold.co/60x84.png'}
+                    alt={'Altered TCG Card'}
+                    fill
+                    sizes="(max-width: 768px) 60px, 60px"
+                    className="rounded object-cover"
+                    data-ai-hint={card.name ? card.name.toLowerCase().split(' ').slice(0,2).join(' ') : 'card game'}
+                  />
+                </div>
                 <Button variant="outline" size="sm" onClick={() => setSelectedCard(card)}>View</Button>
               </Card>
             ))}
@@ -202,12 +204,10 @@ export default function CardViewerPage() {
         </div>
       )}
 
-      {/* Intersection Observer Trigger: only render if there are more cards to load */}
       {filteredCards.length > displayCount && !isLoadingMore && (
         <div ref={observerRef} style={{ height: '50px', marginTop: '20px' }} aria-hidden="true" />
       )}
 
-      {/* Loading indicator at the bottom */}
       {isLoadingMore && (
         <div className="flex justify-center py-8">
           <Loader2 className="h-10 w-10 text-primary animate-spin" />

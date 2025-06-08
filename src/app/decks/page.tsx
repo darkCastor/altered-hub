@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -10,7 +11,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { mockCards } from '@/data/mockCards'; // For adding cards to deck
+import { allCards } from '@/data/cards'; // Updated import
 import { ScrollArea } from '@/components/ui/scroll-area';
 import Image from 'next/image';
 import { useToast } from '@/hooks/use-toast';
@@ -112,7 +113,7 @@ export default function DeckBuilderPage() {
 
 
   if (!isMounted) {
-    return <div className="text-center p-10">Loading decks...</div>; // Or a skeleton loader
+    return <div className="text-center p-10">Loading decks...</div>; 
   }
 
   return (
@@ -236,7 +237,7 @@ export default function DeckBuilderPage() {
               <h3 className="font-semibold mb-2">Available Cards</h3>
               <ScrollArea className="h-full border rounded-md p-2">
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                {mockCards.map(card => (
+                {allCards.map(card => ( // Use allCards here
                   <Card 
                     key={card.id} 
                     onClick={() => handleCardToggle(card)}

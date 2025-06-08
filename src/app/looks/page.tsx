@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -9,7 +10,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { mockCards } from '@/data/mockCards';
+import { allCards } from '@/data/cards'; // Updated import
 import { ScrollArea } from '@/components/ui/scroll-area';
 import Image from 'next/image';
 import { useToast } from '@/hooks/use-toast';
@@ -63,7 +64,6 @@ export default function LookCardsPage() {
       if (isSelected) {
         return prev.filter(c => c.id !== card.id);
       } else {
-        // For "looks", maybe limit the number of cards? For now, no limit.
         return [...prev, card];
       }
     });
@@ -240,7 +240,7 @@ export default function LookCardsPage() {
               <h3 className="font-semibold mb-2">Available Cards</h3>
               <ScrollArea className="h-full border rounded-md p-2">
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 gap-2">
-                {mockCards.map(card => (
+                {allCards.map(card => ( // Use allCards here
                   <Card 
                     key={card.id} 
                     onClick={() => handleCardToggle(card)}
