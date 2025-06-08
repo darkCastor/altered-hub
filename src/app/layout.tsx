@@ -1,12 +1,43 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { Toaster } from "@/components/ui/toaster";
 import AppLayout from '@/components/layout/AppLayout';
 
+const APP_NAME = "AlterDeck";
+const APP_DEFAULT_TITLE = "AlterDeck";
+const APP_TITLE_TEMPLATE = "%s - AlterDeck";
+const APP_DESCRIPTION = "Play, create decks, and look cards online and offline for Altered TCG.";
+
 export const metadata: Metadata = {
-  title: 'AlterDeck',
-  description: 'Play, create decks, and look cards online and offline for Altered TCG.',
+  applicationName: APP_NAME,
+  title: {
+    default: APP_DEFAULT_TITLE,
+    template: APP_TITLE_TEMPLATE,
+  },
+  description: APP_DESCRIPTION,
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: APP_DEFAULT_TITLE,
+    // startUpImage: [], // You can add startup images here
+  },
+  formatDetection: {
+    telephone: false,
+  },
+  // openGraph, // Add openGraph metadata if needed
+  // twitter, // Add twitter metadata if needed
 };
+
+export const viewport: Viewport = {
+  themeColor: "#9F5AFF", // Matches theme_color in manifest.json
+  width: 'device-width',
+  initialScale: 1,
+  minimumScale: 1,
+  maximumScale: 1, // Consider allowing zoom if accessibility is a concern
+  // userScalable: false, // Can set to true if you want to allow zoom
+};
+
 
 export default function RootLayout({
   children,
