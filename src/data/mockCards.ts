@@ -1,168 +1,111 @@
+
 import type { AlteredCard } from '@/types';
+import cardDataJson from './altered_optimized.json';
 
-export const mockCards: AlteredCard[] = [
-  {
-    id: 'card-001',
-    name: 'Forest Guardian',
-    imageUrl: 'https://placehold.co/300x420.png?text=Forest+Guardian',
-    type: 'Character',
-    rarity: 'Common',
-    faction: 'Muna',
-    cost: 3,
-    attack: 2,
-    health: 4,
-    description: 'When this character enters play, draw a card.',
-    flavorText: 'The ancient woods whisper secrets to those who listen.',
-    artist: 'Jane Doe',
-    cardNumber: '001/250',
-    keywords: ['Taunt'],
-  },
-  {
-    id: 'card-002',
-    name: 'Fireball',
-    imageUrl: 'https://placehold.co/300x420.png?text=Fireball',
-    type: 'Spell',
-    rarity: 'Rare',
-    faction: 'Ordis',
-    cost: 4,
-    description: 'Deal 5 damage to any target.',
-    flavorText: 'Some problems just need a bit of heat.',
-    artist: 'John Smith',
-    cardNumber: '002/250',
-    keywords: ['Direct Damage'],
-  },
-  {
-    id: 'card-003',
-    name: 'Sky Temple',
-    imageUrl: 'https://placehold.co/300x420.png?text=Sky+Temple',
-    type: 'Location',
-    rarity: 'Epic',
-    faction: 'Yzmir',
-    cost: 5,
-    description: 'At the start of your turn, gain 1 mana crystal this turn only.',
-    flavorText: 'Floating among the clouds, a beacon of power.',
-    artist: 'Alice Green',
-    cardNumber: '003/250',
-    keywords: ['Mana Ramp'],
-  },
-  {
-    id: 'card-004',
-    name: 'Shadow Assassin',
-    imageUrl: 'https://placehold.co/300x420.png?text=Shadow+Assassin',
-    type: 'Character',
-    rarity: 'Unique',
-    faction: 'Ordis',
-    cost: 6,
-    attack: 5,
-    health: 3,
-    description: 'Stealth. When this character attacks and destroys a character, draw two cards.',
-    flavorText: 'Gone before you knew they were there.',
-    artist: 'Bob White',
-    cardNumber: '004/250',
-    keywords: ['Stealth', 'Card Draw'],
-  },
-  {
-    id: 'card-005',
-    name: 'Muna Pathfinder',
-    imageUrl: 'https://placehold.co/300x420.png?text=Muna+Pathfinder',
-    type: 'Character',
-    rarity: 'Common',
-    faction: 'Muna',
-    cost: 2,
-    attack: 1,
-    health: 2,
-    description: 'When this character enters play, you may search your deck for a basic land card and put it into your hand.',
-    flavorText: 'Every path leads to discovery.',
-    artist: 'Carol Black',
-    cardNumber: '005/250',
-    keywords: ['Search', 'Land'],
-  },
-  {
-    id: 'card-006',
-    name: 'Yzmir Scholar',
-    imageUrl: 'https://placehold.co/300x420.png?text=Yzmir+Scholar',
-    type: 'Character',
-    rarity: 'Rare',
-    faction: 'Yzmir',
-    cost: 3,
-    attack: 1,
-    health: 4,
-    description: 'Spell cards you play cost (1) less.',
-    flavorText: 'Knowledge is the sharpest blade.',
-    artist: 'David Blue',
-    cardNumber: '006/250',
-    keywords: ['Cost Reduction', 'Spell'],
-  },
-  {
-    id: 'card-007',
-    name: 'Ordis Berserker',
-    imageUrl: 'https://placehold.co/300x420.png?text=Ordis+Berserker',
-    type: 'Character',
-    rarity: 'Common',
-    faction: 'Ordis',
-    cost: 4,
-    attack: 5,
-    health: 2,
-    description: 'Rush (Can attack the turn it is played).',
-    flavorText: 'Fury incarnate.',
-    artist: 'Eve Red',
-    cardNumber: '007/250',
-    keywords: ['Rush'],
-  },
-  {
-    id: 'card-008',
-    name: 'Healing Spring',
-    imageUrl: 'https://placehold.co/300x420.png?text=Healing+Spring',
-    type: 'Spell',
-    rarity: 'Common',
-    faction: 'Muna',
-    cost: 2,
-    description: 'Restore 4 health to a target character or hero.',
-    flavorText: 'Nature\'s gentle touch.',
-    artist: 'Frank Gold',
-    cardNumber: '008/250',
-    keywords: ['Heal'],
-  },
-  {
-    id: 'card-009',
-    name: 'Ancient Tome',
-    imageUrl: 'https://placehold.co/300x420.png?text=Ancient+Tome',
-    type: 'Item',
-    rarity: 'Epic',
-    cost: 3,
-    description: 'Tap: Draw a card, then discard a card.',
-    flavorText: 'Pages filled with forgotten lore.',
-    artist: 'Grace Silver',
-    cardNumber: '009/250',
-    keywords: ['Card Draw', 'Discard'],
-  },
-  {
-    id: 'card-010',
-    name: 'Mountain Giant',
-    imageUrl: 'https://placehold.co/300x420.png?text=Mountain+Giant',
-    type: 'Character',
-    rarity: 'Rare',
-    faction: 'Yzmir',
-    cost: 8,
-    attack: 8,
-    health: 8,
-    description: 'Costs (1) less for each other character you control.',
-    flavorText: 'Awakened from a stone slumber.',
-    artist: 'Hank Bronze',
-    cardNumber: '010/250',
-    keywords: ['Cost Reduction'],
-  }
-];
+// Type assertion for the imported JSON structure
+interface AlteredJsonData {
+  lookup_tables: {
+    rarities: Record<string, { name: string }>;
+    factions: Record<string, { name: string; color: string }>;
+    card_types: Record<string, { name: string }>;
+  };
+  cards: Record<string, RawCardData>;
+}
 
-// Add data-ai-hint to image URLs
-mockCards.forEach(card => {
-  if (card.imageUrl && card.imageUrl.startsWith('https://placehold.co/')) {
-    const hintText = card.name.toLowerCase().split(' ').slice(0, 2).join(' ');
-    card.imageUrl = card.imageUrl.replace('.png', `.png?text=${encodeURIComponent(card.name)}`); // Keep text for clarity
-    // The next/image component will handle adding data-ai-hint if this was an actual Image component prop
-    // For now, this structure is for the data itself.
-    // If we directly use this URL in an <img src>, the data-ai-hint would be a sibling attribute.
-    // For this mock data, let's add a property to the object itself for the AI hint.
-    (card as any)['dataAiHint'] = hintText;
-  }
+interface RawCardData {
+  name: string;
+  type_ref: string;
+  faction_ref?: string;
+  rarity_ref: string;
+  image_path?: string;
+  qr_url?: string;
+  main_cost?: number;
+  recall_cost?: number;
+  power?: {
+    m?: number;
+    o?: number;
+    f?: number;
+  };
+  description?: string; // Keep if it might appear
+  keywords?: string[]; // Keep if it might appear
+  artist?: string; // Keep if it might appear
+}
+
+const rawData = cardDataJson as AlteredJsonData;
+const lookupTables = rawData.lookup_tables;
+const rawCardsData = rawData.cards;
+
+export const mockCards: AlteredCard[] = Object.keys(rawCardsData).map((cardId): AlteredCard => {
+  const rawCard = rawCardsData[cardId];
+  
+  const factionName = rawCard.faction_ref && lookupTables.factions[rawCard.faction_ref] 
+    ? lookupTables.factions[rawCard.faction_ref].name 
+    : undefined;
+  const factionColor = rawCard.faction_ref && lookupTables.factions[rawCard.faction_ref]
+    ? lookupTables.factions[rawCard.faction_ref].color
+    : undefined;
+  
+  const cardTypeName = lookupTables.card_types[rawCard.type_ref] 
+    ? lookupTables.card_types[rawCard.type_ref].name 
+    : 'Unknown Type';
+    
+  const rarityName = lookupTables.rarities[rawCard.rarity_ref]
+    ? lookupTables.rarities[rawCard.rarity_ref].name
+    : 'Unknown Rarity';
+
+  // Placeholder/fallback for description and keywords if not present
+  const description = rawCard.description || `Details for ${rawCard.name}.`;
+  const keywords = rawCard.keywords || [];
+
+  return {
+    id: cardId,
+    name: rawCard.name,
+    imageUrl: rawCard.image_path,
+    qrUrl: rawCard.qr_url,
+    type: cardTypeName,
+    faction: factionName,
+    factionColor: factionColor,
+    rarity: rarityName,
+    cost: rawCard.main_cost,
+    recallCost: rawCard.recall_cost,
+    attack: rawCard.power ? rawCard.power.o : undefined,
+    health: rawCard.power ? rawCard.power.f : undefined,
+    powerM: rawCard.power ? rawCard.power.m : undefined,
+    description: description, 
+    keywords: keywords,
+    artist: rawCard.artist || undefined,
+    // cardNumber could be derived or use cardId if needed elsewhere
+  };
 });
+
+// Example of a few hardcoded mock cards if the JSON is empty or for testing specific cases
+// This part can be removed if altered_optimized.json is always populated and sufficient
+if (mockCards.length === 0) {
+  // Fallback to a minimal set if JSON processing yields no cards
+  mockCards.push(
+    {
+      id: 'fallback-card-1',
+      name: 'Fallback Card Alpha',
+      type: 'Character',
+      rarity: 'Common',
+      faction: 'Neutral',
+      cost: 1,
+      attack: 1,
+      health: 1,
+      description: 'A basic fallback card.',
+      imageUrl: 'https://placehold.co/300x420.png?text=Alpha',
+      keywords: ['Fallback'],
+    },
+    {
+      id: 'fallback-card-2',
+      name: 'Fallback Card Beta',
+      type: 'Spell',
+      rarity: 'Rare',
+      faction: 'Neutral',
+      cost: 2,
+      description: 'A fallback spell.',
+      imageUrl: 'https://placehold.co/300x420.png?text=Beta',
+      keywords: ['Spell', 'Fallback'],
+    }
+  );
+}
