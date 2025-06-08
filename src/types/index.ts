@@ -31,6 +31,7 @@ export interface Deck {
   updatedAt: string; 
   hero?: AlteredCard; 
   faction?: string;
+  format?: string; // Added format field
 }
 
 export interface Look {
@@ -53,6 +54,7 @@ export interface DeckListItem {
   cardCount: number;
   updatedAt: string;
   heroImageUrl?: string;
+  format?: string; // Optionally add format here if you want to display it on the list
 }
 
 export interface LookListItem {
