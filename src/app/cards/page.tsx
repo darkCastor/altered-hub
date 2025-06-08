@@ -8,8 +8,8 @@ import CardDisplay from '@/components/cards/CardDisplay';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card'; // Added Card and CardContent
-import Image from 'next/image'; // Added Image
+import { Card, CardContent } from '@/components/ui/card'; 
+import Image from 'next/image'; 
 import { XCircle, Search, LayoutGrid, List } from 'lucide-react';
 
 const ALL_OPTION = "all";
@@ -135,7 +135,7 @@ export default function CardViewerPage() {
         ) : (
           <div className="space-y-4">
             {filteredCards.map(card => (
-              <Card key={card.id} className="p-4 flex items-start gap-4 hover:shadow-md transition-shadow">
+              <Card key={card.id} className="p-2 flex items-center justify-between gap-2 hover:shadow-md transition-shadow">
                 <Image 
                   src={card.imageUrl || `https://placehold.co/100x140.png?text=${encodeURIComponent(card.name)}`} 
                   alt={card.name} 
@@ -144,13 +144,6 @@ export default function CardViewerPage() {
                   className="rounded object-cover" 
                   data-ai-hint={card.name.toLowerCase().split(' ').slice(0,2).join(' ')} 
                 />
-                <div className="flex-grow">
-                  <h3 className="font-headline text-lg font-semibold text-primary">{card.name}</h3>
-                  <p className="text-sm text-muted-foreground capitalize">{card.type} - {card.rarity}</p>
-                  {card.description && card.description !== `Details for ${card.name}.` && (
-                    <p className="text-xs mt-1 line-clamp-2">{card.description}</p>
-                  )}
-                </div>
                 <Button variant="outline" size="sm" onClick={() => setSelectedCard(card)}>View</Button>
               </Card>
             ))}
@@ -172,10 +165,9 @@ export default function CardViewerPage() {
         >
           <div 
             onClick={(e) => e.stopPropagation()} 
-            className="max-w-md w-full bg-card rounded-lg shadow-2xl overflow-hidden" // Added style here for modal itself
+            className="max-w-md w-full bg-card rounded-lg shadow-2xl overflow-hidden"
           >
              <CardDisplay card={selectedCard} />
-             {/* Title for ARIA, though CardDisplay has its own title */}
              <h2 id="card-details-title" className="sr-only">{selectedCard.name} Details</h2>
           </div>
           <Button variant="ghost" size="icon" className="absolute top-4 right-4 text-white hover:text-primary" onClick={() => setSelectedCard(null)} aria-label="Close card details">
