@@ -8,8 +8,8 @@ import CardDisplay from '@/components/cards/CardDisplay';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card'; 
-import Image from 'next/image'; 
+import { Card, CardContent } from '@/components/ui/card';
+import Image from 'next/image';
 import { XCircle, Search, LayoutGrid, List } from 'lucide-react';
 
 const ALL_OPTION = "all";
@@ -26,7 +26,7 @@ export default function CardViewerPage() {
   useEffect(() => {
     setCards(mockCards);
   }, []);
-  
+
   const factions = useMemo(() => {
     const uniqueFactions = [...new Set(cards.map(card => card.faction).filter(Boolean) as string[])];
     return [ALL_OPTION, ...uniqueFactions.sort()];
@@ -124,7 +124,7 @@ export default function CardViewerPage() {
           </div>
         </CardContent>
       </Card>
-      
+
       {filteredCards.length > 0 ? (
         viewMode === 'grid' ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
@@ -136,13 +136,13 @@ export default function CardViewerPage() {
           <div className="space-y-4">
             {filteredCards.map(card => (
               <Card key={card.id} className="p-2 flex items-center justify-between gap-2 hover:shadow-md transition-shadow">
-                <Image 
-                  src={card.imageUrl || `https://placehold.co/100x140.png?text=${encodeURIComponent(card.name)}`} 
-                  alt={card.name} 
-                  width={75} 
-                  height={105} 
-                  className="rounded object-cover" 
-                  data-ai-hint={card.name.toLowerCase().split(' ').slice(0,2).join(' ')} 
+                <Image
+                  src={card.imageUrl || 'https://placehold.co/100x140.png'}
+                  alt="Altered TCG Card"
+                  width={75}
+                  height={105}
+                  className="rounded object-cover"
+                  data-ai-hint={card.name.toLowerCase().split(' ').slice(0,2).join(' ')}
                 />
                 <Button variant="outline" size="sm" onClick={() => setSelectedCard(card)}>View</Button>
               </Card>
@@ -156,15 +156,15 @@ export default function CardViewerPage() {
       )}
 
       {selectedCard && (
-        <div 
-          className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4" 
+        <div
+          className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4"
           onClick={() => setSelectedCard(null)}
           role="dialog"
           aria-modal="true"
           aria-labelledby="card-details-title"
         >
-          <div 
-            onClick={(e) => e.stopPropagation()} 
+          <div
+            onClick={(e) => e.stopPropagation()}
             className="max-w-md w-full bg-card rounded-lg shadow-2xl overflow-hidden"
           >
              <CardDisplay card={selectedCard} />
