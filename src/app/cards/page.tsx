@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import type { AlteredCard } from '@/types';
 import { mockCards } from '@/data/mockCards';
 import CardDisplay from '@/components/cards/CardDisplay';
@@ -25,6 +25,7 @@ export default function CardViewerPage() {
   const [selectedCard, setSelectedCard] = useState<AlteredCard | null>(null);
   const [displayCount, setDisplayCount] = useState<number>(CARDS_PER_LOAD);
   const [isLoadingMore, setIsLoadingMore] = useState<boolean>(false);
+  const observerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     setCards(mockCards);
@@ -58,31 +59,54 @@ export default function CardViewerPage() {
     });
   }, [cards, searchTerm, selectedFaction, selectedType, selectedRarity]);
 
-  // Reset display count when filters change
   useEffect(() => {
     setDisplayCount(CARDS_PER_LOAD);
   }, [searchTerm, selectedFaction, selectedType, selectedRarity]);
-
 
   const cardsToShow = useMemo(() => {
     return filteredCards.slice(0, displayCount);
   }, [filteredCards, displayCount]);
 
-  const handleLoadMore = () => {
+  const handleLoadMore = useCallback(() => {
+    if (isLoadingMore || displayCount >= filteredCards.length) return;
+
     setIsLoadingMore(true);
-    // Simulate a delay for loading more cards if needed, or just update count
-    setTimeout(() => {
+    setTimeout(() => { // Simulate network delay or processing time
       setDisplayCount(prevCount => Math.min(prevCount + CARDS_PER_LOAD, filteredCards.length));
       setIsLoadingMore(false);
-    }, 300); // Adjust delay as needed, or remove for instant load
-  };
+    }, 500); // Adjust delay as needed
+  }, [isLoadingMore, displayCount, filteredCards.length]);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && !isLoadingMore && displayCount < filteredCards.length) {
+          handleLoadMore();
+        }
+      },
+      { 
+        threshold: 1.0,
+        rootMargin: "0px 0px 300px 0px" // Trigger 300px before the element is fully in view from the bottom
+      } 
+    );
+
+    const currentObserverRef = observerRef.current;
+    if (currentObserverRef) {
+      observer.observe(currentObserverRef);
+    }
+
+    return () => {
+      if (currentObserverRef) {
+        observer.unobserve(currentObserverRef);
+      }
+    };
+  }, [isLoadingMore, displayCount, filteredCards.length, handleLoadMore]);
 
   const clearFilters = () => {
     setSearchTerm('');
     setSelectedFaction(ALL_OPTION);
     setSelectedType(ALL_OPTION);
     setSelectedRarity(ALL_OPTION);
-    //setDisplayCount(CARDS_PER_LOAD); // Already handled by useEffect on filter change
   };
 
   return (
@@ -156,14 +180,14 @@ export default function CardViewerPage() {
             ))}
           </div>
         ) : (
-          <div className="space-y-2">
+          <div className="space-y-1">
             {cardsToShow.map(card => (
               <Card key={card.id} className="p-2 flex items-center justify-between gap-2 hover:shadow-md transition-shadow">
-                <Image
+                 <Image
                   src={card.imageUrl || 'https://placehold.co/75x105.png'}
                   alt={card.name || 'Altered TCG Card'}
-                  width={75}
-                  height={105}
+                  width={60} // Slightly smaller for list view
+                  height={84}
                   className="rounded object-cover"
                   data-ai-hint={card.name ? card.name.toLowerCase().split(' ').slice(0,2).join(' ') : 'card game'}
                 />
@@ -178,18 +202,15 @@ export default function CardViewerPage() {
         </div>
       )}
 
-      {filteredCards.length > displayCount && (
-        <div className="flex justify-center mt-8">
-          <Button onClick={handleLoadMore} disabled={isLoadingMore} variant="outline" className="border-primary text-primary hover:bg-primary/10">
-            {isLoadingMore ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Loading...
-              </>
-            ) : (
-              'Load More Cards'
-            )}
-          </Button>
+      {/* Intersection Observer Trigger: only render if there are more cards to load */}
+      {filteredCards.length > displayCount && !isLoadingMore && (
+        <div ref={observerRef} style={{ height: '50px', marginTop: '20px' }} aria-hidden="true" />
+      )}
+
+      {/* Loading indicator at the bottom */}
+      {isLoadingMore && (
+        <div className="flex justify-center py-8">
+          <Loader2 className="h-10 w-10 text-primary animate-spin" />
         </div>
       )}
 
