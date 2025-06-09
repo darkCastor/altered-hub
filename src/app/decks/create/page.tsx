@@ -6,7 +6,7 @@ import DeckForm, { type DeckFormValues } from '@/components/decks/DeckForm';
 import useLocalStorage from '@/hooks/useLocalStorage';
 import type { Deck, AlteredCard } from '@/types';
 import { useToast } from '@/hooks/use-toast';
-import { allCards, cardTypesLookup } from '@/data/cards'; // Updated import
+import { allCards, cardTypesLookup } from '@/data/cards';
 
 const DECK_STORAGE_KEY = 'alterdeck-decks';
 
@@ -30,15 +30,16 @@ export default function CreateDeckPage() {
       createdAt: now,
       updatedAt: now,
       hero: selectedFullCards.find(c => c.type === cardTypesLookup.HERO.name),
+      faction: selectedFullCards.find(c => c.type === cardTypesLookup.HERO.name)?.faction,
     };
 
     setDecks(prevDecks => [...prevDecks, newDeck]);
     toast({ title: "Deck Created", description: `"${newDeck.name}" has been successfully created.` });
-    router.push('/decks');
+    router.push('/decks'); // Navigate to deck list after creation
   };
 
   const handleCancel = () => {
-    router.push('/decks');
+    router.back(); // Navigate to the previous page
   };
 
   return (

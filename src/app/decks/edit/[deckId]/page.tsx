@@ -7,7 +7,7 @@ import DeckForm, { type DeckFormValues } from '@/components/decks/DeckForm';
 import useLocalStorage from '@/hooks/useLocalStorage';
 import type { Deck, AlteredCard } from '@/types';
 import { useToast } from '@/hooks/use-toast';
-import { allCards, cardTypesLookup } from '@/data/cards'; // Updated import
+import { allCards, cardTypesLookup } from '@/data/cards';
 
 const DECK_STORAGE_KEY = 'alterdeck-decks';
 
@@ -28,7 +28,7 @@ export default function EditDeckPage() {
         setInitialDeckData({
           name: deckToEdit.name,
           description: deckToEdit.description || '',
-          format: deckToEdit.format as DeckFormValues['format'], // Ensure format is included
+          format: deckToEdit.format as DeckFormValues['format'],
           cardIds: deckToEdit.cards.map(c => c.id),
         });
       } else {
@@ -51,24 +51,27 @@ export default function EditDeckPage() {
             ...d, 
             name: data.name, 
             description: data.description, 
-            format: data.format, // Save the format
+            format: data.format,
             cards: selectedFullCards, 
             updatedAt: now,
             hero: selectedFullCards.find(c => c.type === cardTypesLookup.HERO.name),
+            faction: selectedFullCards.find(c => c.type === cardTypesLookup.HERO.name)?.faction,
           }
         : d
     );
     setDecks(updatedDecks);
     toast({ title: "Deck Updated", description: `"${data.name}" has been successfully updated.` });
-    router.push('/decks');
+    router.push('/decks'); // Navigate to deck list after editing
   };
 
   const handleCancel = () => {
-    router.push('/decks');
+    router.back(); // Navigate to the previous page
   };
 
   if (isLoading || !initialDeckData) {
-    return <div className="text-center p-10">Loading deck data...</div>;
+    // It's important to return some UI here, even if minimal,
+    // to avoid React hydration errors if the server renders nothing/different.
+    return <div className="flex justify-center items-center h-64 text-muted-foreground">Loading deck data...</div>;
   }
 
   return (
