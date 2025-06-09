@@ -71,7 +71,7 @@ export default function CardViewerPage() {
         setShowDeckPanel(true);
       } else {
         toast({ title: "Error", description: `Deck with ID ${deckIdToEdit} not found.`, variant: "destructive" });
-        router.replace('/cards'); 
+        router.replace('/cards');
       }
     } else if (action === 'create') {
       setDeckFormInitialData({ name: 'New Deck', cardIds: [], description: '', format: 'Standard' });
@@ -79,7 +79,7 @@ export default function CardViewerPage() {
       setEditingDeckId(null);
       setShowDeckPanel(true);
     }
-    
+
     if (action || deckIdToEdit) {
         const current = new URLSearchParams(Array.from(searchParams.entries()));
         current.delete('action');
@@ -226,7 +226,7 @@ export default function CardViewerPage() {
     handleCloseDeckPanel();
   };
 
-  const handleToggleCardInDeck = (card: AlteredCard) => {
+  const handleLeftClickCardOnGrid = (card: AlteredCard) => {
     if (!deckFormInitialData) return;
 
     const currentCardIds = deckFormInitialData.cardIds || [];
@@ -234,79 +234,70 @@ export default function CardViewerPage() {
         .map(id => allCards.find(c => c.id === id))
         .filter(Boolean) as AlteredCard[];
 
-    const isCurrentlySelected = currentCardIds.includes(card.id);
-    let potentialSelectedCards: AlteredCard[];
-
-    if (isCurrentlySelected) { 
-        const firstIndexOfCard = currentCardIds.indexOf(card.id);
-        if (firstIndexOfCard > -1) {
-            const tempCardIds = [...currentCardIds];
-            tempCardIds.splice(firstIndexOfCard, 1);
-            potentialSelectedCards = tempCardIds.map(id => allCards.find(c => c.id === id)).filter(Boolean) as AlteredCard[];
-        } else {
-           potentialSelectedCards = [...currentSelectedFullCards]; 
+    const potentialSelectedCardsAfterAdd = [...currentSelectedFullCards, card];
+    const heroInCurrentDeck = currentSelectedFullCards.find(c => c.type === cardTypesLookup.HERO.name);
+    
+    if (card.type === cardTypesLookup.HERO.name) {
+      if (heroInCurrentDeck && heroInCurrentDeck.id !== card.id) {
+        toast({ title: "Deck Rule Violation", description: `Cannot add another Hero. Remove "${heroInCurrentDeck.name}" first.`, variant: "destructive" });
+        return;
+      }
+      if (heroInCurrentDeck && heroInCurrentDeck.id === card.id) {
+         toast({ title: "Deck Rule Violation", description: `Hero "${card.name}" is already in the deck. Only one Hero allowed.`, variant: "destructive" });
+        return;
+      }
+       const existingHeroesCount = currentSelectedFullCards.filter(c => c.type === cardTypesLookup.HERO.name).length;
+        if (existingHeroesCount >= EXACT_HERO_COUNT) {
+             toast({ title: "Deck Rule Violation", description: `Cannot add more than ${EXACT_HERO_COUNT} Hero. Remove current Hero first.`, variant: "destructive" });
+            return;
         }
-    } else { 
-        potentialSelectedCards = [...currentSelectedFullCards, card];
     }
 
-    const heroInPotentialDeck = potentialSelectedCards.find(c => c.type === cardTypesLookup.HERO.name);
-
-    if (!isCurrentlySelected) { 
-      if (card.type === cardTypesLookup.HERO.name) {
-        const existingHeroes = currentSelectedFullCards.filter(c => c.type === cardTypesLookup.HERO.name);
-        if (existingHeroes.length >= EXACT_HERO_COUNT && (!existingHeroes[0] || existingHeroes[0].id !== card.id)) {
-          toast({ title: "Deck Rule Violation", description: `Cannot add more than ${EXACT_HERO_COUNT} Hero. Please remove the current Hero first.`, variant: "destructive" });
-          return;
-        }
+    const deckHeroForFactionCheck = card.type === cardTypesLookup.HERO.name ? card : heroInCurrentDeck;
+    if (deckHeroForFactionCheck && card.type !== cardTypesLookup.HERO.name) {
+      if (card.faction !== deckHeroForFactionCheck.faction && card.faction !== NEUTRAL_FACTION_NAME) {
+        toast({ title: "Deck Rule Violation", description: `Card "${card.name}" faction (${card.faction}) does not match Hero's faction (${deckHeroForFactionCheck.faction}) and is not Neutral.`, variant: "destructive" });
+        return;
       }
+    }
 
-      const deckHeroForFactionCheck = card.type === cardTypesLookup.HERO.name ? card : heroInPotentialDeck;
-      if (deckHeroForFactionCheck && card.type !== cardTypesLookup.HERO.name) {
-        if (card.faction !== deckHeroForFactionCheck.faction && card.faction !== NEUTRAL_FACTION_NAME) {
-          toast({ title: "Deck Rule Violation", description: `Card "${card.name}" faction (${card.faction}) does not match Hero's faction (${deckHeroForFactionCheck.faction}) and is not Neutral.`, variant: "destructive" });
-          return;
-        }
+    if (card.type !== cardTypesLookup.HERO.name) {
+      const countOfSameName = potentialSelectedCardsAfterAdd.filter(c => c.name === card.name && c.type !== cardTypesLookup.HERO.name).length;
+      if (countOfSameName > MAX_DUPLICATES_NON_HERO_BY_NAME) {
+        toast({ title: "Deck Rule Violation", description: `Cannot add more than ${MAX_DUPLICATES_NON_HERO_BY_NAME} copies of non-Hero card "${card.name}".`, variant: "destructive" });
+        return;
       }
+    }
 
-      if (card.type !== cardTypesLookup.HERO.name) {
-        const countOfSameName = potentialSelectedCards.filter(c => c.name === card.name && c.type !== cardTypesLookup.HERO.name).length;
-        if (countOfSameName > MAX_DUPLICATES_NON_HERO_BY_NAME) {
-          toast({ title: "Deck Rule Violation", description: `Cannot add more than ${MAX_DUPLICATES_NON_HERO_BY_NAME} copies of non-Hero card "${card.name}".`, variant: "destructive" });
-          return;
-        }
-      }
-
-      if (card.type !== cardTypesLookup.HERO.name && card.rarity === raritiesLookup.RARE.name) {
-        const currentRareNonHeroCountInDeck = currentSelectedFullCards.filter(c => c.type !== cardTypesLookup.HERO.name && c.rarity === raritiesLookup.RARE.name).length;
-        if (currentRareNonHeroCountInDeck >= MAX_RARE_CARDS_NON_HERO) {
-           toast({ title: "Deck Rule Violation", description: `Cannot add more than ${MAX_RARE_CARDS_NON_HERO} Rare non-Hero cards.`, variant: "destructive" });
-           return;
-        }
-      }
-
-      const nonHeroCardsInPotentialDeck = potentialSelectedCards.filter(c => c.type !== cardTypesLookup.HERO.name);
-      if (nonHeroCardsInPotentialDeck.length > MAX_DECK_CARDS_NON_HERO) {
-         toast({ title: "Deck Rule Violation", description: `Deck cannot exceed ${MAX_DECK_CARDS_NON_HERO} non-Hero cards.`, variant: "destructive" });
+    if (card.type !== cardTypesLookup.HERO.name && card.rarity === raritiesLookup.RARE.name) {
+      const currentRareNonHeroCountInDeck = potentialSelectedCardsAfterAdd.filter(c => c.type !== cardTypesLookup.HERO.name && c.rarity === raritiesLookup.RARE.name).length;
+      if (currentRareNonHeroCountInDeck > MAX_RARE_CARDS_NON_HERO) {
+         toast({ title: "Deck Rule Violation", description: `Cannot add more than ${MAX_RARE_CARDS_NON_HERO} Rare non-Hero cards.`, variant: "destructive" });
          return;
       }
     }
 
-    let updatedCardIds: string[];
-    if (isCurrentlySelected) { 
-      const firstIndexOfCard = currentCardIds.indexOf(card.id);
-      if (firstIndexOfCard > -1) {
-        const tempCardIds = [...currentCardIds];
-        tempCardIds.splice(firstIndexOfCard, 1);
-        updatedCardIds = tempCardIds;
-      } else {
-        updatedCardIds = [...currentCardIds]; 
-      }
-    } else { 
-      updatedCardIds = [...currentCardIds, card.id];
+    const nonHeroCardsInPotentialDeck = potentialSelectedCardsAfterAdd.filter(c => c.type !== cardTypesLookup.HERO.name);
+    if (nonHeroCardsInPotentialDeck.length > MAX_DECK_CARDS_NON_HERO) {
+       toast({ title: "Deck Rule Violation", description: `Deck cannot exceed ${MAX_DECK_CARDS_NON_HERO} non-Hero cards.`, variant: "destructive" });
+       return;
     }
 
+    const updatedCardIds = [...currentCardIds, card.id];
     setDeckFormInitialData(prev => prev ? { ...prev, cardIds: updatedCardIds } : undefined);
+  };
+
+  const handleRightClickCardOnGrid = (e: React.MouseEvent, card: AlteredCard) => {
+    e.preventDefault();
+    if (!deckFormInitialData) return;
+
+    const currentCardIds = [...(deckFormInitialData.cardIds || [])];
+    const lastIndexOfCard = currentCardIds.lastIndexOf(card.id);
+
+    if (lastIndexOfCard > -1) {
+      currentCardIds.splice(lastIndexOfCard, 1);
+      setDeckFormInitialData(prev => prev ? { ...prev, cardIds: currentCardIds } : undefined);
+    }
   };
 
 
@@ -334,7 +325,7 @@ export default function CardViewerPage() {
             </Button>
           </div>
           <p className="mt-2 text-lg text-muted-foreground">
-            Explore Altered TCG cards. {showDeckPanel ? "Click cards to add/remove from your current deck." : "Click the '+' on a card to start a new deck."}
+            Explore Altered TCG cards. {showDeckPanel ? "Left-click card to add, Right-click to remove." : "Click the '+' on a card to start a new deck."}
           </p>
         </section>
 
@@ -392,15 +383,20 @@ export default function CardViewerPage() {
               const isHero = card.type === cardTypesLookup.HERO.name;
               const maxCopiesForCard = isHero ? EXACT_HERO_COUNT : MAX_DUPLICATES_NON_HERO_BY_NAME;
               const isMaxCopiesReached = countInDeck >= maxCopiesForCard;
-              
+
               return (
                 <div
                   key={card.id}
                   onClick={() => {
                     if (showDeckPanel) {
-                      handleToggleCardInDeck(card);
+                      handleLeftClickCardOnGrid(card);
                     } else {
                       setSelectedCardModal(card);
+                    }
+                  }}
+                  onContextMenu={(e) => {
+                    if (showDeckPanel) {
+                      handleRightClickCardOnGrid(e, card);
                     }
                   }}
                   className="cursor-pointer"
@@ -447,7 +443,7 @@ export default function CardViewerPage() {
               <CardDisplay
                 card={selectedCardModal}
                 onStartNewDeck={handleStartNewDeckWithCard}
-                isSelectedInPanel={false} 
+                isSelectedInPanel={false}
                 isDeckPanelOpen={false}
                 isMaxCopiesReachedInPanel={false}
               />
@@ -462,4 +458,3 @@ export default function CardViewerPage() {
     </div>
   );
 }
-
