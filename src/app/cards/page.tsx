@@ -21,8 +21,7 @@ import { cn } from '@/lib/utils';
 
 const DECK_STORAGE_KEY = 'alterdeck-decks';
 const CARDS_PER_LOAD = 20;
-const MIN_DECK_CARDS_NON_HERO = 39;
-const MAX_DECK_CARDS_NON_HERO = 60;
+const REQUIRED_NON_HERO_CARDS_COUNT = 39;
 const EXACT_HERO_COUNT = 1;
 const MAX_DUPLICATES_NON_HERO_BY_NAME = 3;
 const MAX_RARE_CARDS_NON_HERO = 15;
@@ -384,8 +383,8 @@ function CardViewerPageContent() {
       }
 
       const nonHeroCardsInDeck = currentFullCards.filter(c => c.type !== cardTypesLookup.HERO.name);
-      if (nonHeroCardsInDeck.length >= MAX_DECK_CARDS_NON_HERO && !currentCardIds.includes(card.id)) {
-        toast({ title: "Deck Rule", description: `Deck cannot exceed ${MAX_DECK_CARDS_NON_HERO} non-Hero cards.`, variant: "destructive" });
+      if (nonHeroCardsInDeck.length >= REQUIRED_NON_HERO_CARDS_COUNT && !currentFullCards.some(deckCard => deckCard.id === card.id)) {
+        toast({ title: "Deck Rule", description: `Deck must have exactly ${REQUIRED_NON_HERO_CARDS_COUNT} non-Hero cards. Cannot add a new distinct card.`, variant: "destructive" });
         return;
       }
       const countSameNameNonHero = currentFullCards.filter(c => c.name === card.name && c.type !== cardTypesLookup.HERO.name).length;
@@ -564,6 +563,11 @@ function CardViewerPageContent() {
                         ).length;
                         if (countOfThisNameInDeck >= MAX_DUPLICATES_NON_HERO_BY_NAME) {
                             isLimitForCardCategoryReached = true;
+                        }
+                        // Check for overall non-Hero card limit
+                        const nonHeroCardsInDeckCount = currentDeckFullCards.filter(c => c.type !== cardTypesLookup.HERO.name).length;
+                        if (nonHeroCardsInDeckCount >= REQUIRED_NON_HERO_CARDS_COUNT && !currentDeckFullCards.some(deckCard => deckCard.id === card.id)) {
+                           isLimitForCardCategoryReached = true; // General limit reached for new distinct cards
                         }
                     }
                 }

@@ -19,8 +19,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 
 const deckFormats = ["Standard", "Legacy", "Commander", "Pauper", "Singleton", "Custom"] as const;
 
-const MIN_DECK_CARDS_NON_HERO = 39;
-const MAX_DECK_CARDS_NON_HERO = 60;
+const REQUIRED_NON_HERO_CARDS_COUNT = 39;
 const EXACT_HERO_COUNT = 1;
 const MAX_DUPLICATES_NON_HERO_BY_NAME = 3;
 const MAX_RARE_CARDS_NON_HERO = 15;
@@ -106,11 +105,8 @@ export default function DeckForm({ onSubmit, initialData, isEditing, onCancel, a
 
     const nonHeroCardsInDeck = finalSelectedFullCardsOnSubmit.filter(c => c.type !== cardTypesLookup.HERO.name);
 
-    if (nonHeroCardsInDeck.length < MIN_DECK_CARDS_NON_HERO) {
-        errors.push(`Deck must contain at least ${MIN_DECK_CARDS_NON_HERO} non-Hero cards. Found: ${nonHeroCardsInDeck.length}.`);
-    }
-    if (nonHeroCardsInDeck.length > MAX_DECK_CARDS_NON_HERO) {
-      errors.push(`Deck cannot exceed ${MAX_DECK_CARDS_NON_HERO} non-Hero cards. Found: ${nonHeroCardsInDeck.length}.`);
+    if (nonHeroCardsInDeck.length !== REQUIRED_NON_HERO_CARDS_COUNT) {
+        errors.push(`Deck must contain exactly ${REQUIRED_NON_HERO_CARDS_COUNT} non-Hero cards (for a total of ${REQUIRED_NON_HERO_CARDS_COUNT + EXACT_HERO_COUNT} cards with the Hero). Found: ${nonHeroCardsInDeck.length} non-Hero cards.`);
     }
 
     const cardCountsByName: { [name: string]: number } = {};
@@ -225,7 +221,7 @@ export default function DeckForm({ onSubmit, initialData, isEditing, onCancel, a
               <h3 className="font-semibold text-base">Selected Cards ({selectedFullCards.length})</h3>
               {heroInDeck && <p className="text-xs text-primary">Hero Faction: {heroInDeck.faction || 'N/A'}</p>}
                <p className="text-xs text-muted-foreground">
-                Non-Hero: {currentNonHeroCount} ({MIN_DECK_CARDS_NON_HERO}-{MAX_DECK_CARDS_NON_HERO}) | Rare Non-Hero: {currentRareNonHeroCount}/{MAX_RARE_CARDS_NON_HERO}
+                Non-Hero: {currentNonHeroCount} / {REQUIRED_NON_HERO_CARDS_COUNT} | Rare Non-Hero: {currentRareNonHeroCount}/{MAX_RARE_CARDS_NON_HERO}
               </p>
               <ScrollArea className="flex-1 border rounded-md p-1.5 bg-muted/20">
                 {groupedSelectedCardsForDisplay.length === 0 && (
