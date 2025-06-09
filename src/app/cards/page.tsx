@@ -65,7 +65,7 @@ export default function CardViewerPage() {
         setDeckFormInitialData({
           name: deck.name,
           description: deck.description || '',
-          format: deck.format as DeckFormValues['format'],
+          format: (deck.format as DeckFormValues['format']) || "Standard",
           cardIds: deck.cards.map(c => c.id),
         });
         setIsEditingDeck(true);
@@ -160,9 +160,8 @@ export default function CardViewerPage() {
   };
 
   const handleStartNewDeckWithCard = (card: AlteredCard) => {
-    const now = new Date().toISOString();
     const initialHero = card.type === cardTypesLookup.HERO.name ? card : undefined;
-    const initialCardIds = initialHero ? [initialHero.id] : [card.id]; // Start with the card
+    const initialCardIds = initialHero ? [initialHero.id] : [card.id]; 
 
     const newDeckData: DeckFormValues = {
       name: `Deck with ${card.name}`,
@@ -182,7 +181,7 @@ export default function CardViewerPage() {
     setDeckFormInitialData(undefined);
     setEditingDeckId(null);
     setIsEditingDeck(false);
-    router.replace('/cards'); // Clear query params
+    router.replace('/cards'); 
   };
 
   const handleSaveDeck = (data: DeckFormValues) => {
@@ -216,7 +215,7 @@ export default function CardViewerPage() {
         id: `deck-${Date.now()}`,
         name: data.name,
         description: data.description,
-        format: data.format,
+        format: data.format || "Standard",
         cards: selectedFullCards,
         createdAt: now,
         updatedAt: now,
@@ -248,7 +247,6 @@ export default function CardViewerPage() {
     
     const heroInPotentialDeck = potentialSelectedCards.find(c => c.type === cardTypesLookup.HERO.name);
 
-    // --- Start Validation Logic (moved from DeckForm) ---
     if (!isCurrentlySelected) { 
       if (card.type === cardTypesLookup.HERO.name) {
         const existingHeroes = currentSelectedFullCards.filter(c => c.type === cardTypesLookup.HERO.name);
@@ -275,8 +273,9 @@ export default function CardViewerPage() {
       }
       
       if (card.type !== cardTypesLookup.HERO.name && card.rarity === raritiesLookup.RARE.name) {
-        const currentRareNonHeroCount = potentialSelectedCards.filter(c => c.type !== cardTypesLookup.HERO.name && c.rarity === raritiesLookup.RARE.name).length;
-        if (currentRareNonHeroCount > MAX_RARE_CARDS_NON_HERO) {
+        // Count rares EXCLUDING the one we are about to add, then check if ADDING it exceeds the limit
+        const currentRareNonHeroCountInDeck = currentSelectedFullCards.filter(c => c.type !== cardTypesLookup.HERO.name && c.rarity === raritiesLookup.RARE.name).length;
+        if (currentRareNonHeroCountInDeck >= MAX_RARE_CARDS_NON_HERO) {
            toast({ title: "Deck Rule Violation", description: `Cannot add more than ${MAX_RARE_CARDS_NON_HERO} Rare non-Hero cards.`, variant: "destructive" });
            return;
         }
@@ -288,7 +287,6 @@ export default function CardViewerPage() {
          return;
       }
     }
-    // --- End Validation Logic ---
 
     let updatedCardIds: string[];
     if (isCurrentlySelected) {
@@ -303,21 +301,19 @@ export default function CardViewerPage() {
 
   return (
     <div className="flex flex-col md:flex-row h-full space-x-0 md:space-x-4">
-      {/* Deck Form Panel */}
       {showDeckPanel && deckFormInitialData && (
         <div className="w-full md:w-1/3 lg:w-2/5 xl:w-1/3 p-4 border-r border-border bg-card overflow-y-auto mb-4 md:mb-0 h-screen md:sticky md:top-0">
           <DeckForm
-            key={editingDeckId || 'new-deck'} // Force re-render on new/edit
+            key={editingDeckId || 'new-deck'}
             onSubmit={handleSaveDeck}
             initialData={deckFormInitialData}
             isEditing={isEditingDeck}
             onCancel={handleCloseDeckPanel}
-            allCardsData={allCards} // Pass all cards for internal logic like faction checking on hero change
+            allCardsData={allCards}
           />
         </div>
       )}
 
-      {/* Card Viewer Main Content */}
       <div className={`flex-1 space-y-8 ${showDeckPanel ? 'w-full md:w-2/3 lg:w-3/5 xl:w-2/3' : 'w-full'}`}>
         <section className="text-center">
           <div className="flex justify-between items-center mb-4">
@@ -381,14 +377,22 @@ export default function CardViewerPage() {
         {cardsToShow.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {cardsToShow.map(card => (
-              <div key={card.id} 
-                   onClick={() => showDeckPanel ? handleToggleCardInDeck(card) : setSelectedCardModal(card)}
-                   className="cursor-pointer"
+              <div 
+                key={card.id} 
+                onClick={() => {
+                  if (showDeckPanel) {
+                    handleToggleCardInDeck(card);
+                  } else {
+                    setSelectedCardModal(card);
+                  }
+                }}
+                className="cursor-pointer"
               >
                 <CardDisplay 
                   card={card} 
-                  onStartNewDeck={handleStartNewDeckWithCard} 
-                  isSelected={showDeckPanel && !!deckFormInitialData?.cardIds.includes(card.id)}
+                  onStartNewDeck={!showDeckPanel ? handleStartNewDeckWithCard : undefined} 
+                  isSelectedInPanel={showDeckPanel && !!deckFormInitialData?.cardIds.includes(card.id)}
+                  isDeckPanelOpen={showDeckPanel}
                 />
               </div>
             ))}
@@ -423,8 +427,10 @@ export default function CardViewerPage() {
             >
               <CardDisplay 
                 card={selectedCardModal} 
+                // When modal is open, panel is conceptually "closed" for the background card grid
                 onStartNewDeck={handleStartNewDeckWithCard} 
-                isSelected={showDeckPanel && !!deckFormInitialData?.cardIds.includes(selectedCardModal.id)}
+                isSelectedInPanel={false} 
+                isDeckPanelOpen={false}
               />
               <h2 id="card-details-title" className="sr-only">{selectedCardModal.name} Details</h2>
             </div>
@@ -437,5 +443,3 @@ export default function CardViewerPage() {
     </div>
   );
 }
-
-    

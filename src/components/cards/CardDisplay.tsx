@@ -3,20 +3,21 @@ import type { AlteredCard } from '@/types';
 import Image from 'next/image';
 import { Card, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Plus, CheckCircle } from 'lucide-react'; // Added CheckCircle
-import { cn } from '@/lib/utils'; // For conditional classnames
+import { Plus, CheckCircle } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 interface CardDisplayProps {
   card: AlteredCard;
   className?: string;
-  onStartNewDeck?: (card: AlteredCard) => void;
-  isSelected?: boolean; // To show if card is in current deck panel
+  onStartNewDeck?: (card: AlteredCard) => void; // For starting a NEW deck when panel is CLOSED
+  isSelectedInPanel?: boolean; // Is the card currently selected in the OPEN deck panel?
+  isDeckPanelOpen?: boolean; // Is the deck panel currently open?
 }
 
-export default function CardDisplay({ card, className, onStartNewDeck, isSelected }: CardDisplayProps) {
+export default function CardDisplay({ card, className, onStartNewDeck, isSelectedInPanel, isDeckPanelOpen }: CardDisplayProps) {
   const aiHint = card.name ? card.name.toLowerCase().split(' ').slice(0, 2).join(' ') : 'card image';
 
-  const handleButtonClick = (e: React.MouseEvent) => {
+  const handleNewDeckButtonClick = (e: React.MouseEvent) => {
     e.stopPropagation(); 
     if (onStartNewDeck) {
       onStartNewDeck(card);
@@ -26,8 +27,8 @@ export default function CardDisplay({ card, className, onStartNewDeck, isSelecte
   return (
     <Card 
       className={cn(
-        `relative w-full max-w-sm overflow-hidden shadow-xl group transition-all duration-300 transform hover:scale-105 bg-card text-card-foreground rounded-xl border-2 border-border hover:shadow-primary/40`,
-        isSelected && "ring-2 ring-accent border-accent shadow-accent/30", // Highlight if selected
+        `relative w-full max-w-sm overflow-hidden shadow-xl group transition-all duration-300 transform hover:scale-150 hover:z-20 bg-card text-card-foreground rounded-xl border-2 border-border hover:shadow-primary/40`,
+        isDeckPanelOpen && isSelectedInPanel && "ring-2 ring-accent border-accent shadow-accent/30", // Highlight if selected in open panel
         className || ''
       )}
     >
@@ -49,8 +50,20 @@ export default function CardDisplay({ card, className, onStartNewDeck, isSelecte
         )}
       </CardHeader>
       
-      {/* Conditional rendering for the button based on 'isSelected' */}
-      {isSelected ? (
+      {/* Button for starting a new deck (only if panel is closed and onStartNewDeck is provided) */}
+      {!isDeckPanelOpen && onStartNewDeck && (
+        <Button
+          variant="default" 
+          onClick={handleNewDeckButtonClick}
+          className="absolute bottom-[18px] right-2 h-14 w-14 flex items-center justify-center z-10"
+          aria-label={`Start new deck with ${card.name}`}
+        >
+          <Plus className="h-8 w-8" /> 
+        </Button>
+      )}
+
+      {/* Button/Indicator for when card is selected in an open deck panel */}
+      {isDeckPanelOpen && isSelectedInPanel && (
         <Button
           variant="default"
           className="absolute bottom-[18px] right-2 h-14 w-14 flex items-center justify-center z-10 bg-green-600 hover:bg-green-700"
@@ -59,20 +72,7 @@ export default function CardDisplay({ card, className, onStartNewDeck, isSelecte
         >
           <CheckCircle className="h-8 w-8" />
         </Button>
-      ) : (
-        onStartNewDeck && (
-          <Button
-            variant="default" 
-            onClick={handleButtonClick}
-            className="absolute bottom-[18px] right-2 h-14 w-14 flex items-center justify-center z-10"
-            aria-label={`Start new deck with ${card.name}`}
-          >
-            <Plus className="h-8 w-8" /> 
-          </Button>
-        )
       )}
     </Card>
   );
 }
-
-    
