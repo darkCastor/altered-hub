@@ -354,15 +354,15 @@ export default function PlayGamePage() {
       
       {/* Row 1: Conceptual Hero/Expedition Tracks */}
       <div className="h-20 md:h-24 p-1 flex items-center justify-around space-x-1">
-        <div className="flex-1 text-center text-xs text-muted-foreground italic h-full flex items-center justify-center bg-black/10 rounded-md">
+        <div className="flex-1 text-center text-xs text-muted-foreground italic h-full flex items-center justify-center bg-black/10 rounded-md overflow-hidden text-ellipsis">
           {isOpponent ? "Opponent Hero Track" : "Hero Expedition Track"}
         </div>
         {playerState.hero && (
-          <div className="w-16 h-full md:w-20 flex-shrink-0">
+          <div className="flex-shrink-0">
             <HeroSpotClient hero={playerState.hero} isOpponent={isOpponent} />
           </div>
         )}
-         {!playerState.hero && <div className="w-16 h-full md:w-20 flex-shrink-0 bg-black/20 rounded-md flex items-center justify-center text-xs text-muted-foreground">No Hero</div>}
+         {!playerState.hero && <div className="w-16 h-full md:w-20 flex-shrink-0 bg-black/20 rounded-md flex items-center justify-center text-xs text-muted-foreground text-center p-1">No Hero</div>}
         <div className="flex-1 text-center text-xs text-muted-foreground italic h-full flex items-center justify-center bg-black/10 rounded-md">
           {isOpponent ? "Opponent Companion Track" : "Companion Expedition Track"}
         </div>
