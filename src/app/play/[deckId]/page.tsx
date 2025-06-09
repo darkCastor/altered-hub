@@ -9,13 +9,14 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Loader2, Play } from 'lucide-react';
 import Link from 'next/link';
+import Image from 'next/image'; // Added for card images
 
 import { GameStateManager } from '@/engine/GameStateManager';
 import { EventBus } from '@/engine/EventBus';
 import { TurnManager } from '@/engine/TurnManager';
 import { PhaseManager } from '@/engine/PhaseManager';
 import { ActionHandler } from '@/engine/ActionHandler';
-import type { ICardDefinition } from '@/engine/types/cards';
+import type { ICardDefinition, ICardInstance } from '@/engine/types/cards';
 import { Faction as EngineFaction, CardType as EngineCardType, Rarity as EngineRarity, PermanentZoneType as EnginePermanentZoneType, GamePhase } from '@/engine/types/enums';
 import { factionsLookup, raritiesLookup, cardTypesLookup, allCards as allAlteredCards } from '@/data/cards';
 
@@ -49,11 +50,11 @@ function mapAlteredCardToEngineDefinition(card: AlteredCard): ICardDefinition | 
     case 'SPELL': engineType = EngineCardType.Spell; break;
     case 'PERMANENT': engineType = EngineCardType.Permanent; break;
     case 'LANDMARK_PERMANENT': 
-      engineType = EngineCardType.Permanent; // Or EngineCardType.LandmarkPermanent if you add it
+      engineType = EngineCardType.Permanent; 
       enginePermanentZoneType = EnginePermanentZoneType.Landmark;
       break;
     case 'EXPEDITION_PERMANENT':
-      engineType = EngineCardType.Permanent; // Or EngineCardType.ExpeditionPermanent if you add it
+      engineType = EngineCardType.Permanent; 
       enginePermanentZoneType = EnginePermanentZoneType.Expedition;
       break;
     case 'TOKEN':
@@ -99,6 +100,13 @@ function mapAlteredCardToEngineDefinition(card: AlteredCard): ICardDefinition | 
   };
 }
 
+interface DisplayableHandCard {
+  instanceId: string;
+  originalCardId: string;
+  name: string;
+  imageUrl?: string;
+}
+
 export default function PlayGamePage() {
   const params = useParams();
   const deckId = params.deckId as string;
@@ -118,9 +126,48 @@ export default function PlayGamePage() {
 
   const [player1HandCount, setPlayer1HandCount] = useState(0);
   const [player2HandCount, setPlayer2HandCount] = useState(0);
+  const [player1HandCards, setPlayer1HandCards] = useState<DisplayableHandCard[]>([]);
+  const [player2HandCards, setPlayer2HandCards] = useState<DisplayableHandCard[]>([]);
 
 
   const eventBus = useState(() => new EventBus())[0]; 
+
+  const updateHandDisplays = useCallback((gsmInstance: GameStateManager) => {
+    if (!gsmInstance) return;
+    const p1 = gsmInstance.getPlayer('player1');
+    const p2 = gsmInstance.getPlayer('player2');
+
+    if (p1) {
+      const p1HandEntities = p1.zones.hand.getAll() as ICardInstance[];
+      const p1DisplayCards = p1HandEntities.map(entity => {
+        const originalCard = allAlteredCards.find(ac => ac.id === entity.definitionId);
+        return {
+          instanceId: entity.instanceId,
+          originalCardId: entity.definitionId,
+          name: originalCard?.name || 'Unknown',
+          imageUrl: originalCard?.imageUrl,
+        };
+      });
+      setPlayer1HandCards(p1DisplayCards);
+      setPlayer1HandCount(p1DisplayCards.length);
+    }
+
+    if (p2) {
+      const p2HandEntities = p2.zones.hand.getAll() as ICardInstance[];
+      const p2DisplayCards = p2HandEntities.map(entity => {
+        const originalCard = allAlteredCards.find(ac => ac.id === entity.definitionId);
+        return {
+          instanceId: entity.instanceId,
+          originalCardId: entity.definitionId,
+          name: originalCard?.name || 'Unknown',
+          imageUrl: originalCard?.imageUrl,
+        };
+      });
+      setPlayer2HandCards(p2DisplayCards);
+      setPlayer2HandCount(p2DisplayCards.length);
+    }
+  }, []);
+
 
   useEffect(() => {
     if (deckId && decks.length > 0) {
@@ -139,7 +186,7 @@ export default function PlayGamePage() {
             return;
         }
         
-        const allGameCardDefinitions = [...deckDefinitions]; // Keep separate for now for clarity
+        const allGameCardDefinitions = [...deckDefinitions]; 
 
         try {
           const gsm = new GameStateManager(playerIds, allGameCardDefinitions, eventBus);
@@ -151,26 +198,23 @@ export default function PlayGamePage() {
           setActionHandler(ah);
           setPhaseManager(phm);
 
-          // Initialize board, decks, hands, mana
           const playerDeckMap = new Map<string, ICardDefinition[]>();
           playerIds.forEach(pid => {
-              playerDeckMap.set(pid, [...deckDefinitions]); // Each player gets a copy of the same deck
+              playerDeckMap.set(pid, [...deckDefinitions]); 
           });
           gsm.initializeBoard(playerDeckMap, STARTING_HAND_SIZE, INITIAL_MANA_ORBS);
           
           setCurrentPhase(gsm.state.currentPhase);
           setCurrentPlayerId(gsm.state.currentPlayerId);
           setDayNumber(gsm.state.dayNumber);
-          setPlayer1HandCount(gsm.getPlayer('player1')?.zones.hand.getCount() || 0);
-          setPlayer2HandCount(gsm.getPlayer('player2')?.zones.hand.getCount() || 0);
+          updateHandDisplays(gsm);
 
 
           eventBus.subscribe('phaseChanged', (payload: { phase: GamePhase }) => setCurrentPhase(payload.phase));
           eventBus.subscribe('turnAdvanced', (payload: { currentPlayerId: string }) => setCurrentPlayerId(payload.currentPlayerId));
           eventBus.subscribe('dayAdvanced', (payload: { dayNumber: number }) => setDayNumber(payload.dayNumber));
-          eventBus.subscribe('entityMoved', () => { // Simple update, can be more specific
-            setPlayer1HandCount(gsm.getPlayer('player1')?.zones.hand.getCount() || 0);
-            setPlayer2HandCount(gsm.getPlayer('player2')?.zones.hand.getCount() || 0);
+          eventBus.subscribe('entityMoved', () => { 
+            updateHandDisplays(gsm);
           });
           
         } catch (e: any) {
@@ -183,7 +227,8 @@ export default function PlayGamePage() {
       }
       setIsLoading(false);
     }
-  }, [deckId, decks, eventBus]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deckId, decks, eventBus, updateHandDisplays]);
 
 
   const handlePassTurn = useCallback(async () => {
@@ -201,9 +246,16 @@ export default function PlayGamePage() {
   }, [actionHandler, currentPlayerId, isProcessingAction]);
 
   const handleAdvancePhase = useCallback(async () => {
-    if (phaseManager && !isProcessingAction) {
+    if (phaseManager && !isProcessingAction && gameStateManager) { // Added gameStateManager check
       setIsProcessingAction(true);
       try {
+        // Ensure the current player can advance (e.g., if it's Afternoon phase, they must have passed)
+        const player = gameStateManager.getPlayer(gameStateManager.state.currentPlayerId);
+        if (gameStateManager.state.currentPhase === GamePhase.Afternoon && player && !player.hasPassedTurn) {
+          console.warn("[PlayGamePage] Cannot advance phase manually during Afternoon if current player hasn't passed.");
+          setIsProcessingAction(false);
+          return;
+        }
         await phaseManager.advancePhase();
       } catch(e) {
         console.error("Error during advance phase:", e);
@@ -212,7 +264,7 @@ export default function PlayGamePage() {
         setIsProcessingAction(false);
       }
     }
-  }, [phaseManager, isProcessingAction]);
+  }, [phaseManager, isProcessingAction, gameStateManager]);
 
 
   if (isLoading) {
@@ -260,7 +312,7 @@ export default function PlayGamePage() {
     );
   }
 
-  const canPass = currentPhase === GamePhase.Afternoon;
+  const canPass = currentPhase === GamePhase.Afternoon && gameStateManager?.getPlayer(currentPlayerId!)?.hasPassedTurn === false;
   const canAdvancePhaseManually = !(currentPhase === GamePhase.Afternoon && gameStateManager?.getPlayer(currentPlayerId!)?.hasPassedTurn === false);
 
 
@@ -283,8 +335,8 @@ export default function PlayGamePage() {
           <p><span className="font-semibold">Day:</span> {dayNumber}</p>
           <p><span className="font-semibold">Current Phase:</span> {currentPhase || 'Initializing...'}</p>
           <p><span className="font-semibold">Current Player:</span> {currentPlayerId || 'N/A'}</p>
-          <p><span className="font-semibold">Player 1 Hand:</span> {player1HandCount} cards</p>
-          <p><span className="font-semibold">Player 2 Hand:</span> {player2HandCount} cards</p>
+          <p><span className="font-semibold">Player 1 Hand Count:</span> {player1HandCount} cards</p>
+          <p><span className="font-semibold">Player 2 Hand Count:</span> {player2HandCount} cards</p>
           
           <div className="flex gap-4 mt-6">
             <Button onClick={handlePassTurn} disabled={!canPass || isProcessingAction}>
@@ -308,15 +360,43 @@ export default function PlayGamePage() {
       </Card>
 
        <Card className="shadow-xl mt-8">
-        <CardHeader><CardTitle>Player 1 Hand (Example)</CardTitle></CardHeader>
+        <CardHeader><CardTitle>Player 1 Hand ({player1HandCount})</CardTitle></CardHeader>
         <CardContent>
-            <p className="text-muted-foreground">Hand display pending full card drawing logic. Currently {player1HandCount} cards.</p>
+            {player1HandCards.length === 0 ? (
+              <p className="text-muted-foreground">Hand is empty.</p>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {player1HandCards.map(card => (
+                  <div key={card.instanceId} className="w-20 h-28 relative" title={card.name}>
+                    {card.imageUrl ? (
+                       <Image src={card.imageUrl} alt={card.name} layout="fill" objectFit="contain" className="rounded-sm shadow-md" data-ai-hint={card.name.toLowerCase().split(' ').slice(0,2).join(' ')} />
+                    ) : (
+                      <div className="w-full h-full bg-muted rounded-sm flex items-center justify-center text-xs text-muted-foreground p-1">{card.name}</div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
         </CardContent>
       </Card>
        <Card className="shadow-xl mt-8">
-        <CardHeader><CardTitle>Player 2 Hand (Example)</CardTitle></CardHeader>
+        <CardHeader><CardTitle>Player 2 Hand ({player2HandCount})</CardTitle></CardHeader>
         <CardContent>
-            <p className="text-muted-foreground">Hand display pending full card drawing logic. Currently {player2HandCount} cards.</p>
+             {player2HandCards.length === 0 ? (
+              <p className="text-muted-foreground">Hand is empty.</p>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {player2HandCards.map(card => (
+                  <div key={card.instanceId} className="w-20 h-28 relative" title={card.name}>
+                    {card.imageUrl ? (
+                      <Image src={card.imageUrl} alt={card.name} layout="fill" objectFit="contain" className="rounded-sm shadow-md" data-ai-hint={card.name.toLowerCase().split(' ').slice(0,2).join(' ')} />
+                    ) : (
+                      <div className="w-full h-full bg-muted rounded-sm flex items-center justify-center text-xs text-muted-foreground p-1">{card.name}</div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
         </CardContent>
       </Card>
     </div>
@@ -324,3 +404,4 @@ export default function PlayGamePage() {
 }
 
     
+
