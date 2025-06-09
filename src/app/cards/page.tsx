@@ -14,7 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { X, Search, FilterX, PanelLeftOpen, PanelRightOpen, CheckCircle, Trash2 } from 'lucide-react';
+import { X, Search, FilterX, PanelLeftOpen, PanelRightOpen, CheckCircle, Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import useLocalStorage from '@/hooks/useLocalStorage';
 import Image from 'next/image';
@@ -23,9 +23,9 @@ import { cn } from '@/lib/utils';
 const DECK_STORAGE_KEY = 'alterdeck-decks';
 const CARDS_PER_LOAD = 20;
 const MIN_DECK_CARDS_NON_HERO = 39;
-const MAX_DECK_CARDS_NON_HERO = 60; // Adjusted for consistency
+const MAX_DECK_CARDS_NON_HERO = 60;
 const EXACT_HERO_COUNT = 1;
-const MAX_DUPLICATES_NON_HERO_BY_NAME = 3; // Max 3 copies of the same non-hero card by name
+const MAX_DUPLICATES_NON_HERO_BY_NAME = 3;
 const MAX_RARE_CARDS_NON_HERO = 15;
 const NEUTRAL_FACTION_NAME = factionsLookup.NE?.name || "Neutre";
 
@@ -69,7 +69,6 @@ function CardViewerPageContent() {
   }, []);
 
 
-  // Effect to handle query parameters for opening the deck panel
   useEffect(() => {
     const action = searchParams.get('action');
     const deckIdToEdit = searchParams.get('deckId');
@@ -88,6 +87,7 @@ function CardViewerPageContent() {
         setShowDeckPanel(true);
       } else {
         toast({ title: "Error", description: "Deck not found for editing.", variant: "destructive" });
+        router.replace('/cards', undefined);
       }
     } else if (action === 'create') {
       setDeckFormInitialData({ name: '', description: '', format: 'Standard', cardIds: [] });
@@ -95,12 +95,12 @@ function CardViewerPageContent() {
       setEditingDeckId(null);
       setShowDeckPanel(true);
     }
-  }, [searchParams, decks, toast]);
+  }, [searchParams, decks, toast, router]);
 
 
   const handleFilterChange = (filterName: keyof Filters, value: any) => {
     setFilters(prev => ({ ...prev, [filterName]: value }));
-    setLoadedCardsCount(CARDS_PER_LOAD); // Reset count on filter change
+    setLoadedCardsCount(CARDS_PER_LOAD);
   };
 
   const clearFilters = () => {
@@ -144,10 +144,6 @@ function CardViewerPageContent() {
 
 
   const handleStartNewDeckWithCard = (card: AlteredCard) => {
-    if (card.type !== cardTypesLookup.HERO.name) {
-      toast({ title: "Deck Creation Error", description: "A new deck must start with a Hero card.", variant: "destructive" });
-      return;
-    }
     setDeckFormInitialData({
       name: `${card.name}'s Deck`,
       description: `A deck featuring ${card.name}.`,
@@ -157,6 +153,7 @@ function CardViewerPageContent() {
     setIsEditingDeck(false);
     setEditingDeckId(null);
     setShowDeckPanel(true);
+    router.replace('/cards', undefined);
   };
 
   const handleDeckFormSubmit = (data: DeckFormValues) => {
@@ -184,13 +181,13 @@ function CardViewerPageContent() {
     }
     setShowDeckPanel(false);
     setDeckFormInitialData(null);
-    router.replace('/cards', undefined); // Clear query params
+    router.replace('/cards', undefined);
   };
 
   const handleDeckFormCancel = () => {
     setShowDeckPanel(false);
     setDeckFormInitialData(null);
-    router.replace('/cards', undefined); // Clear query params
+    router.replace('/cards', undefined);
   };
 
   const handleLeftClickCardOnGrid = (card: AlteredCard) => {
@@ -203,35 +200,35 @@ function CardViewerPageContent() {
     const heroesInDeck = currentFullCards.filter(c => c.type === cardTypesLookup.HERO.name);
     const heroCardInDeck = heroesInDeck[0];
 
-    // Validation: Hero rules
     if (isHero) {
       if (heroesInDeck.length >= EXACT_HERO_COUNT && !currentCardIds.includes(card.id)) {
         toast({ title: "Deck Rule", description: `A deck can only have ${EXACT_HERO_COUNT} Hero.`, variant: "destructive" });
         return;
       }
-    } else { // Non-Hero card
-      if (!heroCardInDeck && currentFullCards.length > 0) {
+    } else {
+      if (currentFullCards.length === 0 && !isHero) {
+         // This case should ideally be handled by starting with a hero,
+         // but if deck starts empty and first add is non-hero, it's okay.
+         // The submit validation will catch no-hero decks.
+      } else if (!heroCardInDeck && currentFullCards.length > 0) {
          toast({ title: "Deck Rule", description: "You must select a Hero before adding other cards.", variant: "destructive" });
          return;
       }
-      // Validation: Faction consistency
+
       if (heroCardInDeck && card.faction !== heroCardInDeck.faction && card.faction !== NEUTRAL_FACTION_NAME) {
         toast({ title: "Deck Rule", description: `Card faction (${card.faction}) must match Hero faction (${heroCardInDeck.faction}) or be Neutral.`, variant: "destructive" });
         return;
       }
-      // Validation: Max non-Hero cards
       const nonHeroCardsInDeck = currentFullCards.filter(c => c.type !== cardTypesLookup.HERO.name);
       if (nonHeroCardsInDeck.length >= MAX_DECK_CARDS_NON_HERO && !currentCardIds.includes(card.id)) {
         toast({ title: "Deck Rule", description: `Deck cannot exceed ${MAX_DECK_CARDS_NON_HERO} non-Hero cards.`, variant: "destructive" });
         return;
       }
-      // Validation: Max duplicates by name for non-Hero cards
       const countSameName = currentFullCards.filter(c => c.name === card.name && c.type !== cardTypesLookup.HERO.name).length;
       if (countSameName >= MAX_DUPLICATES_NON_HERO_BY_NAME) {
         toast({ title: "Deck Rule", description: `Maximum ${MAX_DUPLICATES_NON_HERO_BY_NAME} copies of "${card.name}" allowed.`, variant: "destructive" });
         return;
       }
-       // Validation: Max Rare non-Hero cards
       if (card.rarity === raritiesLookup.RARE.name) {
         const rareNonHeroCardsInDeck = nonHeroCardsInDeck.filter(c => c.rarity === raritiesLookup.RARE.name);
         if (rareNonHeroCardsInDeck.length >= MAX_RARE_CARDS_NON_HERO && !currentCardIds.includes(card.id)) {
@@ -240,7 +237,7 @@ function CardViewerPageContent() {
         }
       }
     }
-    setDeckFormInitialData(prev => ({ ...prev!, cardIds: [...prev!.cardIds, card.id] }));
+    setDeckFormInitialData(prev => ({ ...prev!, cardIds: [...(prev?.cardIds || []), card.id] }));
   };
 
   const handleRightClickCardOnGrid = (event: React.MouseEvent<HTMLDivElement>, cardToRemove: AlteredCard) => {
@@ -253,15 +250,6 @@ function CardViewerPageContent() {
     if (lastIndexOfCard > -1) {
       currentCardIds.splice(lastIndexOfCard, 1);
       setDeckFormInitialData(prev => ({ ...prev!, cardIds: currentCardIds }));
-
-      // If the removed card was a Hero, and it was the last one, reset faction consistency
-      if (cardToRemove.type === cardTypesLookup.HERO.name) {
-          const remainingHeroes = currentCardIds.map(id => allCards.find(c=>c.id === id)).filter(c=> c && c.type === cardTypesLookup.HERO.name);
-          if (remainingHeroes.length === 0) {
-              // Potentially remove non-neutral cards if desired, or just let validation handle it on next add.
-              // For now, simply allows next add to set new hero faction.
-          }
-      }
     }
   };
 
@@ -290,11 +278,11 @@ function CardViewerPageContent() {
           <div className="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
             <h1 className="font-headline text-3xl sm:text-4xl font-bold text-primary">
               Card Explorer
-              <Button variant="ghost" size="icon" onClick={() => setShowDeckPanel(!showDeckPanel)} className="ml-2">
+            </h1>
+             <Button variant="ghost" size="icon" onClick={() => setShowDeckPanel(!showDeckPanel)} className="ml-2">
                 {showDeckPanel ? <ChevronLeft className="h-5 w-5" /> : <ChevronRight className="h-5 w-5" />}
                 <span className="sr-only">{showDeckPanel ? "Close Deck Panel" : "Open Deck Panel"}</span>
               </Button>
-            </h1>
             <p className="text-sm text-muted-foreground">
                 {showDeckPanel ? "Panel Open: Left-click card to add, Right-click to remove." : "Browse Altered TCG cards."}
             </p>
@@ -354,7 +342,6 @@ function CardViewerPageContent() {
                 </SelectContent>
               </Select>
             </div>
-            {/* Cost Range Slider could be added here if desired */}
             <Button onClick={clearFilters} variant="outline" className="self-end text-muted-foreground hover:text-primary">
               <FilterX className="mr-2 h-4 w-4" /> Clear Filters
             </Button>
@@ -368,8 +355,9 @@ function CardViewerPageContent() {
             <p>Try adjusting your search or clearing filters.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-5 gap-x-4 gap-y-12">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {cardsToDisplay.map(card => {
+                const isSelectedInPanelCurrently = showDeckPanel && (deckFormInitialData?.cardIds.includes(card.id) ?? false);
                 const countInDeck = deckFormInitialData?.cardIds.filter(id => id === card.id).length || 0;
                 const isHeroCard = card.type === cardTypesLookup.HERO.name;
                 let isMaxCopiesReached = false;
@@ -378,7 +366,6 @@ function CardViewerPageContent() {
                 } else {
                     isMaxCopiesReached = countInDeck >= MAX_DUPLICATES_NON_HERO_BY_NAME;
                 }
-                const isSelectedInPanelCurrently = showDeckPanel && (deckFormInitialData?.cardIds.includes(card.id) ?? false);
 
               return (
                 <div
@@ -394,7 +381,6 @@ function CardViewerPageContent() {
                     if (showDeckPanel) {
                         handleRightClickCardOnGrid(e, card);
                     }
-                    // Allow context menu if panel is closed or not applicable
                   }}
                   className="cursor-pointer"
                   role="button"
@@ -426,13 +412,12 @@ function CardViewerPageContent() {
                 <DialogTitle className="sr-only">{selectedCardModal.name}</DialogTitle>
                 <DialogDescription className="sr-only">Card details for {selectedCardModal.name}</DialogDescription>
               </DialogHeader>
-              {/* Passing false for deck panel related props as this is a modal view */}
               <CardDisplay
                 card={selectedCardModal}
                 className="border-0 shadow-none"
                 onStartNewDeck={handleStartNewDeckWithCard}
-                isSelectedInPanel={false}
-                isDeckPanelOpen={false}
+                isSelectedInPanel={false} 
+                isDeckPanelOpen={false} 
                 isMaxCopiesReachedInPanel={false}
               />
               <Button
@@ -452,8 +437,6 @@ function CardViewerPageContent() {
   );
 }
 
-
-// Loader component for Suspense
 const Loader = () => (
   <div className="flex justify-center items-center min-h-screen">
     <svg className="animate-spin h-10 w-10 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -463,7 +446,6 @@ const Loader = () => (
   </div>
 );
 
-// Main component wrapped in Suspense
 export default function CardViewerPage() {
   return (
     <Suspense fallback={<Loader />}>
@@ -472,13 +454,9 @@ export default function CardViewerPage() {
   );
 }
 
-// Minimal loader for when hook is not ready
 const Loader2 = ({ className }: { className?: string }) => (
   <svg className={cn("animate-spin", className)} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
   </svg>
 );
-
-// Lucide icons for panel toggle
-import { ChevronLeft, ChevronRight } from 'lucide-react';
