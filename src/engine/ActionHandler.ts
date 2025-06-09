@@ -1,3 +1,12 @@
+
+import type { GameStateManager } from './GameStateManager';
+import type { TurnManager } from './TurnManager';
+import { CostProcessor } from './CostProcessor';
+import { EffectResolver } from './EffectResolver';
+import type { IZone, ICardInstance, IGameObject } from './types/zones';
+import type { ICost } from './types/abilities';
+
+
 export class ActionHandler {
     private gsm: GameStateManager;
     private costProcessor: CostProcessor;
