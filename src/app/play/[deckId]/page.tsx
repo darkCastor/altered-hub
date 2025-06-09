@@ -20,6 +20,8 @@ import { Faction as EngineFaction, CardType as EngineCardType, Rarity as EngineR
 import { factionsLookup, raritiesLookup, cardTypesLookup, allCards as allAlteredCards } from '@/data/cards';
 
 const DECK_STORAGE_KEY = 'alterdeck-decks';
+const STARTING_HAND_SIZE = 5;
+const INITIAL_MANA_ORBS = 3;
 
 // Helper to find enum key by its string value (name)
 function findEnumKeyByValue<T extends object>(enumObj: T, value: string): keyof T | undefined {
@@ -47,11 +49,11 @@ function mapAlteredCardToEngineDefinition(card: AlteredCard): ICardDefinition | 
     case 'SPELL': engineType = EngineCardType.Spell; break;
     case 'PERMANENT': engineType = EngineCardType.Permanent; break;
     case 'LANDMARK_PERMANENT': 
-      engineType = EngineCardType.Permanent;
+      engineType = EngineCardType.Permanent; // Or EngineCardType.LandmarkPermanent if you add it
       enginePermanentZoneType = EnginePermanentZoneType.Landmark;
       break;
     case 'EXPEDITION_PERMANENT':
-      engineType = EngineCardType.Permanent;
+      engineType = EngineCardType.Permanent; // Or EngineCardType.ExpeditionPermanent if you add it
       enginePermanentZoneType = EnginePermanentZoneType.Expedition;
       break;
     case 'TOKEN':
@@ -114,6 +116,10 @@ export default function PlayGamePage() {
   const [dayNumber, setDayNumber] = useState<number>(1);
   const [isProcessingAction, setIsProcessingAction] = useState(false);
 
+  const [player1HandCount, setPlayer1HandCount] = useState(0);
+  const [player2HandCount, setPlayer2HandCount] = useState(0);
+
+
   const eventBus = useState(() => new EventBus())[0]; 
 
   useEffect(() => {
@@ -133,7 +139,7 @@ export default function PlayGamePage() {
             return;
         }
         
-        const allGameCardDefinitions = [...deckDefinitions, ...deckDefinitions.map(d => ({...d, id: `${d.id}-p2`}))]; 
+        const allGameCardDefinitions = [...deckDefinitions]; // Keep separate for now for clarity
 
         try {
           const gsm = new GameStateManager(playerIds, allGameCardDefinitions, eventBus);
@@ -144,14 +150,28 @@ export default function PlayGamePage() {
           setGameStateManager(gsm);
           setActionHandler(ah);
           setPhaseManager(phm);
+
+          // Initialize board, decks, hands, mana
+          const playerDeckMap = new Map<string, ICardDefinition[]>();
+          playerIds.forEach(pid => {
+              playerDeckMap.set(pid, [...deckDefinitions]); // Each player gets a copy of the same deck
+          });
+          gsm.initializeBoard(playerDeckMap, STARTING_HAND_SIZE, INITIAL_MANA_ORBS);
           
           setCurrentPhase(gsm.state.currentPhase);
           setCurrentPlayerId(gsm.state.currentPlayerId);
           setDayNumber(gsm.state.dayNumber);
+          setPlayer1HandCount(gsm.getPlayer('player1')?.zones.hand.getCount() || 0);
+          setPlayer2HandCount(gsm.getPlayer('player2')?.zones.hand.getCount() || 0);
+
 
           eventBus.subscribe('phaseChanged', (payload: { phase: GamePhase }) => setCurrentPhase(payload.phase));
           eventBus.subscribe('turnAdvanced', (payload: { currentPlayerId: string }) => setCurrentPlayerId(payload.currentPlayerId));
           eventBus.subscribe('dayAdvanced', (payload: { dayNumber: number }) => setDayNumber(payload.dayNumber));
+          eventBus.subscribe('entityMoved', () => { // Simple update, can be more specific
+            setPlayer1HandCount(gsm.getPlayer('player1')?.zones.hand.getCount() || 0);
+            setPlayer2HandCount(gsm.getPlayer('player2')?.zones.hand.getCount() || 0);
+          });
           
         } catch (e: any) {
           setError(`Error initializing game engine: ${e.message}`);
@@ -263,6 +283,8 @@ export default function PlayGamePage() {
           <p><span className="font-semibold">Day:</span> {dayNumber}</p>
           <p><span className="font-semibold">Current Phase:</span> {currentPhase || 'Initializing...'}</p>
           <p><span className="font-semibold">Current Player:</span> {currentPlayerId || 'N/A'}</p>
+          <p><span className="font-semibold">Player 1 Hand:</span> {player1HandCount} cards</p>
+          <p><span className="font-semibold">Player 2 Hand:</span> {player2HandCount} cards</p>
           
           <div className="flex gap-4 mt-6">
             <Button onClick={handlePassTurn} disabled={!canPass || isProcessingAction}>
@@ -288,13 +310,13 @@ export default function PlayGamePage() {
        <Card className="shadow-xl mt-8">
         <CardHeader><CardTitle>Player 1 Hand (Example)</CardTitle></CardHeader>
         <CardContent>
-            <p className="text-muted-foreground">Hand display pending full card drawing logic.</p>
+            <p className="text-muted-foreground">Hand display pending full card drawing logic. Currently {player1HandCount} cards.</p>
         </CardContent>
       </Card>
        <Card className="shadow-xl mt-8">
         <CardHeader><CardTitle>Player 2 Hand (Example)</CardTitle></CardHeader>
         <CardContent>
-            <p className="text-muted-foreground">Hand display pending full card drawing logic.</p>
+            <p className="text-muted-foreground">Hand display pending full card drawing logic. Currently {player2HandCount} cards.</p>
         </CardContent>
       </Card>
     </div>

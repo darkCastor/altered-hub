@@ -1,6 +1,6 @@
 
 import type { IGameState, IPlayer, ICardInstance, IGameObject, ZoneEntity, IZone, ICardDefinition } from './types/zones';
-import { ObjectFactory } from './types/zones'; // Added import
+import { ObjectFactory } from './types/zones';
 import { GamePhase, ZoneIdentifier, StatusType, CounterType, CardType, PermanentZoneType } from './types/enums';
 import type { EventBus } from './EventBus';
 import { BaseZone, HandZone, DiscardPileZone, LimboZone } from './Zone'; 
@@ -54,6 +54,85 @@ export class GameStateManager {
             actionHistory: [],
         };
     }
+
+    private shuffleArray<T>(array: T[]): T[] {
+        for (let i = array.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [array[i], array[j]] = [array[j], array[i]];
+        }
+        return array;
+    }
+
+    public initializeBoard(
+        playerDeckDefinitionsMap: Map<string, ICardDefinition[]>,
+        startingHandSize: number,
+        initialManaOrbs: number
+    ) {
+        this.state.players.forEach((player, playerId) => {
+            const deckDefinitions = playerDeckDefinitionsMap.get(playerId);
+            if (!deckDefinitions) {
+                console.warn(`No deck definitions found for player ${playerId}. Skipping deck initialization.`);
+                return;
+            }
+
+            const heroDefinition = deckDefinitions.find(def => def.type === CardType.Hero);
+            if (!heroDefinition) {
+                console.error(`Player ${playerId}'s deck must contain exactly one Hero. Hero not found.`);
+                return;
+            }
+
+            // Ensure Hero definition exists for the factory
+            if (!this.cardDefinitions.has(heroDefinition.id)) {
+                this.cardDefinitions.set(heroDefinition.id, heroDefinition);
+            }
+            const heroTempInstance = this.objectFactory.createCardInstance(heroDefinition.id, playerId);
+            const heroGameObject = this.objectFactory.createGameObject(heroTempInstance, playerId) as IGameObject; // Cast for clarity
+            player.zones.heroZone.add(heroGameObject);
+            console.log(`[GSM] Placed Hero ${heroGameObject.name} in ${player.zones.heroZone.id}`);
+
+            const nonHeroDeckDefinitions = deckDefinitions.filter(def => def.type !== CardType.Hero);
+            let deckCardInstances: ICardInstance[] = nonHeroDeckDefinitions.map(def => {
+                 // Ensure card definition exists for the factory
+                if (!this.cardDefinitions.has(def.id)) {
+                    this.cardDefinitions.set(def.id, def);
+                }
+                return this.objectFactory.createCardInstance(def.id, playerId);
+            });
+
+            deckCardInstances = this.shuffleArray(deckCardInstances);
+
+            deckCardInstances.forEach(cardInstance => {
+                player.zones.deck.add(cardInstance);
+            });
+            console.log(`[GSM] Player ${playerId} deck initialized with ${player.zones.deck.getCount()} cards.`);
+
+            for (let i = 0; i < startingHandSize; i++) {
+                const allDeckCards = player.zones.deck.getAll();
+                if (allDeckCards.length > 0) {
+                    const cardToDraw = allDeckCards[0] as ICardInstance; 
+                    this.moveEntity(cardToDraw.instanceId, player.zones.deck, player.zones.hand, playerId);
+                } else {
+                    console.warn(`[GSM] Player ${playerId} ran out of cards to draw for initial hand.`);
+                    break;
+                }
+            }
+            console.log(`[GSM] Player ${playerId} drew ${player.zones.hand.getCount()} cards for starting hand.`);
+
+            for (let i = 0; i < initialManaOrbs; i++) {
+                const manaOrbDefId = `mana_orb_definition_generic_${playerId}_${i}`;
+                if (!this.cardDefinitions.has(manaOrbDefId)) {
+                    this.cardDefinitions.set(manaOrbDefId, { 
+                        id: manaOrbDefId, name: "Mana Orb", type: CardType.ManaOrb, handCost: 0, reserveCost: 0, abilities: [] 
+                    });
+                }
+                const manaOrbTempInstance = this.objectFactory.createCardInstance(manaOrbDefId, playerId);
+                const manaOrbGameObject = this.objectFactory.createGameObject(manaOrbTempInstance, playerId);
+                player.zones.manaZone.add(manaOrbGameObject);
+            }
+            console.log(`[GSM] Player ${playerId} initialized with ${player.zones.manaZone.getCount()} mana orbs.`);
+        });
+    }
+
 
     public moveEntity(entityId: string, fromZone: IZone, toZone: IZone, controllerId: string): IGameObject | ICardInstance {
         const sourceEntity = fromZone.remove(entityId);
@@ -120,3 +199,4 @@ export class GameStateManager {
         this.eventBus.publish('phaseChanged', { phase });
     }
 }
+

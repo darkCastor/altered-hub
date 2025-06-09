@@ -18,11 +18,11 @@ export enum Faction {
 
 export enum CardType {
     Character = "Personnage", // Match names from cardTypesLookup
-    Emblem = "Emblem", // Assuming this is a valid engine type, not in JSON lookup
+    Emblem = "Emblem", 
     Hero = "Héros",
-    ManaOrb = "ManaOrb", // Assuming, not in JSON lookup as playable card type
-    Permanent = "Permanent", // Generic, specific types below will also map to this
-    Region = "Region", // Assuming, not in JSON lookup
+    ManaOrb = "ManaOrb", 
+    Permanent = "Permanent", 
+    Region = "Region", 
     Spell = "Sort",
     LandmarkPermanent = "Repère Permanent",
     ExpeditionPermanent = "Permanent d’Expédition",
@@ -35,8 +35,8 @@ export enum CardType {
     LANDMARK_PERMANENT = "Repère Permanent",
     EXPEDITION_PERMANENT = "Permanent d’Expédition",
     TOKEN = "Jeton Personnage",
-    TOKEN_MANA = "Mana", // Though likely filtered out
-    FOILER = "Foiler", // Though likely filtered out
+    TOKEN_MANA = "Mana", 
+    FOILER = "Foiler", 
 }
 
 export enum PermanentZoneType {
@@ -47,8 +47,8 @@ export enum PermanentZoneType {
 export enum Rarity {
     Common = "Commun", // Match names from raritiesLookup
     Rare = "Rare",
-    Unique = "Unique", // Assuming, not directly in JSON lookup but good to have
-    Token = "Token", // For token characters
+    Unique = "Unique", 
+    Token = "Token", 
     // Aliases for mapping
     COMMON = "Commun",
     RARE = "Rare",
@@ -98,3 +98,4 @@ export enum ZoneIdentifier {
     Landmark = "Landmark",
     Hero = "Hero",
 }
+
