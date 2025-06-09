@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Save, X } from 'lucide-react'; // Removed Trash2
+import { Save, X } from 'lucide-react';
 import type { AlteredCard } from '@/types';
 import { cardTypesLookup, raritiesLookup, factionsLookup } from '@/data/cards';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
@@ -154,7 +154,12 @@ export default function DeckForm({ onSubmit, initialData, isEditing, onCancel, a
         cardCounts.set(card.id, { card, quantity: 1 });
       }
     });
-    return Array.from(cardCounts.values()).sort((a, b) => a.card.name.localeCompare(b.card.name));
+    return Array.from(cardCounts.values()).sort((a, b) => {
+      // Sort by type (Hero first), then by name
+      if (a.card.type === cardTypesLookup.HERO.name && b.card.type !== cardTypesLookup.HERO.name) return -1;
+      if (a.card.type !== cardTypesLookup.HERO.name && b.card.type === cardTypesLookup.HERO.name) return 1;
+      return a.card.name.localeCompare(b.card.name);
+    });
   }, [selectedFullCards]);
 
 
@@ -227,14 +232,20 @@ export default function DeckForm({ onSubmit, initialData, isEditing, onCancel, a
                     No cards selected. Click cards from the main viewer to add them.
                   </p>
                 )}
-                <div className="space-y-2">
+                <div className="space-y-1.5">
                   {groupedSelectedCardsForDisplay.map(({ card, quantity }) => (
-                    <div key={card.id} className="flex items-center justify-between p-2 bg-card rounded shadow">
-                      <span className="text-sm font-medium">
-                        {card.name} ({card.type === cardTypesLookup.HERO.name ? 'Hero' : card.rarity})
-                        {quantity > 1 && <span className="text-muted-foreground"> x{quantity}</span>}
+                    <div key={card.id} className="flex items-center justify-between py-2.5 px-3 bg-card rounded-md shadow-sm hover:bg-muted/40 transition-colors">
+                      <div className="flex flex-col">
+                        <span className={`text-sm font-semibold leading-tight ${card.type === cardTypesLookup.HERO.name ? 'text-primary' : 'text-card-foreground'}`}>
+                          {card.name}
+                        </span>
+                        <span className="text-xs text-muted-foreground leading-tight">
+                          {card.type === cardTypesLookup.HERO.name ? 'Hero' : `${card.rarity} - ${card.type}`}
+                        </span>
+                      </div>
+                      <span className="text-base font-bold text-primary ml-2">
+                        x{quantity}
                       </span>
-                      {/* Removed Trash2 Button */}
                     </div>
                   ))}
                 </div>
@@ -255,3 +266,4 @@ export default function DeckForm({ onSubmit, initialData, isEditing, onCancel, a
     </Form>
   );
 }
+
