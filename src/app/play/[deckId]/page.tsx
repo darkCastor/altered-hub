@@ -349,36 +349,48 @@ export default function PlayGamePage() {
   const canManuallyAdvancePhase = currentPhase !== GamePhase.Afternoon || (currentPhase === GamePhase.Afternoon && gameStateManager?.getPlayer(PLAYER_ID_SELF)?.hasPassedTurn);
 
   const PlayerAreaLayout = ({ playerState, onCardClick, isOpponent }: { playerState: PlayerState, onCardClick: (card: DisplayableCardData) => void, isOpponent: boolean }) => (
-    <div className={cn("flex-1 flex space-y-1 bg-zinc-900/50 p-1 rounded border border-zinc-700", isOpponent ? 'flex-col-reverse' : 'flex-col' )}>
-      {/* Top Row (closest to Adventure Zone for Player, furthest for Opponent): Expedition Zone + Hero */}
-      <div className="h-24 md:h-28 p-1 relative order-1">
-        <BoardZoneClient cards={playerState.expedition} zoneType={`Expédition (${playerState.expedition.length})`} owner={isOpponent ? "opponent" : "self"} />
+    <div className={cn("flex-1 flex space-y-1 bg-zinc-900/50 p-1 rounded border border-zinc-700 min-h-0", isOpponent ? 'flex-col-reverse' : 'flex-col' )}>
+      
+      {/* Row 1 (Order 1 for Player, Order 3 for Opponent due to flex-col-reverse): Hero separating conceptual tracks */}
+      <div className={cn("h-20 md:h-24 p-1 flex items-center justify-around space-x-1", isOpponent ? 'order-3' : 'order-1')}>
+        <div className="flex-1 text-center text-xs text-muted-foreground italic h-full flex items-center justify-center bg-black/10 rounded-md">
+          {isOpponent ? "Opponent Hero Track" : "Hero Expedition Track"}
+        </div>
         {playerState.hero && (
-          <div className="absolute top-1/2 left-1/4 -translate-y-1/2 -translate-x-1/2 z-10 w-20 h-28 md:w-24 md:h-32">
+          <div className="w-16 h-full md:w-20 flex-shrink-0"> {/* Fixed height for hero card consistency */}
             <HeroSpotClient hero={playerState.hero} isOpponent={isOpponent} />
           </div>
         )}
+         {!playerState.hero && <div className="w-16 h-full md:w-20 flex-shrink-0 bg-black/20 rounded-md flex items-center justify-center text-xs text-muted-foreground">No Hero</div>}
+        <div className="flex-1 text-center text-xs text-muted-foreground italic h-full flex items-center justify-center bg-black/10 rounded-md">
+          {isOpponent ? "Opponent Companion Track" : "Companion Expedition Track"}
+        </div>
+      </div>
+
+      {/* Row 2 (Order 2 for Player, Order 2 for Opponent): Expedition Permanents Zone */}
+      <div className={cn("h-20 md:h-24 p-1", isOpponent ? 'order-2' : 'order-2')}>
+        <BoardZoneClient cards={playerState.expedition} zoneType={`Expédition (${playerState.expedition.length})`} owner={isOpponent ? "opponent" : "self"} />
       </div>
   
-      {/* Middle Row: Reserve and Landmarks Zones */}
-      <div className="flex justify-around items-stretch h-32 md:h-36 p-1 space-x-1 order-2">
+      {/* Row 3 (Order 3 for Player, Order 1 for Opponent): Reserve and Landmarks Zones */}
+      <div className={cn("flex justify-around items-stretch h-20 md:h-24 p-1 space-x-1", isOpponent ? 'order-1' : 'order-3')}>
         <BoardZoneClient cards={playerState.reserve} zoneType={`Réserve (${playerState.reserve.length})`} owner={isOpponent ? "opponent" : "self"} className="flex-1" />
         <BoardZoneClient cards={playerState.landmarks} zoneType={`Repères (${playerState.landmarks.length})`} owner={isOpponent ? "opponent" : "self"} className="flex-1" />
       </div>
 
-      {/* Bottom Row (closest to screen edge for Player, top of screen for Opponent): Mana, Hand, Deck/Discard */}
-      <div className="flex items-stretch h-28 md:h-32 p-1 space-x-1 order-3">
-         {/* Mana Area */}
+      {/* Row 4 (Order 4 for Player, Order 0 for Opponent): Mana, Hand, Deck/Discard */}
+      <div className={cn("flex items-stretch h-28 md:h-32 p-1 space-x-1", isOpponent ? 'order-0' : 'order-4')}>
+         {/* Mana Area (Left for player) */}
         <div className="flex-1 p-1 bg-black/30 rounded h-full flex flex-col items-center justify-center text-center space-y-1">
           <Zap className="h-5 w-5 text-yellow-400" />
           <p className="text-xs text-muted-foreground">Mana</p>
           <div className="text-sm font-semibold">{playerState.mana.current}/{playerState.mana.max}</div>
         </div>
         {/* Hand Area (Middle) */}
-        <div className="flex-[3_3_0%] h-full flex items-center justify-center bg-black/10 rounded">
+        <div className="flex-[3_3_0%] h-full flex items-center justify-center bg-black/10 rounded overflow-hidden"> {/* Added overflow-hidden */}
           <PlayerHandClient cards={playerState.hand} owner={isOpponent ? "opponent" : "self"} onCardClick={onCardClick} />
         </div>
-        {/* Deck/Discard Area */}
+        {/* Deck/Discard Area (Right for player) */}
         <div className="flex-1 p-1 bg-black/30 rounded h-full flex flex-col items-center justify-center text-center space-y-1">
           <BookOpen className="h-5 w-5 text-blue-400" />
           <p className="text-xs text-muted-foreground">Deck: {playerState.deckCount}</p>
@@ -398,16 +410,12 @@ export default function PlayGamePage() {
       </div>
 
       <div className="flex-1 flex flex-col p-1 space-y-1 min-h-0">
-        {/* Opponent's Area - Placeholder */}
         <PlayerAreaLayout playerState={player2State} onCardClick={() => {}} isOpponent={true} />
 
-
-        {/* Shared Adventure Zone - Thinner */}
         <div className="h-12 bg-zinc-700/30 rounded border border-zinc-600 p-1 flex items-center justify-center shrink-0">
           <p className="text-xs text-muted-foreground">Adventure Zone (Shared)</p>
         </div>
 
-        {/* Current Player's Area (Bottom part) */}
         <PlayerAreaLayout playerState={player1State} onCardClick={handlePlayCard} isOpponent={false} />
       </div>
       
