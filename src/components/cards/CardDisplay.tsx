@@ -17,6 +17,7 @@ interface CardDisplayProps {
   isDeckPanelOpen?: boolean;
   isSelectedInPanel?: boolean;
   isLimitForCardCategoryReached?: boolean;
+  countInDeck?: number;
 }
 
 const TOKEN_CARD_TYPES = [
@@ -33,13 +34,14 @@ export default function CardDisplay({
   isDeckPanelOpen,
   isSelectedInPanel,
   isLimitForCardCategoryReached,
+  countInDeck = 0,
 }: CardDisplayProps) {
   const aiHint = card.name ? card.name.toLowerCase().split(' ').slice(0, 2).join(' ') : 'card image';
 
   const isTokenCard = TOKEN_CARD_TYPES.includes(card.type);
 
   const handleNewDeckButtonClick = (e: React.MouseEvent) => {
-    e.stopPropagation(); 
+    e.stopPropagation();
     if (onStartNewDeck && !card.isSuspended && !isTokenCard) {
       onStartNewDeck(card);
     }
@@ -91,13 +93,18 @@ export default function CardDisplay({
             )} />
           </div>
         )}
+        {isDeckPanelOpen && countInDeck > 0 && !card.isSuspended && !isTokenCard && (
+          <div className="absolute top-1 right-1 z-10 bg-primary/80 text-primary-foreground text-xs font-bold w-6 h-6 flex items-center justify-center rounded-sm shadow-md">
+            {countInDeck}
+          </div>
+        )}
       </CardHeader>
 
       {!isDeckPanelOpen && onStartNewDeck && !card.isSuspended && !isTokenCard && (
         <Button
           variant="default"
           onClick={handleNewDeckButtonClick}
-          className="absolute bottom-[18px] right-2 h-14 w-14 flex items-center justify-center z-20" 
+          className="absolute bottom-[18px] right-2 h-14 w-14 flex items-center justify-center z-20"
           aria-label={`Start new deck with ${card.name}`}
         >
           <Plus className="h-8 w-8" />
@@ -106,4 +113,3 @@ export default function CardDisplay({
     </Card>
   );
 }
-

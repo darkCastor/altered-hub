@@ -417,6 +417,18 @@ function CardViewerPageContent() {
     }
   };
 
+  const cardCountsInDeck = useMemo(() => {
+    if (!showDeckPanel || !deckFormInitialData?.cardIds) {
+      return new Map<string, number>();
+    }
+    const counts = new Map<string, number>();
+    for (const cardId of deckFormInitialData.cardIds) {
+      counts.set(cardId, (counts.get(cardId) || 0) + 1);
+    }
+    return counts;
+  }, [showDeckPanel, deckFormInitialData?.cardIds]);
+
+
   if (!isMounted) {
     return <div className="flex justify-center items-center min-h-[60vh]"><LucideLoader className="h-16 w-16 animate-spin text-primary" /></div>;
   }
@@ -534,6 +546,7 @@ function CardViewerPageContent() {
                 const isSelectedInPanel = showDeckPanel && (deckFormInitialData?.cardIds.includes(card.id) ?? false);
                 const isHeroTypeFromGridCard = card.type === cardTypesLookup.HERO.name;
                 let isLimitForCardCategoryReached = false;
+                const countInDeck = cardCountsInDeck.get(card.id) || 0;
 
                 if (deckFormInitialData?.cardIds && deckFormInitialData.cardIds.length > 0) {
                     const currentDeckFullCards = deckFormInitialData.cardIds
@@ -545,7 +558,7 @@ function CardViewerPageContent() {
                         if (heroesInDeck.length >= EXACT_HERO_COUNT) {
                             isLimitForCardCategoryReached = true;
                         }
-                    } else { 
+                    } else {
                         const countOfThisNameInDeck = currentDeckFullCards.filter(
                             c => c.name === card.name && c.type !== cardTypesLookup.HERO.name
                         ).length;
@@ -581,7 +594,7 @@ function CardViewerPageContent() {
                     if (showDeckPanel && !card.isSuspended && !TOKEN_CARD_TYPES.includes(card.type)) {
                         handleRightClickCardOnGrid(e, card);
                     } else if (showDeckPanel && (card.isSuspended || TOKEN_CARD_TYPES.includes(card.type))) {
-                        e.preventDefault(); 
+                        e.preventDefault();
                     }
                   }}
                   className="cursor-pointer"
@@ -594,6 +607,7 @@ function CardViewerPageContent() {
                     isDeckPanelOpen={showDeckPanel}
                     isSelectedInPanel={isSelectedInPanel}
                     isLimitForCardCategoryReached={isLimitForCardCategoryReached}
+                    countInDeck={countInDeck}
                   />
                 </div>
               );
@@ -621,6 +635,7 @@ function CardViewerPageContent() {
                 isDeckPanelOpen={false}
                 isSelectedInPanel={false}
                 isLimitForCardCategoryReached={false}
+                countInDeck={0}
               />
               <Button
                 onClick={() => setSelectedCardModal(null)}
