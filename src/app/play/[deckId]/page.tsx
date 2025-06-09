@@ -15,7 +15,7 @@ import { EventBus } from '@/engine/EventBus';
 import { TurnManager } from '@/engine/TurnManager';
 import { PhaseManager } from '@/engine/PhaseManager';
 import { ActionHandler } from '@/engine/ActionHandler';
-import type { ICardDefinition, ICardInstance } from '@/engine/types/cards';
+import type { ICardDefinition, ICardInstance, IGameObject } from '@/engine/types/zones';
 import { Faction as EngineFaction, CardType as EngineCardType, Rarity as EngineRarity, PermanentZoneType as EnginePermanentZoneType, GamePhase } from '@/engine/types/enums';
 import { factionsLookup, raritiesLookup, cardTypesLookup, allCards as allAlteredCards } from '@/data/cards';
 
@@ -96,8 +96,8 @@ function mapAlteredCardToEngineDefinition(card: AlteredCard): ICardDefinition | 
     abilities: [],
     statistics: {
       mountain: card.powerM ?? 0,
-      forest: card.attack ?? 0,
-      water: card.health ?? 0,
+      forest: card.attack ?? 0, // Mapped from AlteredCard.attack to engine's forest stat
+      water: card.health ?? 0,   // Mapped from AlteredCard.health to engine's water stat
     },
     permanentZoneType: enginePermanentZoneType,
     reserveLimit: engineType === EngineCardType.Hero ? 3 : undefined,
@@ -106,8 +106,8 @@ function mapAlteredCardToEngineDefinition(card: AlteredCard): ICardDefinition | 
 }
 
 export interface DisplayableCardData {
-  instanceId?: string; // For cards that are instances/objects in play
-  originalCardId: string; // Definition ID
+  instanceId?: string; 
+  originalCardId: string; 
   name: string;
   imageUrl?: string;
   cost?: number;
@@ -123,7 +123,6 @@ interface PlayerState {
   resources: { forest: number; mountain: number; water: number };
   deckCount: number;
   discardCount: number;
-  // Add other zone arrays as needed (reserve, expedition, landmarks)
   expedition: DisplayableCardData[];
   landmarks: DisplayableCardData[];
   reserve: DisplayableCardData[];
@@ -182,13 +181,12 @@ export default function PlayGamePage() {
     const heroCardRaw = player.zones.heroZone.getAll()[0];
     const heroCard = heroCardRaw ? mapToDisplayableCard(heroCardRaw) : undefined;
     
-    const manaObjects = player.zones.manaZone.getAll() as IGameObject[]; // Assuming mana orbs are game objects
-    const currentMana = manaObjects.filter(orb => !orb.statuses.has('Exhausted' as any)).length; // Quick hack for status
+    const manaObjects = player.zones.manaZone.getAll() as IGameObject[];
+    const currentMana = manaObjects.filter(orb => !orb.statuses.has('Exhausted' as any)).length;
     const maxMana = manaObjects.length;
 
-    // Placeholder for resources, expedition, landmarks, reserve
-    const resources = { forest: 0, mountain: 0, water: 0 }; // TODO: Implement resource tracking
-    const expeditionCards = player.zones.expedition?.getAll().map(mapToDisplayableCard) || []; // Assuming expedition zone on player
+    const resources = { forest: 0, mountain: 0, water: 0 }; 
+    const expeditionCards = player.zones.expedition?.getAll().map(mapToDisplayableCard) || [];
     const landmarkCards = player.zones.landmarkZone.getAll().map(mapToDisplayableCard);
     const reserveCards = player.zones.reserve.getAll().map(mapToDisplayableCard);
 
@@ -197,7 +195,7 @@ export default function PlayGamePage() {
       hand: handCards,
       hero: heroCard,
       mana: { current: currentMana, max: maxMana },
-      resources: resources, // Placeholder
+      resources: resources, 
       deckCount: player.zones.deck.getCount(),
       discardCount: player.zones.discardPile.getCount(),
       expedition: expeditionCards,
@@ -268,13 +266,16 @@ export default function PlayGamePage() {
             setLogMessages(prev => [...prev, `Day advanced to: ${payload.dayNumber}`]);
           };
           const onEntityMoved = () => {
-            updateFullPlayerState(PLAYER_ID_SELF, gsm);
-            updateFullPlayerState(PLAYER_ID_OPPONENT, gsm);
-            // Add more specific log if needed
+            if (gameStateManager) { // Ensure gsm is available
+                updateFullPlayerState(PLAYER_ID_SELF, gameStateManager);
+                updateFullPlayerState(PLAYER_ID_OPPONENT, gameStateManager);
+            }
           };
           const onManaSpent = (payload: { playerId: string, amount: number }) => {
             setLogMessages(prev => [...prev, `Player ${payload.playerId} spent ${payload.amount} mana.`]);
-            updateFullPlayerState(payload.playerId, gsm);
+             if (gameStateManager) { // Ensure gsm is available
+                updateFullPlayerState(payload.playerId, gameStateManager);
+            }
           };
 
 
@@ -284,7 +285,6 @@ export default function PlayGamePage() {
           eventBus.subscribe('entityMoved', onEntityMoved);
           eventBus.subscribe('manaSpent', onManaSpent);
           
-          // Auto-advance setup phase
           if (gsm.state.currentPhase === GamePhase.Setup) {
             phm.advancePhase();
           }
@@ -299,18 +299,12 @@ export default function PlayGamePage() {
       }
       setIsLoading(false);
     }
-
-    // Cleanup listeners on component unmount
-    return () => {
-        // This is tricky with the current EventBus setup. A more robust bus might return unsubscribe functions.
-        // For now, we assume the bus might be re-created or this page is unmounted cleanly.
-    };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [deckId, decks]); // Removed eventBus & updateFullPlayerState as they are stable
+  }, [deckId, decks, eventBus]); // Removed updateFullPlayerState due to its stability
 
 
   const handlePassTurn = useCallback(async () => {
-    if (actionHandler && currentPlayerId && !isProcessingAction && currentPlayerId === PLAYER_ID_SELF) { // Only allow self to pass
+    if (actionHandler && currentPlayerId && !isProcessingAction && currentPlayerId === PLAYER_ID_SELF) { 
       setIsProcessingAction(true);
       setLogMessages(prev => [...prev, `${PLAYER_ID_SELF} attempts to pass turn.`]);
       try {
@@ -325,15 +319,29 @@ export default function PlayGamePage() {
     }
   }, [actionHandler, currentPlayerId, isProcessingAction]);
 
-  // Placeholder for other actions like playing a card
   const handlePlayCard = (card: DisplayableCardData) => {
     if (currentPlayerId === PLAYER_ID_SELF && !isProcessingAction) {
       setLogMessages(prev => [...prev, `${PLAYER_ID_SELF} tries to play ${card.name} (ID: ${card.originalCardId})`]);
-      // TODO: Implement actionHandler.tryPlayCardFromHand(...) 
-      // This will require selecting destination zone, paying costs, etc.
       alert(`Playing card ${card.name} is not yet implemented.`);
     }
   };
+
+  // Manual phase advance for testing
+  const handleAdvancePhase = useCallback(async () => {
+    if (phaseManager && !isProcessingAction) {
+        setIsProcessingAction(true);
+        setLogMessages(prev => [...prev, "Manually attempting to advance phase."]);
+        try {
+            await phaseManager.advancePhase();
+        } catch (e) {
+            console.error("Error advancing phase manually:", e);
+            setError("An error occurred while advancing the phase.");
+            setLogMessages(prev => [...prev, "Error manually advancing phase."]);
+        } finally {
+            setIsProcessingAction(false);
+        }
+    }
+  }, [phaseManager, isProcessingAction]);
 
 
   if (isLoading) {
@@ -370,6 +378,9 @@ export default function PlayGamePage() {
   const canSelfPass = currentPhase === GamePhase.Afternoon && 
                       gameStateManager?.getPlayer(PLAYER_ID_SELF)?.hasPassedTurn === false &&
                       currentPlayerId === PLAYER_ID_SELF;
+  
+  const canManuallyAdvancePhase = currentPhase !== GamePhase.Afternoon || (currentPhase === GamePhase.Afternoon && gameStateManager?.getPlayer(PLAYER_ID_SELF)?.hasPassedTurn);
+
 
   return (
     <div className="flex flex-col h-screen bg-zinc-800 text-foreground overflow-hidden">
@@ -385,28 +396,32 @@ export default function PlayGamePage() {
           {/* Opponent's Area (Top) */}
           <div className="flex-1 flex flex-col border border-zinc-700 rounded bg-zinc-900/50 p-2 space-y-1">
             <PlayerResourcesClient playerState={player2State} isOpponent={true} />
-            <div className="flex-1 flex items-end justify-center"> {/* Expedition/Landmarks for Opponent */}
+            <div className="flex-1 flex items-center justify-center min-h-0">
+                <PlayerHandClient cards={player2State.hand} owner="opponent" onCardClick={() => {}} />
+            </div>
+            <div className="flex items-center justify-center space-x-1"> 
                  <BoardZoneClient cards={player2State.expedition} zoneType="Expedition" owner="opponent" />
                  <BoardZoneClient cards={player2State.landmarks} zoneType="Landmarks" owner="opponent" />
             </div>
-             <HeroSpotClient hero={player2State.hero} isOpponent={true} />
-            <PlayerHandClient cards={player2State.hand} owner="opponent" onCardClick={() => {}} />
           </div>
 
-          {/* Central Shared Zones Placeholder */}
-          <div className="h-24 md:h-32 flex items-center justify-around bg-zinc-700/30 rounded border border-zinc-600 p-2">
+          {/* Central Shared Zones + Hero Spots */}
+          <div className="h-32 flex items-center justify-around bg-zinc-700/30 rounded border border-zinc-600 p-2 space-x-1">
+            <HeroSpotClient hero={player2State.hero} isOpponent={true} />
             <BoardZoneClient cards={[]} zoneType="Adventure Zone 1" owner="shared" />
             <BoardZoneClient cards={[]} zoneType="Adventure Zone 2" owner="shared" />
             <BoardZoneClient cards={[]} zoneType="Adventure Zone 3" owner="shared" />
+            <HeroSpotClient hero={player1State.hero} isOpponent={false} />
           </div>
 
           {/* Current Player's Area (Bottom) */}
           <div className="flex-1 flex flex-col border border-zinc-700 rounded bg-zinc-900/50 p-2 space-y-1">
-            <PlayerHandClient cards={player1State.hand} owner="self" onCardClick={handlePlayCard} />
-            <HeroSpotClient hero={player1State.hero} isOpponent={false} />
-            <div className="flex-1 flex items-start justify-center"> {/* Expedition/Landmarks for Self */}
+            <div className="flex items-center justify-center space-x-1"> 
                 <BoardZoneClient cards={player1State.expedition} zoneType="Expedition" owner="self" />
                 <BoardZoneClient cards={player1State.landmarks} zoneType="Landmarks" owner="self" />
+            </div>
+             <div className="flex-1 flex items-center justify-center min-h-0">
+                <PlayerHandClient cards={player1State.hand} owner="self" onCardClick={handlePlayCard} />
             </div>
             <PlayerResourcesClient playerState={player1State} isOpponent={false} />
           </div>
@@ -416,6 +431,10 @@ export default function PlayGamePage() {
                 <Button onClick={handlePassTurn} disabled={!canSelfPass || isProcessingAction} variant="destructive" size="sm">
                   {isProcessingAction && canSelfPass ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                   Pass Turn
+                </Button>
+                <Button onClick={handleAdvancePhase} disabled={isProcessingAction || !canManuallyAdvancePhase} variant="secondary" size="sm">
+                  {isProcessingAction && !canSelfPass ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                  Advance Phase (Manual)
                 </Button>
                 <Link href="/decks">
                     <Button variant="outline" size="sm">
