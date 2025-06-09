@@ -1,17 +1,35 @@
 
 'use client';
 
-import type { PlayerState } from '@/app/play/[deckId]/page';
-import { Leaf, Mountain, Droplets, Gem, Layers, Trash2 } from 'lucide-react'; // Gem for mana, Layers for deck, Trash2 for discard
+// This component is no longer used as its elements are integrated directly into PlayerAreaLayout.
+// It can be safely deleted if no other part of the application references it.
+
+import type { PlayerState } from '@/app/play/[deckId]/page'; // Keeping for reference if needed temporarily
+import { Leaf, Mountain, Droplets, Gem, Layers, Trash2 } from 'lucide-react'; 
 import { Badge } from '@/components/ui/badge';
 
 interface PlayerResourcesProps {
-  playerState: PlayerState;
+  playerState: PlayerState; // Using an interface that matches the structure
   isOpponent: boolean;
 }
 
-export default function PlayerResourcesClient({ playerState, isOpponent }: PlayerResourcesProps) {
-  const { mana, resources, deckCount, discardCount } = playerState;
+// Dummy PlayerState to satisfy the props if this component were to be rendered
+// This is just to prevent type errors if someone tries to use it without full context.
+const dummyPlayerState: PlayerState = {
+  hand: [],
+  hero: undefined,
+  mana: { current: 0, max: 0 },
+  deckCount: 0,
+  discardCount: 0,
+  expedition: [],
+  landmarks: [],
+  reserve: [],
+  // Removed 'resources' as it's not part of the defined PlayerState in page.tsx
+};
+
+
+export default function PlayerResourcesClient({ playerState = dummyPlayerState, isOpponent }: PlayerResourcesProps) {
+  const { mana, deckCount, discardCount } = playerState;
   const orderClass = isOpponent ? 'flex-col' : 'flex-col';
 
   return (
@@ -21,22 +39,6 @@ export default function PlayerResourcesClient({ playerState, isOpponent }: Playe
         <Gem className="h-4 w-4 text-primary" />
         <span className="text-sm font-semibold">{mana.current}/{mana.max}</span>
         <span className="text-xs text-muted-foreground">MANA</span>
-      </div>
-
-      {/* Elemental Resources */}
-      <div className="flex items-center space-x-2">
-        <Badge variant="outline" className="border-green-500 text-green-400 bg-transparent px-1.5 py-0.5">
-          <Leaf className="h-3 w-3 mr-1" />
-          <span className="text-xs">{resources.forest}</span>
-        </Badge>
-        <Badge variant="outline" className="border-orange-500 text-orange-400 bg-transparent px-1.5 py-0.5">
-          <Mountain className="h-3 w-3 mr-1" />
-          <span className="text-xs">{resources.mountain}</span>
-        </Badge>
-        <Badge variant="outline" className="border-blue-500 text-blue-400 bg-transparent px-1.5 py-0.5">
-          <Droplets className="h-3 w-3 mr-1" />
-          <span className="text-xs">{resources.water}</span>
-        </Badge>
       </div>
       
       {/* Deck and Discard */}
