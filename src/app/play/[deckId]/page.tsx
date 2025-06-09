@@ -150,7 +150,7 @@ export default function PlayGamePage() {
     hand: [], mana: {current: 0, max: 0}, deckCount: 0, discardCount: 0, expedition: [], landmarks: [], reserve: []
   };
   const [player1State, setPlayer1State] = useState<PlayerState>(initialPlayerState);
-  const [player2State, setPlayer2State] = useState<PlayerState>(initialPlayerState);
+  const [player2State, setPlayer2State] = useState<PlayerState>(initialPlayerState); // Kept for potential future use
 
   const eventBus = useState(() => new EventBus())[0]; 
 
@@ -348,14 +348,27 @@ export default function PlayGamePage() {
 
   const canManuallyAdvancePhase = currentPhase !== GamePhase.Afternoon || (currentPhase === GamePhase.Afternoon && gameStateManager?.getPlayer(PLAYER_ID_SELF)?.hasPassedTurn);
 
-  const PlayerAreaLayout = ({ playerState, isOpponent }: { playerState: PlayerState, isOpponent: boolean }) => (
-    <div className={cn(
-        "flex-1 flex flex-col space-y-1 bg-zinc-900/50 p-1 rounded border border-zinc-700",
-        isOpponent ? 'flex-col-reverse' : 'flex-col' 
-      )}
-    >
-      {/* Row 1: Deck/Discard, Hand, Mana */}
-      <div className={`flex items-stretch h-28 md:h-32 p-1 space-x-1`}>
+  // Simplified Player Area Layout focusing on the bottom player (current player)
+  const PlayerAreaLayout = ({ playerState, onCardClick }: { playerState: PlayerState, onCardClick: (card: DisplayableCardData) => void }) => (
+    <div className="flex-1 flex flex-col space-y-1 bg-zinc-900/50 p-1 rounded border border-zinc-700">
+      {/* Top Row (closest to Adventure Zone): Expedition Zone + Hero */}
+      <div className="h-24 md:h-28 p-1 relative">
+        <BoardZoneClient cards={playerState.expedition} zoneType={`Expédition (${playerState.expedition.length})`} owner="self" />
+        {playerState.hero && (
+          <div className="absolute top-1/2 left-1/4 -translate-y-1/2 -translate-x-1/2 z-10 w-20 h-28 md:w-24 md:h-32">
+            <HeroSpotClient hero={playerState.hero} isOpponent={false} />
+          </div>
+        )}
+      </div>
+  
+      {/* Middle Row: Reserve and Landmarks Zones */}
+      <div className="flex justify-around items-stretch h-32 md:h-36 p-1 space-x-1">
+        <BoardZoneClient cards={playerState.reserve} zoneType={`Réserve (${playerState.reserve.length})`} owner="self" className="flex-1" />
+        <BoardZoneClient cards={playerState.landmarks} zoneType={`Repères (${playerState.landmarks.length})`} owner="self" className="flex-1" />
+      </div>
+
+      {/* Bottom Row (closest to screen edge): Deck/Discard, Hand, Mana */}
+      <div className="flex items-stretch h-28 md:h-32 p-1 space-x-1">
         {/* Deck/Discard Area */}
         <div className="flex-1 p-1 bg-black/30 rounded h-full flex flex-col items-center justify-center text-center space-y-1">
           <BookOpen className="h-5 w-5 text-blue-400" />
@@ -365,7 +378,7 @@ export default function PlayGamePage() {
         </div>
         {/* Hand Area (Middle) */}
         <div className="flex-[3_3_0%] h-full flex items-center justify-center bg-black/10 rounded">
-          <PlayerHandClient cards={playerState.hand} owner={isOpponent ? "opponent" : "self"} onCardClick={isOpponent ? () => {} : handlePlayCard} />
+          <PlayerHandClient cards={playerState.hand} owner="self" onCardClick={onCardClick} />
         </div>
         {/* Mana Area */}
         <div className="flex-1 p-1 bg-black/30 rounded h-full flex flex-col items-center justify-center text-center space-y-1">
@@ -373,18 +386,6 @@ export default function PlayGamePage() {
           <p className="text-xs text-muted-foreground">Mana</p>
           <div className="text-sm font-semibold">{playerState.mana.current}/{playerState.mana.max}</div>
         </div>
-      </div>
-  
-      {/* Row 2: Reserve, Hero, Landmarks */}
-      <div className={`flex justify-around items-stretch h-32 md:h-36 p-1 space-x-1`}>
-        <BoardZoneClient cards={playerState.reserve} zoneType={`Réserve (${playerState.reserve.length})`} owner={isOpponent ? "opponent" : "self"} className="flex-1" />
-        <HeroSpotClient hero={playerState.hero} isOpponent={isOpponent} className="flex-shrink-0" />
-        <BoardZoneClient cards={playerState.landmarks} zoneType={`Repères (${playerState.landmarks.length})`} owner={isOpponent ? "opponent" : "self"} className="flex-1" />
-      </div>
-
-      {/* Row 3: Expedition */}
-      <div className={`h-24 md:h-28 p-1`}>
-        <BoardZoneClient cards={playerState.expedition} zoneType={`Expédition (${playerState.expedition.length})`} owner={isOpponent ? "opponent" : "self"} />
       </div>
     </div>
   );
@@ -398,17 +399,18 @@ export default function PlayGamePage() {
       </div>
 
       <div className="flex-1 flex flex-col p-1 space-y-1 min-h-0">
-        {/* Opponent's Area */}
-        <PlayerAreaLayout playerState={player2State} isOpponent={true} />
-
-        {/* Shared Adventure Zone - Thinner */}
-        <div className="h-16 bg-zinc-700/30 rounded border border-zinc-600 p-1 flex items-center justify-center shrink-0">
-          <p className="text-xs text-muted-foreground">Adventure Zone (Shared)</p>
-          {/* Placeholder for adventure track elements if needed later */}
+        {/* Opponent's Area - Placeholder */}
+        <div className="flex-1 bg-zinc-900/30 p-1 rounded border border-zinc-700 flex items-center justify-center text-muted-foreground">
+            Opponent Area Placeholder
         </div>
 
-        {/* Current Player's Area */}
-        <PlayerAreaLayout playerState={player1State} isOpponent={false} />
+        {/* Shared Adventure Zone - Thinner */}
+        <div className="h-12 bg-zinc-700/30 rounded border border-zinc-600 p-1 flex items-center justify-center shrink-0">
+          <p className="text-xs text-muted-foreground">Adventure Zone (Shared)</p>
+        </div>
+
+        {/* Current Player's Area (Bottom part) */}
+        <PlayerAreaLayout playerState={player1State} onCardClick={handlePlayCard} />
       </div>
       
       <div className="h-12 flex items-center justify-center space-x-4 p-1 bg-zinc-900 border-t border-zinc-700 shrink-0">
@@ -429,3 +431,4 @@ export default function PlayGamePage() {
     </div>
   );
 }
+
