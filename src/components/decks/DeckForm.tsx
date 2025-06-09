@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -12,7 +12,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import Image from 'next/image';
-import { Trash2, Save, X } from 'lucide-react';
+import { Trash2, Save, X, Loader2 } from 'lucide-react';
 import type { AlteredCard } from '@/types';
 import { allCards as allAvailableCardsData, cardTypesLookup, raritiesLookup, factionsLookup } from '@/data/cards';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
@@ -20,15 +20,15 @@ import { useToast } from '@/hooks/use-toast';
 
 const deckFormats = ["Standard", "Legacy", "Commander", "Pauper", "Singleton", "Custom"] as const;
 
-// --- Deck Validation Rules based on provided image ---
 const MIN_DECK_CARDS_NON_HERO = 39;
-const MAX_DECK_CARDS_NON_HERO = 60; // Assuming this is still 60, as not specified in the image. Please confirm.
+const MAX_DECK_CARDS_NON_HERO = 60; 
 const EXACT_HERO_COUNT = 1;
 const MAX_DUPLICATES_NON_HERO_BY_NAME = 3;
 const MAX_RARE_CARDS_NON_HERO = 15;
-// Rule 1.1.4.g (Max 3 Unique cards) cannot be implemented yet as "Unique" rarity is not in card data.
 
-const NEUTRAL_FACTION_NAME = factionsLookup.NE?.name || "Neutre"; // Get Neutral faction name from lookup
+const NEUTRAL_FACTION_NAME = factionsLookup.NE?.name || "Neutre"; 
+const CARDS_PER_LOAD_DECK_FORM = 50;
+
 
 const deckFormSchema = z.object({
   name: z.string().min(1, "Deck name is required."),
@@ -64,6 +64,12 @@ export default function DeckForm({ onSubmit, initialData, isEditing, onCancel }:
   const { watch, setValue, getValues } = form;
   const watchedCardIds = watch('cardIds', initialData?.cardIds || []);
 
+  // --- Infinite scroll for Available Cards ---
+  const [availableCardsDisplayCount, setAvailableCardsDisplayCount] = useState<number>(CARDS_PER_LOAD_DECK_FORM);
+  const [isLoadingMoreAvailableCards, setIsLoadingMoreAvailableCards] = useState<boolean>(false);
+  const availableCardsObserverRef = useRef<HTMLDivElement | null>(null);
+  // --- End Infinite scroll ---
+
   useEffect(() => {
     const currentSelectedFullCards = watchedCardIds
       .map(id => allAvailableCardsData.find(card => card.id === id))
@@ -76,16 +82,56 @@ export default function DeckForm({ onSubmit, initialData, isEditing, onCancel }:
 
 
   const displayableAvailableCards = useMemo(() => {
-    if (!selectedHeroFaction) {
-      return allAvailableCardsData; // Show all if no hero is selected yet
+    let filtered = allAvailableCardsData;
+    if (selectedHeroFaction) {
+      filtered = allAvailableCardsData.filter(card => {
+        if (card.type === cardTypesLookup.HERO.name) return true;
+        return card.faction === selectedHeroFaction || card.faction === NEUTRAL_FACTION_NAME;
+      });
     }
-    return allAvailableCardsData.filter(card => {
-      // Heroes can be any faction before one is chosen for the deck
-      if (card.type === cardTypesLookup.HERO.name) return true;
-      // Non-heroes must match selected hero's faction or be Neutral
-      return card.faction === selectedHeroFaction || card.faction === NEUTRAL_FACTION_NAME;
-    });
+    // Reset display count when filtered list changes
+    setAvailableCardsDisplayCount(CARDS_PER_LOAD_DECK_FORM);
+    return filtered;
   }, [selectedHeroFaction]);
+  
+  const availableCardsToShow = useMemo(() => {
+    return displayableAvailableCards.slice(0, availableCardsDisplayCount);
+  }, [displayableAvailableCards, availableCardsDisplayCount]);
+
+  const handleLoadMoreAvailableCards = useCallback(() => {
+    if (isLoadingMoreAvailableCards || availableCardsDisplayCount >= displayableAvailableCards.length) return;
+
+    setIsLoadingMoreAvailableCards(true);
+    setTimeout(() => { 
+      setAvailableCardsDisplayCount(prevCount => Math.min(prevCount + CARDS_PER_LOAD_DECK_FORM, displayableAvailableCards.length));
+      setIsLoadingMoreAvailableCards(false);
+    }, 300); // Shorter delay for deck form
+  }, [isLoadingMoreAvailableCards, availableCardsDisplayCount, displayableAvailableCards.length]);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && !isLoadingMoreAvailableCards && availableCardsDisplayCount < displayableAvailableCards.length) {
+          handleLoadMoreAvailableCards();
+        }
+      },
+      { 
+        threshold: 1.0,
+        rootMargin: "0px 0px 200px 0px" // Trigger earlier
+      } 
+    );
+
+    const currentObserverRef = availableCardsObserverRef.current;
+    if (currentObserverRef) {
+      observer.observe(currentObserverRef);
+    }
+
+    return () => {
+      if (currentObserverRef) {
+        observer.unobserve(currentObserverRef);
+      }
+    };
+  }, [isLoadingMoreAvailableCards, availableCardsDisplayCount, displayableAvailableCards.length, handleLoadMoreAvailableCards]);
 
 
   const handleCardToggle = useCallback((cardToAddOrRemove: AlteredCard) => {
@@ -100,10 +146,8 @@ export default function DeckForm({ onSubmit, initialData, isEditing, onCancel }:
     }
 
     const heroInPotentialDeck = potentialSelectedCards.find(c => c.type === cardTypesLookup.HERO.name);
-    const heroFaction = heroInPotentialDeck?.faction || selectedHeroFaction; // Use new hero's faction if it's being added
-
-    if (!isCurrentlySelected) { // Validations for adding a card
-      // Check Hero limit
+    
+    if (!isCurrentlySelected) { 
       if (cardToAddOrRemove.type === cardTypesLookup.HERO.name) {
         const existingHeroes = selectedCards.filter(c => c.type === cardTypesLookup.HERO.name);
         if (existingHeroes.length >= EXACT_HERO_COUNT && existingHeroes[0].id !== cardToAddOrRemove.id) {
@@ -112,7 +156,6 @@ export default function DeckForm({ onSubmit, initialData, isEditing, onCancel }:
         }
       }
 
-      // Check Faction consistency (if a hero is selected or is the card being added)
       const deckHeroForFactionCheck = cardToAddOrRemove.type === cardTypesLookup.HERO.name ? cardToAddOrRemove : heroInPotentialDeck;
       if (deckHeroForFactionCheck && cardToAddOrRemove.type !== cardTypesLookup.HERO.name) {
         if (cardToAddOrRemove.faction !== deckHeroForFactionCheck.faction && cardToAddOrRemove.faction !== NEUTRAL_FACTION_NAME) {
@@ -121,16 +164,14 @@ export default function DeckForm({ onSubmit, initialData, isEditing, onCancel }:
         }
       }
       
-      // Check Duplicate limit by name (for non-heroes)
       if (cardToAddOrRemove.type !== cardTypesLookup.HERO.name) {
-        const countOfSameName = potentialSelectedCards.filter(c => c.name === cardToAddOrRemove.name).length;
+        const countOfSameName = potentialSelectedCards.filter(c => c.name === cardToAddOrRemove.name && c.type !== cardTypesLookup.HERO.name).length;
         if (countOfSameName > MAX_DUPLICATES_NON_HERO_BY_NAME) {
-          toast({ title: "Deck Rule Violation", description: `Cannot add more than ${MAX_DUPLICATES_NON_HERO_BY_NAME} copies of "${cardToAddOrRemove.name}".`, variant: "destructive" });
+          toast({ title: "Deck Rule Violation", description: `Cannot add more than ${MAX_DUPLICATES_NON_HERO_BY_NAME} copies of non-Hero card "${cardToAddOrRemove.name}".`, variant: "destructive" });
           return;
         }
       }
       
-      // Check Rare card limit (for non-heroes)
       if (cardToAddOrRemove.type !== cardTypesLookup.HERO.name && cardToAddOrRemove.rarity === raritiesLookup.RARE.name) {
         const currentRareNonHeroCount = potentialSelectedCards.filter(c => c.type !== cardTypesLookup.HERO.name && c.rarity === raritiesLookup.RARE.name).length;
         if (currentRareNonHeroCount > MAX_RARE_CARDS_NON_HERO) {
@@ -139,7 +180,6 @@ export default function DeckForm({ onSubmit, initialData, isEditing, onCancel }:
         }
       }
 
-      // Check Max total non-Hero card limit
       const nonHeroCardsInPotentialDeck = potentialSelectedCards.filter(c => c.type !== cardTypesLookup.HERO.name);
       if (nonHeroCardsInPotentialDeck.length > MAX_DECK_CARDS_NON_HERO) {
          toast({ title: "Deck Rule Violation", description: `Deck cannot exceed ${MAX_DECK_CARDS_NON_HERO} non-Hero cards.`, variant: "destructive" });
@@ -155,7 +195,6 @@ export default function DeckForm({ onSubmit, initialData, isEditing, onCancel }:
     }
     
     setValue('cardIds', updatedCardIds, { shouldValidate: true });
-    // setSelectedCards and selectedHeroFaction are updated via useEffect on watchedCardIds
   }, [getValues, selectedCards, toast, setValue, selectedHeroFaction]);
 
 
@@ -163,17 +202,15 @@ export default function DeckForm({ onSubmit, initialData, isEditing, onCancel }:
     const currentlySelectedCards = watchedCardIds
       .map(id => allAvailableCardsData.find(card => card.id === id))
       .filter(Boolean) as AlteredCard[];
-    setSelectedCards(currentlySelectedCards);
     
     const currentHero = currentlySelectedCards.find(c => c.type === cardTypesLookup.HERO.name);
     const newHeroFaction = currentHero?.faction || null;
 
     if (newHeroFaction !== selectedHeroFaction) {
-      setSelectedHeroFaction(newHeroFaction);
+      setSelectedHeroFaction(newHeroFaction); // This will trigger displayableAvailableCards recalc
       if (newHeroFaction) {
-        // If hero changes, re-validate existing non-hero cards for faction consistency
         const cardsToKeep = currentlySelectedCards.filter(card => {
-          if (card.type === cardTypesLookup.HERO.name) return true; // Keep the hero
+          if (card.type === cardTypesLookup.HERO.name) return true; 
           return card.faction === newHeroFaction || card.faction === NEUTRAL_FACTION_NAME;
         });
         if (cardsToKeep.length < currentlySelectedCards.length) {
@@ -181,8 +218,12 @@ export default function DeckForm({ onSubmit, initialData, isEditing, onCancel }:
         }
         setValue('cardIds', cardsToKeep.map(c => c.id), { shouldValidate: true });
       }
+    } else {
+      // If faction didn't change, just update selected cards
+      setSelectedCards(currentlySelectedCards);
     }
   }, [watchedCardIds, setValue, selectedHeroFaction, toast]);
+
 
   const internalOnSubmit = (data: DeckFormValues) => {
     const finalSelectedCards = data.cardIds
@@ -191,7 +232,6 @@ export default function DeckForm({ onSubmit, initialData, isEditing, onCancel }:
     
     const errors: string[] = [];
 
-    // 1. Hero check
     const heroesInDeck = finalSelectedCards.filter(c => c.type === cardTypesLookup.HERO.name);
     if (heroesInDeck.length !== EXACT_HERO_COUNT) {
         errors.push(`Deck must contain exactly ${EXACT_HERO_COUNT} Hero. Found: ${heroesInDeck.length}.`);
@@ -200,17 +240,13 @@ export default function DeckForm({ onSubmit, initialData, isEditing, onCancel }:
 
     const nonHeroCardsInDeck = finalSelectedCards.filter(c => c.type !== cardTypesLookup.HERO.name);
 
-    // 2. Total non-Hero card count (min)
     if (nonHeroCardsInDeck.length < MIN_DECK_CARDS_NON_HERO) {
         errors.push(`Deck must contain at least ${MIN_DECK_CARDS_NON_HERO} non-Hero cards. Found: ${nonHeroCardsInDeck.length}.`);
     }
-    // 2.1 Total non-Hero card count (max) - Assuming MAX_DECK_CARDS_NON_HERO is still desired
     if (nonHeroCardsInDeck.length > MAX_DECK_CARDS_NON_HERO) {
       errors.push(`Deck cannot exceed ${MAX_DECK_CARDS_NON_HERO} non-Hero cards. Found: ${nonHeroCardsInDeck.length}.`);
     }
 
-
-    // 3. Duplicate check by name (for non-heroes)
     const cardCountsByName: { [name: string]: number } = {};
     nonHeroCardsInDeck.forEach(card => {
         cardCountsByName[card.name] = (cardCountsByName[card.name] || 0) + 1;
@@ -218,26 +254,23 @@ export default function DeckForm({ onSubmit, initialData, isEditing, onCancel }:
 
     for (const cardName in cardCountsByName) {
         if (cardCountsByName[cardName] > MAX_DUPLICATES_NON_HERO_BY_NAME) {
-            errors.push(`Too many copies of "${cardName}". Max allowed: ${MAX_DUPLICATES_NON_HERO_BY_NAME}, Found: ${cardCountsByName[cardName]}.`);
+            errors.push(`Too many copies of non-Hero card "${cardName}". Max allowed: ${MAX_DUPLICATES_NON_HERO_BY_NAME}, Found: ${cardCountsByName[cardName]}.`);
         }
     }
 
-    // 4. Rare card limit (for non-heroes)
     const rareNonHeroCards = nonHeroCardsInDeck.filter(c => c.rarity === raritiesLookup.RARE.name);
     if (rareNonHeroCards.length > MAX_RARE_CARDS_NON_HERO) {
         errors.push(`Too many Rare non-Hero cards. Max allowed: ${MAX_RARE_CARDS_NON_HERO}, Found: ${rareNonHeroCards.length}.`);
     }
 
-    // 5. Faction Consistency
     if (heroCard && heroCard.faction) {
       const heroDeckFaction = heroCard.faction;
       nonHeroCardsInDeck.forEach(card => {
         if (card.faction !== heroDeckFaction && card.faction !== NEUTRAL_FACTION_NAME) {
-          errors.push(`Card "${card.name}" (${card.faction}) does not match Hero's faction (${heroDeckFaction}) and is not Neutral.`);
+          errors.push(`Card "${card.name}" (Faction: ${card.faction}) does not match Hero's faction (${heroDeckFaction}) and is not Neutral.`);
         }
       });
     } else if (heroesInDeck.length === 0 && nonHeroCardsInDeck.length > 0) {
-      // This case should be caught by hero count, but as a safeguard
       errors.push("A Hero must be selected to determine deck faction.");
     }
     
@@ -340,7 +373,7 @@ export default function DeckForm({ onSubmit, initialData, isEditing, onCancel }:
             <h3 className="font-semibold mb-2 text-lg">Available Cards {selectedHeroFaction ? `(${selectedHeroFaction} & ${NEUTRAL_FACTION_NAME} only)` : '(Select a Hero to filter by faction)'}</h3>
             <ScrollArea className="flex-grow border rounded-md p-2 bg-muted/30 min-h-[400px] md:min-h-0 md:h-[calc(100vh-280px)]">
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
-                {displayableAvailableCards.map(card => (
+                {availableCardsToShow.map(card => (
                   <Card
                     key={card.id}
                     onClick={() => handleCardToggle(card)}
@@ -362,6 +395,19 @@ export default function DeckForm({ onSubmit, initialData, isEditing, onCancel }:
                   </Card>
                 ))}
               </div>
+              {displayableAvailableCards.length > availableCardsDisplayCount && !isLoadingMoreAvailableCards && (
+                <div ref={availableCardsObserverRef} style={{ height: '50px', marginTop: '20px' }} aria-hidden="true" />
+              )}
+              {isLoadingMoreAvailableCards && (
+                <div className="flex justify-center py-4">
+                  <Loader2 className="h-8 w-8 text-primary animate-spin" />
+                </div>
+              )}
+              {availableCardsToShow.length === 0 && !isLoadingMoreAvailableCards && (
+                <p className="text-sm text-muted-foreground p-4 text-center">
+                  No cards match the current faction filter.
+                </p>
+              )}
             </ScrollArea>
           </div>
         </div>
@@ -378,4 +424,3 @@ export default function DeckForm({ onSubmit, initialData, isEditing, onCancel }:
     </Form>
   );
 }
-
