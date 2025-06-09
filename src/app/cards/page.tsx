@@ -85,6 +85,7 @@ function CardViewerPageContent() {
         setIsEditingDeck(true);
         setEditingDeckId(deckIdToEdit);
         if (!showDeckPanel) setShowDeckPanel(true);
+        // Filters and loaded cards are preserved for editing
       } else {
         toast({ title: "Error", description: "Deck not found for editing.", variant: "destructive" });
         router.replace('/cards', { scroll: false });
@@ -98,10 +99,11 @@ function CardViewerPageContent() {
       setEditingDeckId(null);
       if (!showDeckPanel) setShowDeckPanel(true);
     } else if (action === 'create-with-card') {
-      // Creating from Card Viewer "+" button, filters and loaded cards are preserved by not resetting them here
+      // Creating from Card Viewer "+" button, filters and loaded cards are preserved
       // DeckFormInitialData is set by handleStartNewDeckWithCard
       if (!showDeckPanel) setShowDeckPanel(true); 
     } else {
+      // If no action or deckId, and panel is open, close it (e.g. direct navigation or back button)
       const currentParams = new URLSearchParams(Array.from(searchParams.entries()));
       if (!currentParams.has('action') && !currentParams.has('deckId')) {
           if (showDeckPanel) { 
@@ -117,15 +119,42 @@ function CardViewerPageContent() {
 
 
   const handleFilterChange = useCallback((filterName: keyof Filters, value: any) => {
+    if (filterName === 'selectedFaction' && showDeckPanel && deckFormInitialData?.cardIds) {
+      const currentDeckCards = (deckFormInitialData.cardIds || [])
+        .map(id => allCards.find(c => c.id === id))
+        .filter(Boolean) as AlteredCard[];
+      const currentHeroInDeck = currentDeckCards.find(c => c.type === cardTypesLookup.HERO.name);
+      let deckFactionLock: string | undefined = undefined;
+
+      if (currentHeroInDeck?.faction) {
+        deckFactionLock = currentHeroInDeck.faction;
+      } else if (currentDeckCards.length > 0) {
+        const firstNonNeutralCardWithFaction = currentDeckCards.find(
+          c => c.faction && c.faction !== NEUTRAL_FACTION_NAME
+        );
+        if (firstNonNeutralCardWithFaction?.faction) {
+          deckFactionLock = firstNonNeutralCardWithFaction.faction;
+        }
+      }
+      
+      if (deckFactionLock && value !== deckFactionLock) {
+         toast({
+          title: "Faction Filter Locked",
+          description: `Cannot change faction. Your deck locks it to ${deckFactionLock}. Remove relevant cards or change Hero.`,
+          variant: "default",
+          duration: 7000,
+        });
+        return; 
+      }
+    }
+
     setFilters(prev => ({ ...prev, [filterName]: value }));
     setLoadedCardsCount(CARDS_PER_LOAD);
-  }, []);
+  }, [showDeckPanel, deckFormInitialData?.cardIds, toast]);
+
 
   useEffect(() => {
     if (!showDeckPanel || !deckFormInitialData?.cardIds) {
-      if (filters.selectedFaction !== 'all') {
-         handleFilterChange('selectedFaction', 'all');
-      }
       return;
     }
   
@@ -134,7 +163,6 @@ function CardViewerPageContent() {
       .filter(Boolean) as AlteredCard[];
   
     let targetFactionForFilter: string | undefined = undefined;
-  
     const currentHeroInDeck = currentDeckCards.find(c => c.type === cardTypesLookup.HERO.name);
   
     if (currentHeroInDeck?.faction) {
@@ -150,17 +178,53 @@ function CardViewerPageContent() {
   
     if (targetFactionForFilter) {
       if (filters.selectedFaction !== targetFactionForFilter) {
-        handleFilterChange('selectedFaction', targetFactionForFilter);
+        setFilters(prev => ({ ...prev, selectedFaction: targetFactionForFilter! }));
+        setLoadedCardsCount(CARDS_PER_LOAD);
       }
     } else {
       if (filters.selectedFaction !== 'all') {
-        handleFilterChange('selectedFaction', 'all');
+        setFilters(prev => ({ ...prev, selectedFaction: 'all' }));
+        setLoadedCardsCount(CARDS_PER_LOAD);
       }
     }
-  }, [deckFormInitialData?.cardIds, showDeckPanel, handleFilterChange, filters.selectedFaction]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deckFormInitialData?.cardIds, showDeckPanel]); // filters.selectedFaction removed to prevent loops with direct setFilters
 
 
   const clearFilters = () => {
+    if (showDeckPanel && deckFormInitialData?.cardIds) {
+      const currentDeckCards = (deckFormInitialData.cardIds || [])
+        .map(id => allCards.find(c => c.id === id))
+        .filter(Boolean) as AlteredCard[];
+      const currentHeroInDeck = currentDeckCards.find(c => c.type === cardTypesLookup.HERO.name);
+      let deckFactionLock: string | undefined = undefined;
+
+      if (currentHeroInDeck?.faction) {
+        deckFactionLock = currentHeroInDeck.faction;
+      } else if (currentDeckCards.length > 0) {
+        const firstNonNeutralCardWithFaction = currentDeckCards.find(
+          c => c.faction && c.faction !== NEUTRAL_FACTION_NAME
+        );
+        if (firstNonNeutralCardWithFaction?.faction) {
+          deckFactionLock = firstNonNeutralCardWithFaction.faction;
+        }
+      }
+
+      if (deckFactionLock) {
+        toast({
+          title: "Faction Filter Locked",
+          description: `Cannot clear faction filter. Your deck locks it to ${deckFactionLock}. Remove relevant cards or change Hero.`,
+          variant: "default",
+          duration: 7000,
+        });
+        setFilters(prev => ({
+          ...initialFilters,
+          selectedFaction: prev.selectedFaction, 
+        }));
+        setLoadedCardsCount(CARDS_PER_LOAD);
+        return;
+      }
+    }
     setFilters(initialFilters);
     setLoadedCardsCount(CARDS_PER_LOAD);
   };
@@ -258,16 +322,16 @@ function CardViewerPageContent() {
     const currentFullCards = currentCardIds.map(id => allCards.find(c => c.id === id)).filter(Boolean) as AlteredCard[];
 
     const isHeroType = card.type === cardTypesLookup.HERO.name;
-    const heroesInDeckCount = currentFullCards.filter(c => c.type === cardTypesLookup.HERO.name).length;
-    const heroCardInDeckIfAny = currentFullCards.find(c => c.type === cardTypesLookup.HERO.name);
+    const heroesInDeck = currentFullCards.filter(c => c.type === cardTypesLookup.HERO.name);
+    const heroCardInDeckIfAny = heroesInDeck[0];
 
     if (isHeroType) {
-      if (currentCardIds.includes(card.id)) {
+      if (currentCardIds.includes(card.id)) { // Trying to add the same hero again
          toast({ title: "Deck Rule", description: `A deck can only have ${EXACT_HERO_COUNT} copy of the Hero "${card.name}".`, variant: "destructive" });
          return;
       }
-      if (heroesInDeckCount >= EXACT_HERO_COUNT) {
-        toast({ title: "Deck Rule", description: `A deck can only have ${EXACT_HERO_COUNT} Hero. Remove the current Hero to add "${card.name}".`, variant: "destructive" });
+      if (heroesInDeck.length >= EXACT_HERO_COUNT) { // Trying to add a different hero when one already exists
+        toast({ title: "Deck Rule", description: `A deck can only have ${EXACT_HERO_COUNT} Hero. Remove the current Hero ("${heroCardInDeckIfAny?.name}") to add "${card.name}".`, variant: "destructive" });
         return;
       }
     } else { 
@@ -275,7 +339,7 @@ function CardViewerPageContent() {
         toast({ title: "Deck Rule", description: `Card faction (${card.faction || 'N/A'}) must match Hero faction (${heroCardInDeckIfAny.faction}) or be Neutral.`, variant: "destructive" });
         return;
       }
-
+      // No hero selected yet, or card matches faction/is neutral
       const nonHeroCardsInDeck = currentFullCards.filter(c => c.type !== cardTypesLookup.HERO.name);
       if (nonHeroCardsInDeck.length >= MAX_DECK_CARDS_NON_HERO && !currentCardIds.includes(card.id)) { 
         toast({ title: "Deck Rule", description: `Deck cannot exceed ${MAX_DECK_CARDS_NON_HERO} non-Hero cards.`, variant: "destructive" });
