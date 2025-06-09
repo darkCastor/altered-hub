@@ -26,7 +26,7 @@ export default function GameCardDisplayClient({ card, isOpponentHandCard, isHero
   const aiHint = card.name ? card.name.toLowerCase().split(' ').slice(0, 2).join(' ') : 'game card';
 
   return (
-    <div className={cn("w-full h-full relative shadow-md rounded-sm overflow-hidden group", className)}>
+    <div className={cn("w-full h-full relative shadow-md rounded-sm group", className)}>
       {card.imageUrl ? (
         <Image
           src={card.imageUrl}
@@ -35,7 +35,6 @@ export default function GameCardDisplayClient({ card, isOpponentHandCard, isHero
           style={{ objectFit: 'cover' }}
           className="rounded-sm"
           data-ai-hint={aiHint}
-          unoptimized 
         />
       ) : (
         <div className="w-full h-full bg-muted flex items-center justify-center rounded-sm border border-border">
