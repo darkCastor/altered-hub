@@ -85,13 +85,11 @@ function CardViewerPageContent() {
         setIsEditingDeck(true);
         setEditingDeckId(deckIdToEdit);
         if (!showDeckPanel) setShowDeckPanel(true);
-        // Filters and loaded cards are preserved for editing
       } else {
         toast({ title: "Error", description: "Deck not found for editing.", variant: "destructive" });
         router.replace('/cards', { scroll: false });
       }
     } else if (action === 'create') {
-      // Coming from /decks page to create new deck, reset filters and loaded cards
       setFilters(initialFilters);
       setLoadedCardsCount(CARDS_PER_LOAD);
       setDeckFormInitialData({ name: '', description: '', format: 'Standard', cardIds: [] });
@@ -99,11 +97,8 @@ function CardViewerPageContent() {
       setEditingDeckId(null);
       if (!showDeckPanel) setShowDeckPanel(true);
     } else if (action === 'create-with-card') {
-      // Creating from Card Viewer "+" button, filters and loaded cards are preserved
-      // DeckFormInitialData is set by handleStartNewDeckWithCard
       if (!showDeckPanel) setShowDeckPanel(true); 
     } else {
-      // If no action or deckId, and panel is open, close it (e.g. direct navigation or back button)
       const currentParams = new URLSearchParams(Array.from(searchParams.entries()));
       if (!currentParams.has('action') && !currentParams.has('deckId')) {
           if (showDeckPanel) { 
@@ -137,15 +132,24 @@ function CardViewerPageContent() {
         }
       }
       
-      if (deckFactionLock && value !== deckFactionLock) {
+      if (deckFactionLock && value !== deckFactionLock && value !== 'all') {
          toast({
           title: "Faction Filter Locked",
-          description: `Cannot change faction. Your deck locks it to ${deckFactionLock}. Remove relevant cards or change Hero.`,
-          variant: "default",
+          description: `Cannot change faction filter. Your deck locks it to ${deckFactionLock}. Remove relevant cards or change Hero to unlock.`,
+          variant: "destructive",
           duration: 7000,
         });
         return; 
       }
+      if (deckFactionLock && value === 'all') {
+        toast({
+         title: "Faction Filter Locked",
+         description: `Cannot clear faction filter to 'All Factions'. Your deck locks it to ${deckFactionLock}. Remove relevant cards or change Hero to unlock.`,
+         variant: "destructive",
+         duration: 7000,
+       });
+       return; 
+     }
     }
 
     setFilters(prev => ({ ...prev, [filterName]: value }));
@@ -181,14 +185,14 @@ function CardViewerPageContent() {
         setFilters(prev => ({ ...prev, selectedFaction: targetFactionForFilter! }));
         setLoadedCardsCount(CARDS_PER_LOAD);
       }
-    } else {
+    } else { // No hero, and no other faction cards, or only neutral cards
       if (filters.selectedFaction !== 'all') {
         setFilters(prev => ({ ...prev, selectedFaction: 'all' }));
         setLoadedCardsCount(CARDS_PER_LOAD);
       }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [deckFormInitialData?.cardIds, showDeckPanel]); // filters.selectedFaction removed to prevent loops with direct setFilters
+  }, [deckFormInitialData?.cardIds, showDeckPanel]); 
 
 
   const clearFilters = () => {
@@ -213,9 +217,9 @@ function CardViewerPageContent() {
       if (deckFactionLock) {
         toast({
           title: "Faction Filter Locked",
-          description: `Cannot clear faction filter. Your deck locks it to ${deckFactionLock}. Remove relevant cards or change Hero.`,
-          variant: "default",
-          duration: 7000,
+          description: `Cannot clear faction filter to 'All Factions'. Your deck currently locks it to ${deckFactionLock}. Remove relevant cards or change Hero to unlock. Other filters cleared.`,
+          variant: "destructive",
+          duration: 8000,
         });
         setFilters(prev => ({
           ...initialFilters,
@@ -326,20 +330,24 @@ function CardViewerPageContent() {
     const heroCardInDeckIfAny = heroesInDeck[0];
 
     if (isHeroType) {
-      if (currentCardIds.includes(card.id)) { // Trying to add the same hero again
+      // Check if trying to add the SAME hero again
+      if (currentCardIds.includes(card.id)) {
          toast({ title: "Deck Rule", description: `A deck can only have ${EXACT_HERO_COUNT} copy of the Hero "${card.name}".`, variant: "destructive" });
          return;
       }
-      if (heroesInDeck.length >= EXACT_HERO_COUNT) { // Trying to add a different hero when one already exists
+      // Check if trying to add a DIFFERENT hero when one already exists
+      if (heroesInDeck.length >= EXACT_HERO_COUNT) {
         toast({ title: "Deck Rule", description: `A deck can only have ${EXACT_HERO_COUNT} Hero. Remove the current Hero ("${heroCardInDeckIfAny?.name}") to add "${card.name}".`, variant: "destructive" });
         return;
       }
     } else { 
+      // Non-Hero card addition logic
+      // Check faction consistency only if a hero is already chosen
       if (heroCardInDeckIfAny && heroCardInDeckIfAny.faction && card.faction !== heroCardInDeckIfAny.faction && card.faction !== NEUTRAL_FACTION_NAME) {
         toast({ title: "Deck Rule", description: `Card faction (${card.faction || 'N/A'}) must match Hero faction (${heroCardInDeckIfAny.faction}) or be Neutral.`, variant: "destructive" });
         return;
       }
-      // No hero selected yet, or card matches faction/is neutral
+      
       const nonHeroCardsInDeck = currentFullCards.filter(c => c.type !== cardTypesLookup.HERO.name);
       if (nonHeroCardsInDeck.length >= MAX_DECK_CARDS_NON_HERO && !currentCardIds.includes(card.id)) { 
         toast({ title: "Deck Rule", description: `Deck cannot exceed ${MAX_DECK_CARDS_NON_HERO} non-Hero cards.`, variant: "destructive" });
@@ -486,7 +494,7 @@ function CardViewerPageContent() {
             <p>Try adjusting your search or clearing filters.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {cardsToDisplay.map(card => {
                 const isSelectedInPanel = showDeckPanel && (deckFormInitialData?.cardIds.includes(card.id) ?? false);
                 const countInDeck = deckFormInitialData?.cardIds.filter(id => id === card.id).length || 0;
