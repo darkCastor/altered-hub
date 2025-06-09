@@ -2,8 +2,7 @@
 'use client';
 
 import { useState, useMemo, useEffect, useRef, useCallback, Suspense } from 'react';
-import { useSearchParams, useRouter }
-from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import type { AlteredCard, Deck } from '@/types';
 import { allCards, cardTypesLookup, factionsLookup, raritiesLookup } from '@/data/cards';
 import CardDisplay from '@/components/cards/CardDisplay';
@@ -14,11 +13,11 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { X, Search, FilterX, PanelLeftOpen, PanelRightOpen, CheckCircle, Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { X, Search, FilterX, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import useLocalStorage from '@/hooks/useLocalStorage';
 import Image from 'next/image';
-import { cn } from '@/lib/utils';
+// cn import removed as per revert request
 
 const DECK_STORAGE_KEY = 'alterdeck-decks';
 const CARDS_PER_LOAD = 20;
@@ -87,7 +86,7 @@ function CardViewerPageContent() {
         setShowDeckPanel(true);
       } else {
         toast({ title: "Error", description: "Deck not found for editing.", variant: "destructive" });
-        router.replace('/cards', undefined);
+        router.replace('/cards', { scroll: false });
       }
     } else if (action === 'create') {
       setDeckFormInitialData({ name: '', description: '', format: 'Standard', cardIds: [] });
@@ -153,7 +152,7 @@ function CardViewerPageContent() {
     setIsEditingDeck(false);
     setEditingDeckId(null);
     setShowDeckPanel(true);
-    router.replace('/cards', undefined);
+    router.replace('/cards', { scroll: false });
   };
 
   const handleDeckFormSubmit = (data: DeckFormValues) => {
@@ -181,13 +180,13 @@ function CardViewerPageContent() {
     }
     setShowDeckPanel(false);
     setDeckFormInitialData(null);
-    router.replace('/cards', undefined);
+    router.replace('/cards', { scroll: false });
   };
 
   const handleDeckFormCancel = () => {
     setShowDeckPanel(false);
     setDeckFormInitialData(null);
-    router.replace('/cards', undefined);
+    router.replace('/cards', { scroll: false });
   };
 
   const handleLeftClickCardOnGrid = (card: AlteredCard) => {
@@ -207,9 +206,7 @@ function CardViewerPageContent() {
       }
     } else {
       if (currentFullCards.length === 0 && !isHero) {
-         // This case should ideally be handled by starting with a hero,
-         // but if deck starts empty and first add is non-hero, it's okay.
-         // The submit validation will catch no-hero decks.
+         // Allow adding non-hero first if deck is empty, validation on submit will catch no-hero.
       } else if (!heroCardInDeck && currentFullCards.length > 0) {
          toast({ title: "Deck Rule", description: "You must select a Hero before adding other cards.", variant: "destructive" });
          return;
@@ -253,11 +250,9 @@ function CardViewerPageContent() {
     }
   };
 
-
   if (!isMounted) {
     return <div className="flex justify-center items-center min-h-[60vh]"><Loader2 className="h-16 w-16 animate-spin text-primary" /></div>;
   }
-
 
   return (
     <div className="flex flex-col md:flex-row gap-6">
@@ -284,10 +279,11 @@ function CardViewerPageContent() {
                 <span className="sr-only">{showDeckPanel ? "Close Deck Panel" : "Open Deck Panel"}</span>
               </Button>
             <p className="text-sm text-muted-foreground">
-                {showDeckPanel ? "Panel Open: Left-click card to add, Right-click to remove." : "Browse Altered TCG cards."}
+                {showDeckPanel ? "Panel Open: Left-click card to add, Right-click to remove." : "Browse Altered TCG cards. Click '+' on a card to start a new deck."}
             </p>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 items-end">
+            {/* Filters */}
             <div className="space-y-1">
               <label htmlFor="search" className="text-sm font-medium">Search Name</label>
               <Input
@@ -355,16 +351,17 @@ function CardViewerPageContent() {
             <p>Try adjusting your search or clearing filters.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-5 gap-6">
             {cardsToDisplay.map(card => {
                 const isSelectedInPanelCurrently = showDeckPanel && (deckFormInitialData?.cardIds.includes(card.id) ?? false);
                 const countInDeck = deckFormInitialData?.cardIds.filter(id => id === card.id).length || 0;
                 const isHeroCard = card.type === cardTypesLookup.HERO.name;
-                let isMaxCopiesReached = false;
+                
+                let isMaxCopiesReachedInPanel = false;
                 if (isHeroCard) {
-                    isMaxCopiesReached = countInDeck >= EXACT_HERO_COUNT;
+                    isMaxCopiesReachedInPanel = countInDeck >= EXACT_HERO_COUNT;
                 } else {
-                    isMaxCopiesReached = countInDeck >= MAX_DUPLICATES_NON_HERO_BY_NAME;
+                    isMaxCopiesReachedInPanel = countInDeck >= MAX_DUPLICATES_NON_HERO_BY_NAME;
                 }
 
               return (
@@ -391,7 +388,7 @@ function CardViewerPageContent() {
                     onStartNewDeck={!showDeckPanel ? handleStartNewDeckWithCard : undefined}
                     isSelectedInPanel={isSelectedInPanelCurrently}
                     isDeckPanelOpen={showDeckPanel}
-                    isMaxCopiesReachedInPanel={showDeckPanel && isSelectedInPanelCurrently && isMaxCopiesReached}
+                    isMaxCopiesReachedInPanel={showDeckPanel && isSelectedInPanelCurrently && isMaxCopiesReachedInPanel}
                   />
                 </div>
               );
@@ -454,9 +451,11 @@ export default function CardViewerPage() {
   );
 }
 
+// Minimal loader for when hook is not ready
 const Loader2 = ({ className }: { className?: string }) => (
-  <svg className={cn("animate-spin", className)} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+  <svg className={cn("animate-spin", className)} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"> {/* cn will cause an error here without import */}
     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
   </svg>
 );
+
