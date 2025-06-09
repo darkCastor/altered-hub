@@ -7,7 +7,7 @@ import type { Deck, AlteredCard } from '@/types';
 import useLocalStorage from '@/hooks/useLocalStorage';
 import { Button } from '@/components/ui/button';
 import { Card as UiCard } from '@/components/ui/card'; // Renamed to avoid conflict
-import { Loader2, ArrowLeft, CircleUser, Shield, Swords, Landmark as LandmarkIcon, BookOpen, Box, Zap } from 'lucide-react';
+import { Loader2, ArrowLeft, Zap, BookOpen, Box } from 'lucide-react';
 import Link from 'next/link';
 
 import { GameStateManager } from '@/engine/GameStateManager';
@@ -22,7 +22,6 @@ import { factionsLookup, raritiesLookup, cardTypesLookup, allCards as allAltered
 import PlayerHandClient from '@/components/game-ui/PlayerHandClient';
 import HeroSpotClient from '@/components/game-ui/HeroSpotClient';
 import BoardZoneClient from '@/components/game-ui/BoardZoneClient';
-import GameLogClient from '@/components/game-ui/GameLogClient';
 
 
 const DECK_STORAGE_KEY = 'alterdeck-decks';
@@ -145,7 +144,6 @@ export default function PlayGamePage() {
   const [dayNumber, setDayNumber] = useState<number>(1);
   const [isProcessingAction, setIsProcessingAction] = useState(false);
 
-  const [logMessages, setLogMessages] = useState<string[]>([]);
 
   const initialPlayerState: PlayerState = {
     hand: [], mana: {current: 0, max: 0}, deckCount: 0, discardCount: 0, expedition: [], landmarks: [], reserve: []
@@ -245,13 +243,14 @@ export default function PlayGamePage() {
 
           updateFullPlayerState(PLAYER_ID_SELF, gsm);
           updateFullPlayerState(PLAYER_ID_OPPONENT, gsm);
-          setLogMessages(prev => [...prev, `Game started. Day ${gsm.state.dayNumber}, Phase: ${gsm.state.currentPhase}, Turn: ${gsm.state.currentPlayerId}`]);
+          console.log(`Game started. Day ${gsm.state.dayNumber}, Phase: ${gsm.state.currentPhase}, Turn: ${gsm.state.currentPlayerId}`);
 
-          const onPhaseChanged = (payload: { phase: GamePhase }) => { setCurrentPhase(payload.phase); setLogMessages(prev => [...prev, `Phase changed to: ${payload.phase}`]); };
-          const onTurnAdvanced = (payload: { currentPlayerId: string }) => { setCurrentPlayerId(payload.currentPlayerId); setLogMessages(prev => [...prev, `Turn for: ${payload.currentPlayerId}`]); };
-          const onDayAdvanced = (payload: { dayNumber: number }) => { setDayNumber(payload.dayNumber); setLogMessages(prev => [...prev, `Day advanced to: ${payload.dayNumber}`]); };
+
+          const onPhaseChanged = (payload: { phase: GamePhase }) => { setCurrentPhase(payload.phase); console.log(`Phase changed to: ${payload.phase}`); };
+          const onTurnAdvanced = (payload: { currentPlayerId: string }) => { setCurrentPlayerId(payload.currentPlayerId); console.log(`Turn for: ${payload.currentPlayerId}`); };
+          const onDayAdvanced = (payload: { dayNumber: number }) => { setDayNumber(payload.dayNumber); console.log(`Day advanced to: ${payload.dayNumber}`); };
           const onEntityMoved = () => { updateFullPlayerState(PLAYER_ID_SELF, gsm); updateFullPlayerState(PLAYER_ID_OPPONENT, gsm);};
-          const onManaSpent = (payload: { playerId: string, amount: number }) => { setLogMessages(prev => [...prev, `Player ${payload.playerId} spent ${payload.amount} mana.`]); updateFullPlayerState(payload.playerId, gsm); };
+          const onManaSpent = (payload: { playerId: string, amount: number }) => { console.log(`Player ${payload.playerId} spent ${payload.amount} mana.`); updateFullPlayerState(payload.playerId, gsm); };
 
           eventBus.subscribe('phaseChanged', onPhaseChanged);
           eventBus.subscribe('turnAdvanced', onTurnAdvanced);
@@ -280,13 +279,13 @@ export default function PlayGamePage() {
   const handlePassTurn = useCallback(async () => {
     if (actionHandler && currentPlayerId && !isProcessingAction && currentPlayerId === PLAYER_ID_SELF) {
       setIsProcessingAction(true);
-      setLogMessages(prev => [...prev, `${PLAYER_ID_SELF} attempts to pass turn.`]);
+      console.log(`${PLAYER_ID_SELF} attempts to pass turn.`);
       try {
         await actionHandler.tryPass(PLAYER_ID_SELF);
       } catch(e) {
         console.error("Error during pass turn:", e);
         setError("An error occurred while passing the turn.");
-        setLogMessages(prev => [...prev, `Error passing turn for ${PLAYER_ID_SELF}.`]);
+        console.log(`Error passing turn for ${PLAYER_ID_SELF}.`);
       } finally {
         setIsProcessingAction(false);
       }
@@ -295,7 +294,7 @@ export default function PlayGamePage() {
 
   const handlePlayCard = (card: DisplayableCardData) => {
     if (currentPlayerId === PLAYER_ID_SELF && !isProcessingAction) {
-      setLogMessages(prev => [...prev, `${PLAYER_ID_SELF} tries to play ${card.name} (ID: ${card.originalCardId})`]);
+      console.log(`${PLAYER_ID_SELF} tries to play ${card.name} (ID: ${card.originalCardId})`);
       alert(`Playing card ${card.name} is not yet implemented.`);
     }
   };
@@ -303,13 +302,13 @@ export default function PlayGamePage() {
   const handleAdvancePhase = useCallback(async () => {
     if (phaseManager && !isProcessingAction) {
         setIsProcessingAction(true);
-        setLogMessages(prev => [...prev, "Manually attempting to advance phase."]);
+        console.log("Manually attempting to advance phase.");
         try {
             await phaseManager.advancePhase();
         } catch (e: any) {
             console.error("Error advancing phase manually:", e);
             setError(`An error occurred while advancing the phase: ${e.message}`);
-            setLogMessages(prev => [...prev, "Error manually advancing phase."]);
+            console.log("Error manually advancing phase.");
         } finally {
             setIsProcessingAction(false);
         }
@@ -416,7 +415,7 @@ export default function PlayGamePage() {
                   Pass Turn
                 </Button>
                 <Button onClick={handleAdvancePhase} disabled={isProcessingAction || !canManuallyAdvancePhase} variant="secondary" size="sm">
-                  {isProcessingAction && !canManuallyAdvancePhase ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                  {isProcessingAction && canManuallyAdvancePhase === false ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                   Advance Phase (Manual)
                 </Button>
                 <Link href="/decks">
@@ -427,9 +426,8 @@ export default function PlayGamePage() {
             </div>
         </div>
 
-        {/* Game Log Sidebar */}
-        <GameLogClient messages={logMessages} />
       </div>
     </div>
   );
 }
+
