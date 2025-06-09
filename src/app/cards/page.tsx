@@ -13,7 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Card as UiCard, CardContent as UiCardContent, CardHeader as UiCardHeader, CardTitle as UiCardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { X, Search, FilterX, Loader2 as LucideLoader } from 'lucide-react';
+import { X, Search, FilterX, Loader2 as LucideLoader, Ban } from 'lucide-react'; // Added Ban
 import { useToast } from '@/hooks/use-toast';
 import useLocalStorage from '@/hooks/useLocalStorage';
 import Image from 'next/image';
@@ -72,7 +72,7 @@ function CardViewerPageContent() {
   useEffect(() => {
     const action = searchParams.get('action');
     const deckIdToEdit = searchParams.get('deckId');
-    
+
     if (deckIdToEdit) {
       const deckToEdit = decks.find(d => d.id === deckIdToEdit);
       if (deckToEdit) {
@@ -97,11 +97,11 @@ function CardViewerPageContent() {
         setEditingDeckId(null);
         if (!showDeckPanel) setShowDeckPanel(true);
     } else if (action === 'create-with-card') {
-      if (!showDeckPanel) setShowDeckPanel(true); 
+      if (!showDeckPanel) setShowDeckPanel(true);
     } else {
       const currentParams = new URLSearchParams(Array.from(searchParams.entries()));
       if (!currentParams.has('action') && !currentParams.has('deckId')) {
-          if (showDeckPanel) { 
+          if (showDeckPanel) {
             setShowDeckPanel(false);
             setDeckFormInitialData(null);
             setIsEditingDeck(false);
@@ -131,7 +131,7 @@ function CardViewerPageContent() {
           deckFactionLock = firstNonNeutralCardWithFaction.faction;
         }
       }
-      
+
       if (deckFactionLock && value !== deckFactionLock && value !== 'all') {
          toast({
           title: "Faction Filter Locked",
@@ -139,7 +139,7 @@ function CardViewerPageContent() {
           variant: "destructive",
           duration: 7000,
         });
-        return; 
+        return;
       }
       if (deckFactionLock && value === 'all') {
         toast({
@@ -148,7 +148,7 @@ function CardViewerPageContent() {
          variant: "destructive",
          duration: 7000,
        });
-       return; 
+       return;
      }
     }
 
@@ -161,14 +161,14 @@ function CardViewerPageContent() {
     if (!showDeckPanel || !deckFormInitialData?.cardIds) {
       return;
     }
-  
+
     const currentDeckCards = (deckFormInitialData.cardIds || [])
       .map(id => allCards.find(c => c.id === id))
       .filter(Boolean) as AlteredCard[];
-  
+
     let targetFactionForFilter: string | undefined = undefined;
     const currentHeroInDeck = currentDeckCards.find(c => c.type === cardTypesLookup.HERO.name);
-  
+
     if (currentHeroInDeck?.faction) {
       targetFactionForFilter = currentHeroInDeck.faction;
     } else if (currentDeckCards.length > 0) {
@@ -179,20 +179,20 @@ function CardViewerPageContent() {
         targetFactionForFilter = firstNonNeutralCardWithFaction.faction;
       }
     }
-  
+
     if (targetFactionForFilter) {
       if (filters.selectedFaction !== targetFactionForFilter) {
         setFilters(prev => ({ ...prev, selectedFaction: targetFactionForFilter! }));
         setLoadedCardsCount(CARDS_PER_LOAD);
       }
-    } else { 
+    } else {
       if (filters.selectedFaction !== 'all') {
         setFilters(prev => ({ ...prev, selectedFaction: 'all' }));
         setLoadedCardsCount(CARDS_PER_LOAD);
       }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [deckFormInitialData?.cardIds, showDeckPanel, filters.selectedFaction]); 
+  }, [deckFormInitialData?.cardIds, showDeckPanel, filters.selectedFaction]);
 
 
   const clearFilters = () => {
@@ -223,7 +223,7 @@ function CardViewerPageContent() {
         });
         setFilters(prev => ({
           ...initialFilters,
-          selectedFaction: prev.selectedFaction, 
+          selectedFaction: prev.selectedFaction,
         }));
         setLoadedCardsCount(CARDS_PER_LOAD);
         return;
@@ -269,6 +269,14 @@ function CardViewerPageContent() {
 
 
   const handleStartNewDeckWithCard = (card: AlteredCard) => {
+    if (card.isSuspended) {
+      toast({
+        title: "Card Suspended",
+        description: `"${card.name}" is currently suspended and cannot be used to start a new deck.`,
+        variant: "destructive",
+      });
+      return;
+    }
     setDeckFormInitialData({
       name: `${card.name}'s Deck`,
       description: `A deck featuring ${card.name}.`,
@@ -278,7 +286,7 @@ function CardViewerPageContent() {
     setIsEditingDeck(false);
     setEditingDeckId(null);
     setShowDeckPanel(true);
-    router.push('/cards?action=create-with-card', { scroll: false }); 
+    router.push('/cards?action=create-with-card', { scroll: false });
   };
 
   const handleDeckFormSubmit = (data: DeckFormValues) => {
@@ -320,7 +328,16 @@ function CardViewerPageContent() {
   };
 
   const handleLeftClickCardOnGrid = (card: AlteredCard) => {
-    if (!deckFormInitialData) return; 
+    if (!deckFormInitialData) return;
+
+    if (card.isSuspended) {
+      toast({
+        title: "Card Suspended",
+        description: `"${card.name}" is currently suspended and cannot be added to decks.`,
+        variant: "destructive",
+      });
+      return;
+    }
 
     const currentCardIds = deckFormInitialData.cardIds || [];
     const currentFullCards = currentCardIds.map(id => allCards.find(c => c.id === id)).filter(Boolean) as AlteredCard[];
@@ -338,14 +355,14 @@ function CardViewerPageContent() {
         toast({ title: "Deck Rule", description: `A deck can only have ${EXACT_HERO_COUNT} Hero. Remove the current Hero ("${heroCardInDeckIfAny?.name}") to add "${card.name}".`, variant: "destructive" });
         return;
       }
-    } else { 
+    } else {
       if (heroCardInDeckIfAny && heroCardInDeckIfAny.faction && card.faction !== heroCardInDeckIfAny.faction && card.faction !== NEUTRAL_FACTION_NAME) {
         toast({ title: "Deck Rule", description: `Card faction (${card.faction || 'N/A'}) must match Hero faction (${heroCardInDeckIfAny.faction}) or be Neutral.`, variant: "destructive" });
         return;
       }
-      
+
       const nonHeroCardsInDeck = currentFullCards.filter(c => c.type !== cardTypesLookup.HERO.name);
-      if (nonHeroCardsInDeck.length >= MAX_DECK_CARDS_NON_HERO && !currentCardIds.includes(card.id)) { 
+      if (nonHeroCardsInDeck.length >= MAX_DECK_CARDS_NON_HERO && !currentCardIds.includes(card.id)) {
         toast({ title: "Deck Rule", description: `Deck cannot exceed ${MAX_DECK_CARDS_NON_HERO} non-Hero cards.`, variant: "destructive" });
         return;
       }
@@ -515,11 +532,20 @@ function CardViewerPageContent() {
                         }
                     }
                 }
-                
+
               return (
                 <div
                   key={card.id}
                   onClick={() => {
+                    if (card.isSuspended && showDeckPanel) {
+                       toast({ title: "Card Suspended", description: `"${card.name}" is currently suspended and cannot be added to decks.`, variant: "destructive" });
+                       return;
+                    }
+                    if (card.isSuspended && !showDeckPanel) {
+                      // Allow opening modal for suspended cards if deck panel is not open
+                       setSelectedCardModal(card);
+                       return;
+                    }
                     if (showDeckPanel) {
                       handleLeftClickCardOnGrid(card);
                     } else {
@@ -527,13 +553,15 @@ function CardViewerPageContent() {
                     }
                   }}
                   onContextMenu={(e) => {
-                    if (showDeckPanel) {
+                    if (showDeckPanel && !card.isSuspended) { // Prevent context menu interaction if suspended
                         handleRightClickCardOnGrid(e, card);
+                    } else if (showDeckPanel && card.isSuspended) {
+                        e.preventDefault(); // Prevent context menu on suspended cards in deck panel context
                     }
                   }}
                   className="cursor-pointer"
                   role="button"
-                  aria-label={`Select card ${card.name}`}
+                  aria-label={`Select card ${card.name}${card.isSuspended ? ' (Suspended)' : ''}`}
                 >
                   <CardDisplay
                     card={card}
@@ -565,8 +593,8 @@ function CardViewerPageContent() {
                 card={selectedCardModal}
                 className="border-0 shadow-none"
                 onStartNewDeck={handleStartNewDeckWithCard}
-                isDeckPanelOpen={false} 
-                isSelectedInPanel={false} 
+                isDeckPanelOpen={false}
+                isSelectedInPanel={false}
                 isLimitForCardCategoryReached={false}
               />
               <Button
@@ -601,7 +629,3 @@ export default function CardViewerPage() {
     </Suspense>
   );
 }
-    
-
-    
-

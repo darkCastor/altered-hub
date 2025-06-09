@@ -17,12 +17,13 @@ interface RawCardEntry {
   qr_url?: string;
   main_cost?: number;
   recall_cost?: number;
+  is_suspended?: boolean; // Added to match JSON
   power?: RawPower;
-  description?: string; 
-  flavorText?: string; 
-  artist?: string; 
-  card_number?: string; 
-  keywords?: string[]; 
+  description?: string;
+  flavorText?: string;
+  artist?: string;
+  card_number?: string;
+  keywords?: string[];
 }
 
 interface RawLookupTables {
@@ -51,7 +52,7 @@ const processedCards: AlteredCard[] = Object.entries(typedRawCardData.cards).map
       faction = factionInfo.name;
       factionColor = factionInfo.color;
     } else {
-      faction = rawCard.faction_ref; 
+      faction = rawCard.faction_ref;
     }
   }
 
@@ -72,6 +73,7 @@ const processedCards: AlteredCard[] = Object.entries(typedRawCardData.cards).map
     attack: rawCard.power?.o,
     health: rawCard.power?.f,
     powerM: rawCard.power?.m,
+    isSuspended: rawCard.is_suspended ?? false, // Map is_suspended, default to false
     description: rawCard.description,
     flavorText: rawCard.flavorText,
     artist: rawCard.artist,

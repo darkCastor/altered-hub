@@ -13,12 +13,13 @@ export interface AlteredCard {
   attack?: number; // from power.o
   health?: number; // from power.f
   powerM?: number; // from power.m
+  isSuspended?: boolean; // Added for suspended cards
 
   // These were in the old type, but may not be in the new JSON for all cards.
   description?: string;
   flavorText?: string;
   artist?: string;
-  cardNumber?: string; 
+  cardNumber?: string;
   keywords?: string[];
 }
 
@@ -26,10 +27,10 @@ export interface Deck {
   id: string;
   name: string;
   description?: string;
-  cards: AlteredCard[]; 
-  createdAt: string; 
-  updatedAt: string; 
-  hero?: AlteredCard; 
+  cards: AlteredCard[];
+  createdAt: string;
+  updatedAt: string;
+  hero?: AlteredCard;
   faction?: string;
   format?: string; // Added format field
 }
