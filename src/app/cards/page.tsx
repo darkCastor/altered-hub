@@ -13,7 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Card as UiCard, CardContent as UiCardContent, CardHeader as UiCardHeader, CardTitle as UiCardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { X, Search, FilterX, Loader2 as LucideLoader, Ban } from 'lucide-react'; // Added Ban
+import { X, Search, FilterX, Loader2 as LucideLoader, Ban } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import useLocalStorage from '@/hooks/useLocalStorage';
 import Image from 'next/image';
@@ -28,6 +28,11 @@ const MAX_DUPLICATES_NON_HERO_BY_NAME = 3;
 const MAX_RARE_CARDS_NON_HERO = 15;
 const NEUTRAL_FACTION_NAME = factionsLookup.NE?.name || "Neutre";
 
+const TOKEN_CARD_TYPES = [
+  cardTypesLookup.TOKEN.name,
+  cardTypesLookup.TOKEN_MANA.name,
+  cardTypesLookup.FOILER.name,
+];
 
 interface Filters {
   searchTerm: string;
@@ -277,6 +282,14 @@ function CardViewerPageContent() {
       });
       return;
     }
+    if (TOKEN_CARD_TYPES.includes(card.type)) {
+      toast({
+        title: "Invalid Card Type",
+        description: `Token cards like "${card.name}" (${card.type}) cannot be used to start a deck.`,
+        variant: "destructive",
+      });
+      return;
+    }
     setDeckFormInitialData({
       name: `${card.name}'s Deck`,
       description: `A deck featuring ${card.name}.`,
@@ -338,6 +351,15 @@ function CardViewerPageContent() {
       });
       return;
     }
+    if (TOKEN_CARD_TYPES.includes(card.type)) {
+      toast({
+        title: "Invalid Card Type",
+        description: `Token cards like "${card.name}" (${card.type}) cannot be added to a deck.`,
+        variant: "destructive",
+      });
+      return;
+    }
+
 
     const currentCardIds = deckFormInitialData.cardIds || [];
     const currentFullCards = currentCardIds.map(id => allCards.find(c => c.id === id)).filter(Boolean) as AlteredCard[];
@@ -523,7 +545,7 @@ function CardViewerPageContent() {
                         if (heroesInDeck.length >= EXACT_HERO_COUNT) {
                             isLimitForCardCategoryReached = true;
                         }
-                    } else { // Non-Hero card from grid
+                    } else { 
                         const countOfThisNameInDeck = currentDeckFullCards.filter(
                             c => c.name === card.name && c.type !== cardTypesLookup.HERO.name
                         ).length;
@@ -541,8 +563,11 @@ function CardViewerPageContent() {
                        toast({ title: "Card Suspended", description: `"${card.name}" is currently suspended and cannot be added to decks.`, variant: "destructive" });
                        return;
                     }
+                    if (TOKEN_CARD_TYPES.includes(card.type) && showDeckPanel) {
+                        toast({ title: "Invalid Card Type", description: `Token cards like "${card.name}" (${card.type}) cannot be added to a deck.`, variant: "destructive" });
+                        return;
+                    }
                     if (card.isSuspended && !showDeckPanel) {
-                      // Allow opening modal for suspended cards if deck panel is not open
                        setSelectedCardModal(card);
                        return;
                     }
@@ -553,15 +578,15 @@ function CardViewerPageContent() {
                     }
                   }}
                   onContextMenu={(e) => {
-                    if (showDeckPanel && !card.isSuspended) { // Prevent context menu interaction if suspended
+                    if (showDeckPanel && !card.isSuspended && !TOKEN_CARD_TYPES.includes(card.type)) {
                         handleRightClickCardOnGrid(e, card);
-                    } else if (showDeckPanel && card.isSuspended) {
-                        e.preventDefault(); // Prevent context menu on suspended cards in deck panel context
+                    } else if (showDeckPanel && (card.isSuspended || TOKEN_CARD_TYPES.includes(card.type))) {
+                        e.preventDefault(); 
                     }
                   }}
                   className="cursor-pointer"
                   role="button"
-                  aria-label={`Select card ${card.name}${card.isSuspended ? ' (Suspended)' : ''}`}
+                  aria-label={`Select card ${card.name}${card.isSuspended ? ' (Suspended)' : ''}${TOKEN_CARD_TYPES.includes(card.type) ? ' (Token)' : ''}`}
                 >
                   <CardDisplay
                     card={card}
@@ -614,7 +639,6 @@ function CardViewerPageContent() {
   );
 }
 
-// Minimal loader for when hook is not ready
 const Loader = () => (
   <div className="flex justify-center items-center min-h-screen">
     <LucideLoader className="h-10 w-10 animate-spin text-primary" />
@@ -629,3 +653,4 @@ export default function CardViewerPage() {
     </Suspense>
   );
 }
+
