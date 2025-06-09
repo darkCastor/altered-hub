@@ -17,7 +17,7 @@ import { X, Search, FilterX, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import useLocalStorage from '@/hooks/useLocalStorage';
 import Image from 'next/image';
-// cn import removed as per revert request
+import { cn } from '@/lib/utils';
 
 const DECK_STORAGE_KEY = 'alterdeck-decks';
 const CARDS_PER_LOAD = 20;
@@ -274,16 +274,15 @@ function CardViewerPageContent() {
             <h1 className="font-headline text-3xl sm:text-4xl font-bold text-primary">
               Card Explorer
             </h1>
-             <Button variant="ghost" size="icon" onClick={() => setShowDeckPanel(!showDeckPanel)} className="ml-2">
+             <Button variant="ghost" size="icon" onClick={() => setShowDeckPanel(!showDeckPanel)} className="ml-auto">
                 {showDeckPanel ? <ChevronLeft className="h-5 w-5" /> : <ChevronRight className="h-5 w-5" />}
                 <span className="sr-only">{showDeckPanel ? "Close Deck Panel" : "Open Deck Panel"}</span>
               </Button>
-            <p className="text-sm text-muted-foreground">
-                {showDeckPanel ? "Panel Open: Left-click card to add, Right-click to remove." : "Browse Altered TCG cards. Click '+' on a card to start a new deck."}
-            </p>
           </div>
+          <p className="text-sm text-muted-foreground mb-6 -mt-4">
+              {showDeckPanel ? "Panel Open: Left-click card to add, Right-click to remove." : "Browse Altered TCG cards. Click '+' on a card to start a new deck, or open panel to build."}
+          </p>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 items-end">
-            {/* Filters */}
             <div className="space-y-1">
               <label htmlFor="search" className="text-sm font-medium">Search Name</label>
               <Input
@@ -332,8 +331,8 @@ function CardViewerPageContent() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Types</SelectItem>
-                  {Object.entries(cardTypesLookup).map(([key, type]) => (
-                    <SelectItem key={key} value={type.name}>{type.name}</SelectItem>
+                  {Object.entries(cardTypesLookup).map(([key, typeInfo]) => (
+                    <SelectItem key={key} value={typeInfo.name}>{typeInfo.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -357,11 +356,11 @@ function CardViewerPageContent() {
                 const countInDeck = deckFormInitialData?.cardIds.filter(id => id === card.id).length || 0;
                 const isHeroCard = card.type === cardTypesLookup.HERO.name;
                 
-                let isMaxCopiesReachedInPanel = false;
+                let isMaxCopiesReached = false;
                 if (isHeroCard) {
-                    isMaxCopiesReachedInPanel = countInDeck >= EXACT_HERO_COUNT;
+                    isMaxCopiesReached = countInDeck >= EXACT_HERO_COUNT;
                 } else {
-                    isMaxCopiesReachedInPanel = countInDeck >= MAX_DUPLICATES_NON_HERO_BY_NAME;
+                    isMaxCopiesReached = countInDeck >= MAX_DUPLICATES_NON_HERO_BY_NAME;
                 }
 
               return (
@@ -388,7 +387,7 @@ function CardViewerPageContent() {
                     onStartNewDeck={!showDeckPanel ? handleStartNewDeckWithCard : undefined}
                     isSelectedInPanel={isSelectedInPanelCurrently}
                     isDeckPanelOpen={showDeckPanel}
-                    isMaxCopiesReachedInPanel={showDeckPanel && isSelectedInPanelCurrently && isMaxCopiesReachedInPanel}
+                    isMaxCopiesReachedInPanel={showDeckPanel && isSelectedInPanelCurrently && isMaxCopiesReached}
                   />
                 </div>
               );
