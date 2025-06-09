@@ -44,7 +44,6 @@ export default function CardViewerPage() {
 
   const [decks, setDecks] = useLocalStorage<Deck[]>(DECK_STORAGE_KEY, []);
 
-  // Deck Panel State
   const [showDeckPanel, setShowDeckPanel] = useState(false);
   const [deckFormInitialData, setDeckFormInitialData] = useState<DeckFormValues | undefined>(undefined);
   const [isEditingDeck, setIsEditingDeck] = useState(false);
@@ -54,7 +53,6 @@ export default function CardViewerPage() {
     setCards(allCards);
   }, []);
 
-  // Effect to handle query params for opening deck panel
   useEffect(() => {
     const action = searchParams.get('action');
     const deckIdToEdit = searchParams.get('deckId');
@@ -73,7 +71,7 @@ export default function CardViewerPage() {
         setShowDeckPanel(true);
       } else {
         toast({ title: "Error", description: `Deck with ID ${deckIdToEdit} not found.`, variant: "destructive" });
-        router.replace('/cards'); // Clear query params
+        router.replace('/cards'); 
       }
     } else if (action === 'create') {
       setDeckFormInitialData({ name: 'New Deck', cardIds: [], description: '', format: 'Standard' });
@@ -81,7 +79,7 @@ export default function CardViewerPage() {
       setEditingDeckId(null);
       setShowDeckPanel(true);
     }
-    // Clean up query params after processing
+    
     if (action || deckIdToEdit) {
         const current = new URLSearchParams(Array.from(searchParams.entries()));
         current.delete('action');
@@ -239,15 +237,22 @@ export default function CardViewerPage() {
     const isCurrentlySelected = currentCardIds.includes(card.id);
     let potentialSelectedCards: AlteredCard[];
 
-    if (isCurrentlySelected) {
-        potentialSelectedCards = currentSelectedFullCards.filter(c => c.id !== card.id);
-    } else {
+    if (isCurrentlySelected) { // Try to remove
+        const firstIndexOfCard = currentCardIds.indexOf(card.id);
+        if (firstIndexOfCard > -1) {
+            const tempCardIds = [...currentCardIds];
+            tempCardIds.splice(firstIndexOfCard, 1);
+            potentialSelectedCards = tempCardIds.map(id => allCards.find(c => c.id === id)).filter(Boolean) as AlteredCard[];
+        } else {
+           potentialSelectedCards = [...currentSelectedFullCards]; // Should not happen if isCurrentlySelected is true
+        }
+    } else { // Try to add
         potentialSelectedCards = [...currentSelectedFullCards, card];
     }
 
     const heroInPotentialDeck = potentialSelectedCards.find(c => c.type === cardTypesLookup.HERO.name);
 
-    if (!isCurrentlySelected) {
+    if (!isCurrentlySelected) { // Validations for adding a card
       if (card.type === cardTypesLookup.HERO.name) {
         const existingHeroes = currentSelectedFullCards.filter(c => c.type === cardTypesLookup.HERO.name);
         if (existingHeroes.length >= EXACT_HERO_COUNT && (!existingHeroes[0] || existingHeroes[0].id !== card.id)) {
@@ -288,9 +293,16 @@ export default function CardViewerPage() {
     }
 
     let updatedCardIds: string[];
-    if (isCurrentlySelected) {
-      updatedCardIds = currentCardIds.filter(id => id !== card.id);
-    } else {
+    if (isCurrentlySelected) { // Remove one instance
+      const firstIndexOfCard = currentCardIds.indexOf(card.id);
+      if (firstIndexOfCard > -1) {
+        const tempCardIds = [...currentCardIds];
+        tempCardIds.splice(firstIndexOfCard, 1);
+        updatedCardIds = tempCardIds;
+      } else {
+        updatedCardIds = [...currentCardIds]; // Should not reach here
+      }
+    } else { // Add card
       updatedCardIds = [...currentCardIds, card.id];
     }
 
@@ -375,26 +387,34 @@ export default function CardViewerPage() {
 
         {cardsToShow.length > 0 ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-5 gap-6">
-            {cardsToShow.map(card => (
-              <div
-                key={card.id}
-                onClick={() => {
-                  if (showDeckPanel) {
-                    handleToggleCardInDeck(card);
-                  } else {
-                    setSelectedCardModal(card);
-                  }
-                }}
-                className="cursor-pointer"
-              >
-                <CardDisplay
-                  card={card}
-                  onStartNewDeck={!showDeckPanel ? handleStartNewDeckWithCard : undefined}
-                  isSelectedInPanel={showDeckPanel && !!deckFormInitialData?.cardIds.includes(card.id)}
-                  isDeckPanelOpen={showDeckPanel}
-                />
-              </div>
-            ))}
+            {cardsToShow.map(card => {
+              const countInDeck = deckFormInitialData?.cardIds.filter(id => id === card.id).length || 0;
+              const isHero = card.type === cardTypesLookup.HERO.name;
+              const maxCopiesForCard = isHero ? EXACT_HERO_COUNT : MAX_DUPLICATES_NON_HERO_BY_NAME;
+              const isMaxCopiesReached = countInDeck >= maxCopiesForCard;
+
+              return (
+                <div
+                  key={card.id}
+                  onClick={() => {
+                    if (showDeckPanel) {
+                      handleToggleCardInDeck(card);
+                    } else {
+                      setSelectedCardModal(card);
+                    }
+                  }}
+                  className="cursor-pointer"
+                >
+                  <CardDisplay
+                    card={card}
+                    onStartNewDeck={!showDeckPanel ? handleStartNewDeckWithCard : undefined}
+                    isSelectedInPanel={showDeckPanel && !!deckFormInitialData?.cardIds.includes(card.id)}
+                    isDeckPanelOpen={showDeckPanel}
+                    isMaxCopiesReachedInPanel={showDeckPanel && isSelectedInPanel && isMaxCopiesReached}
+                  />
+                </div>
+              );
+            })}
           </div>
         ) : (
           <div className="text-center py-12">
@@ -429,6 +449,7 @@ export default function CardViewerPage() {
                 onStartNewDeck={handleStartNewDeckWithCard}
                 isSelectedInPanel={false}
                 isDeckPanelOpen={false}
+                isMaxCopiesReachedInPanel={false}
               />
               <h2 id="card-details-title" className="sr-only">{selectedCardModal.name} Details</h2>
             </div>

@@ -5,9 +5,9 @@ import type { AlteredCard } from '@/types';
 import Image from 'next/image';
 import { Card, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Plus, CheckCircle } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 
 interface CardDisplayProps {
   card: AlteredCard;
@@ -15,24 +15,18 @@ interface CardDisplayProps {
   onStartNewDeck?: (card: AlteredCard) => void;
   isSelectedInPanel?: boolean;
   isDeckPanelOpen?: boolean;
+  isMaxCopiesReachedInPanel?: boolean;
 }
 
-export default function CardDisplay({ card, className, onStartNewDeck, isSelectedInPanel, isDeckPanelOpen }: CardDisplayProps) {
+export default function CardDisplay({
+  card,
+  className,
+  onStartNewDeck,
+  isSelectedInPanel,
+  isDeckPanelOpen,
+  isMaxCopiesReachedInPanel,
+}: CardDisplayProps) {
   const aiHint = card.name ? card.name.toLowerCase().split(' ').slice(0, 2).join(' ') : 'card image';
-  const [showTemporaryCheckmark, setShowTemporaryCheckmark] = useState(false);
-
-  useEffect(() => {
-    let timer: NodeJS.Timeout;
-    if (isDeckPanelOpen && isSelectedInPanel) {
-      setShowTemporaryCheckmark(true);
-      timer = setTimeout(() => {
-        setShowTemporaryCheckmark(false);
-      }, 1000);
-    } else {
-      setShowTemporaryCheckmark(false); // Ensure it's hidden if not selected or panel closed
-    }
-    return () => clearTimeout(timer);
-  }, [isSelectedInPanel, isDeckPanelOpen, card.id]); // Added card.id to re-trigger for different cards
 
   const handleNewDeckButtonClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -41,11 +35,22 @@ export default function CardDisplay({ card, className, onStartNewDeck, isSelecte
     }
   };
 
+  const cardBaseClasses = "relative w-full max-w-sm overflow-hidden shadow-xl group transition-all duration-300 transform hover:scale-150 hover:z-20 bg-card text-card-foreground rounded-xl border-2 border-border hover:shadow-primary/40";
+  
+  let dynamicCardClasses = '';
+  if (isDeckPanelOpen && isSelectedInPanel) {
+    if (isMaxCopiesReachedInPanel) {
+      dynamicCardClasses = "ring-2 ring-accent border-accent shadow-accent/30"; // Powerful border
+    } else {
+      dynamicCardClasses = "ring-1 ring-primary/70 border-primary/70 shadow-primary/20"; // Light border
+    }
+  }
+
   return (
     <Card
       className={cn(
-        `relative w-full max-w-sm overflow-hidden shadow-xl group transition-all duration-300 transform hover:scale-150 hover:z-20 bg-card text-card-foreground rounded-xl border-2 border-border hover:shadow-primary/40`,
-        isDeckPanelOpen && isSelectedInPanel && "ring-2 ring-accent border-accent shadow-accent/30",
+        cardBaseClasses,
+        dynamicCardClasses,
         className || ''
       )}
     >
@@ -75,17 +80,6 @@ export default function CardDisplay({ card, className, onStartNewDeck, isSelecte
           aria-label={`Start new deck with ${card.name}`}
         >
           <Plus className="h-8 w-8" />
-        </Button>
-      )}
-
-      {showTemporaryCheckmark && (
-        <Button
-          variant="default"
-          className="absolute bottom-[18px] right-2 h-14 w-14 flex items-center justify-center z-10 bg-green-600 hover:bg-green-700 pointer-events-none"
-          aria-label={`${card.name} is in deck`}
-          tabIndex={-1} 
-        >
-          <CheckCircle className="h-8 w-8" />
         </Button>
       )}
     </Card>
