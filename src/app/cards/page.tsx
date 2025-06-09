@@ -392,6 +392,7 @@ export default function CardViewerPage() {
               const isHero = card.type === cardTypesLookup.HERO.name;
               const maxCopiesForCard = isHero ? EXACT_HERO_COUNT : MAX_DUPLICATES_NON_HERO_BY_NAME;
               const isMaxCopiesReached = countInDeck >= maxCopiesForCard;
+              const isSelectedInPanel = showDeckPanel && !!deckFormInitialData?.cardIds.includes(card.id);
 
               return (
                 <div
@@ -408,7 +409,7 @@ export default function CardViewerPage() {
                   <CardDisplay
                     card={card}
                     onStartNewDeck={!showDeckPanel ? handleStartNewDeckWithCard : undefined}
-                    isSelectedInPanel={showDeckPanel && !!deckFormInitialData?.cardIds.includes(card.id)}
+                    isSelectedInPanel={isSelectedInPanel}
                     isDeckPanelOpen={showDeckPanel}
                     isMaxCopiesReachedInPanel={showDeckPanel && isSelectedInPanel && isMaxCopiesReached}
                   />
@@ -447,7 +448,7 @@ export default function CardViewerPage() {
               <CardDisplay
                 card={selectedCardModal}
                 onStartNewDeck={handleStartNewDeckWithCard}
-                isSelectedInPanel={false}
+                isSelectedInPanel={false} 
                 isDeckPanelOpen={false}
                 isMaxCopiesReachedInPanel={false}
               />
@@ -462,3 +463,4 @@ export default function CardViewerPage() {
     </div>
   );
 }
+
