@@ -25,9 +25,7 @@ const DECK_STORAGE_KEY = 'alterdeck-decks';
 function findEnumKeyByValue<T extends object>(enumObj: T, value: string): keyof T | undefined {
   for (const key in enumObj) {
     if (Object.prototype.hasOwnProperty.call(enumObj, key)) {
-      const enumEntry = enumObj[key as keyof T] as any; // Cast to any to access .name or be the value itself
-      // Check if enumEntry is an object with a 'name' property (like factionsLookup)
-      // or if the enum value itself is the string we're looking for (for direct string enums)
+      const enumEntry = enumObj[key as keyof T] as any; 
       if ((typeof enumEntry === 'object' && enumEntry !== null && enumEntry.name === value) || 
           (typeof enumEntry === 'string' && enumEntry === value)) {
         return key as keyof T;
@@ -47,7 +45,7 @@ function mapAlteredCardToEngineDefinition(card: AlteredCard): ICardDefinition | 
     case 'CHARACTER': engineType = EngineCardType.Character; break;
     case 'HERO': engineType = EngineCardType.Hero; break;
     case 'SPELL': engineType = EngineCardType.Spell; break;
-    case 'PERMANENT': engineType = EngineCardType.Permanent; break; // Generic permanent
+    case 'PERMANENT': engineType = EngineCardType.Permanent; break;
     case 'LANDMARK_PERMANENT': 
       engineType = EngineCardType.Permanent;
       enginePermanentZoneType = EnginePermanentZoneType.Landmark;
@@ -56,11 +54,10 @@ function mapAlteredCardToEngineDefinition(card: AlteredCard): ICardDefinition | 
       engineType = EngineCardType.Permanent;
       enginePermanentZoneType = EnginePermanentZoneType.Expedition;
       break;
-    // Filter out types not meant for engine deck construction
     case 'TOKEN':
     case 'TOKEN_MANA':
     case 'FOILER':
-      return null; // These are not standard deck cards for the engine
+      return null; 
     default:
       console.warn(`Unknown card type_ref for mapping: ${card.type} (key: ${cardTypeKey}) for card ${card.name}`);
       return null; 
@@ -74,8 +71,8 @@ function mapAlteredCardToEngineDefinition(card: AlteredCard): ICardDefinition | 
 
 
   const rarityKey = findEnumKeyByValue(raritiesLookup, card.rarity);
-  const engineRarity = rarityKey ? EngineRarity[rarityKey as keyof typeof EngineRarity] : EngineRarity.Common; // Default to Common if lookup fails
-   if (!rarityKey && card.rarity !== raritiesLookup.COMMON?.name) { // COMMON is a valid fallback
+  const engineRarity = rarityKey ? EngineRarity[rarityKey as keyof typeof EngineRarity] : EngineRarity.Common; 
+   if (!rarityKey && card.rarity !== raritiesLookup.COMMON?.name) { 
      console.warn(`Unknown rarity for mapping: ${card.rarity} for card ${card.name}. Defaulting to Common.`);
    }
 
@@ -88,16 +85,15 @@ function mapAlteredCardToEngineDefinition(card: AlteredCard): ICardDefinition | 
     reserveCost: card.recallCost ?? 0,
     faction: engineFaction,
     rarity: engineRarity,
-    abilities: [], // Simplified for now
-    statistics: { // Assuming M=Mountain, O=Forest, F=Water as per previous thoughts
+    abilities: [], 
+    statistics: { 
       mountain: card.powerM ?? 0,
-      forest: card.attack ?? 0, // 'o' for offense/forest
-      water: card.health ?? 0,   // 'f' for fortitude/water
+      forest: card.attack ?? 0, 
+      water: card.health ?? 0,   
     },
     permanentZoneType: enginePermanentZoneType,
-    // Hero specific fields if applicable
-    reserveLimit: engineType === EngineCardType.Hero ? 3 : undefined, // Example default
-    landmarkLimit: engineType === EngineCardType.Hero ? 3 : undefined, // Example default
+    reserveLimit: engineType === EngineCardType.Hero ? 3 : undefined, 
+    landmarkLimit: engineType === EngineCardType.Hero ? 3 : undefined, 
   };
 }
 
@@ -116,8 +112,9 @@ export default function PlayGamePage() {
   const [currentPhase, setCurrentPhase] = useState<GamePhase | null>(null);
   const [currentPlayerId, setCurrentPlayerId] = useState<string | null>(null);
   const [dayNumber, setDayNumber] = useState<number>(1);
+  const [isProcessingAction, setIsProcessingAction] = useState(false);
 
-  const eventBus = useState(() => new EventBus())[0]; // Stable EventBus instance
+  const eventBus = useState(() => new EventBus())[0]; 
 
   useEffect(() => {
     if (deckId && decks.length > 0) {
@@ -136,8 +133,7 @@ export default function PlayGamePage() {
             return;
         }
         
-        // For self-play, both players use the same deck definitions
-        const allGameCardDefinitions = [...deckDefinitions, ...deckDefinitions.map(d => ({...d, id: `${d.id}-p2`}))]; // Quick way to ensure unique def IDs if engine relies on it strictly for all cards in game
+        const allGameCardDefinitions = [...deckDefinitions, ...deckDefinitions.map(d => ({...d, id: `${d.id}-p2`}))]; 
 
         try {
           const gsm = new GameStateManager(playerIds, allGameCardDefinitions, eventBus);
@@ -149,19 +145,14 @@ export default function PlayGamePage() {
           setActionHandler(ah);
           setPhaseManager(phm);
           
-          // Initial state sync
           setCurrentPhase(gsm.state.currentPhase);
           setCurrentPlayerId(gsm.state.currentPlayerId);
           setDayNumber(gsm.state.dayNumber);
 
-          // Subscribe to relevant events
           eventBus.subscribe('phaseChanged', (payload: { phase: GamePhase }) => setCurrentPhase(payload.phase));
           eventBus.subscribe('turnAdvanced', (payload: { currentPlayerId: string }) => setCurrentPlayerId(payload.currentPlayerId));
           eventBus.subscribe('dayAdvanced', (payload: { dayNumber: number }) => setDayNumber(payload.dayNumber));
           
-          // Start the game by advancing to the first phase
-          // phm.advancePhase(); // Setup -> Morning
-
         } catch (e: any) {
           setError(`Error initializing game engine: ${e.message}`);
           console.error(e);
@@ -175,18 +166,33 @@ export default function PlayGamePage() {
   }, [deckId, decks, eventBus]);
 
 
-  const handlePassTurn = useCallback(() => {
-    if (actionHandler && currentPlayerId) {
-      actionHandler.tryPass(currentPlayerId);
-      // State updates will flow via event bus
+  const handlePassTurn = useCallback(async () => {
+    if (actionHandler && currentPlayerId && !isProcessingAction) {
+      setIsProcessingAction(true);
+      try {
+        await actionHandler.tryPass(currentPlayerId); 
+      } catch(e) {
+        console.error("Error during pass turn:", e);
+        setError("An error occurred while passing the turn.");
+      } finally {
+        setIsProcessingAction(false);
+      }
     }
-  }, [actionHandler, currentPlayerId]);
+  }, [actionHandler, currentPlayerId, isProcessingAction]);
 
-  const handleAdvancePhase = useCallback(() => {
-    if (phaseManager) {
-      phaseManager.advancePhase();
+  const handleAdvancePhase = useCallback(async () => {
+    if (phaseManager && !isProcessingAction) {
+      setIsProcessingAction(true);
+      try {
+        await phaseManager.advancePhase();
+      } catch(e) {
+        console.error("Error during advance phase:", e);
+        setError("An error occurred while advancing the phase.");
+      } finally {
+        setIsProcessingAction(false);
+      }
     }
-  }, [phaseManager]);
+  }, [phaseManager, isProcessingAction]);
 
 
   if (isLoading) {
@@ -234,6 +240,10 @@ export default function PlayGamePage() {
     );
   }
 
+  const canPass = currentPhase === GamePhase.Afternoon;
+  const canAdvancePhaseManually = !(currentPhase === GamePhase.Afternoon && gameStateManager?.getPlayer(currentPlayerId!)?.hasPassedTurn === false);
+
+
   return (
     <div className="space-y-8">
       <section className="text-center">
@@ -255,8 +265,14 @@ export default function PlayGamePage() {
           <p><span className="font-semibold">Current Player:</span> {currentPlayerId || 'N/A'}</p>
           
           <div className="flex gap-4 mt-6">
-            <Button onClick={handlePassTurn} disabled={currentPhase !== GamePhase.Afternoon}>Pass Turn</Button>
-            <Button onClick={handleAdvancePhase} disabled={currentPhase === GamePhase.Afternoon && !gameStateManager?.getPlayer(currentPlayerId!)?.hasPassedTurn}>Advance Phase (Manual)</Button>
+            <Button onClick={handlePassTurn} disabled={!canPass || isProcessingAction}>
+              {isProcessingAction && canPass ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Play className="mr-1 h-4 w-4" />}
+               Pass Turn
+            </Button>
+            <Button onClick={handleAdvancePhase} disabled={!canAdvancePhaseManually || isProcessingAction}>
+              {isProcessingAction && canAdvancePhaseManually ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+               Advance Phase (Manual)
+            </Button>
           </div>
           <p className="text-sm text-muted-foreground mt-4">
             This is a very basic interface for testing the engine logic. Full UI to come.
@@ -272,7 +288,6 @@ export default function PlayGamePage() {
        <Card className="shadow-xl mt-8">
         <CardHeader><CardTitle>Player 1 Hand (Example)</CardTitle></CardHeader>
         <CardContent>
-            {/* TODO: Display actual hand once card drawing is implemented */}
             <p className="text-muted-foreground">Hand display pending full card drawing logic.</p>
         </CardContent>
       </Card>
@@ -285,3 +300,5 @@ export default function PlayGamePage() {
     </div>
   );
 }
+
+    
