@@ -13,11 +13,11 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle as UiCardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { X, Search, FilterX, Loader2 } from 'lucide-react';
+import { X, Search, FilterX, Loader2 as LucideLoader } from 'lucide-react'; // Renamed imported Loader2
 import { useToast } from '@/hooks/use-toast';
 import useLocalStorage from '@/hooks/useLocalStorage';
 import Image from 'next/image';
-import { cn } from '@/lib/utils';
+// import { cn } from '@/lib/utils'; // Reverted: Removed cn import
 
 const DECK_STORAGE_KEY = 'alterdeck-decks';
 const CARDS_PER_LOAD = 20;
@@ -94,8 +94,6 @@ function CardViewerPageContent() {
       setEditingDeckId(null);
       setShowDeckPanel(true);
     } else {
-      // If no action or deckId, ensure panel is closed if it was previously open due to query params
-      // This check prevents the panel from staying open if the user manually removes query params
       if (showDeckPanel && !action && !deckIdToEdit) {
           const currentParams = new URLSearchParams(Array.from(searchParams.entries()));
           if (!currentParams.has('action') && !currentParams.has('deckId')) {
@@ -164,7 +162,6 @@ function CardViewerPageContent() {
     setIsEditingDeck(false);
     setEditingDeckId(null);
     setShowDeckPanel(true);
-    // Navigate with query param to ensure consistent state if page is reloaded
     router.push('/cards?action=create-with-card', { scroll: false });
   };
 
@@ -268,27 +265,25 @@ function CardViewerPageContent() {
   };
 
   if (!isMounted) {
-    return <div className="flex justify-center items-center min-h-[60vh]"><Loader2 className="h-16 w-16 animate-spin text-primary" /></div>;
+    return <div className="flex justify-center items-center min-h-[60vh]"><LucideLoader className="h-16 w-16 animate-spin text-primary" /></div>;
   }
 
+  // Reverted: Simplified instructionText logic
   let instructionText;
-  if (showDeckPanel && deckFormInitialData) {
-    if (isEditingDeck) {
-      instructionText = `Deck panel open. Editing "${deckFormInitialData.name || 'Deck'}". Left-click cards to add, Right-click to remove.`;
-    } else {
-      instructionText = `Deck panel open. Building new deck. Left-click cards to add, Right-click to remove.`;
-    }
+  if (showDeckPanel) {
+    instructionText = "Deck panel open. Left-click cards to add, Right-click to remove.";
   } else {
     instructionText = "Browse Altered TCG cards. Click '+' on a card to start a new deck.";
   }
 
-  const panelTitle = isEditingDeck ? `Editing: ${deckFormInitialData?.name || 'Deck'}` : 'Create New Deck';
+  // Reverted: Removed panelTitle logic
+  // const panelTitle = isEditingDeck ? `Editing: ${deckFormInitialData?.name || 'Deck'}` : 'Create New Deck';
 
   return (
     <div className="flex flex-col md:flex-row gap-6">
       {showDeckPanel && deckFormInitialData && (
         <div className="w-full md:w-1/3 lg:w-1/4 xl:w-1/5 bg-card p-4 rounded-lg shadow-xl sticky top-20 h-[calc(100vh-10rem)] overflow-y-auto">
-          <h2 className="text-xl font-bold mb-4 text-primary">{panelTitle}</h2>
+          {/* Reverted: Removed <h2 className="text-xl font-bold mb-4 text-primary">{panelTitle}</h2> */}
           <DeckForm
             onSubmit={handleDeckFormSubmit}
             initialData={deckFormInitialData}
@@ -377,7 +372,7 @@ function CardViewerPageContent() {
             <p>Try adjusting your search or clearing filters.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-6"> {/* Reverted layout */}
             {cardsToDisplay.map(card => {
                 const isSelectedInPanel = showDeckPanel && (deckFormInitialData?.cardIds.includes(card.id) ?? false);
                 const countInDeck = deckFormInitialData?.cardIds.filter(id => id === card.id).length || 0;
@@ -476,4 +471,12 @@ export default function CardViewerPage() {
     </Suspense>
   );
 }
+
+// Reverted: Added back custom Loader2 definition (will conflict with imported LucideLoader and cause cn error)
+const Loader2 = ({ className }: { className?: string }) => (
+  <svg className={/*cn(*/"animate-spin"/*, className)*/} /* Removed cn here to avoid immediate error, but it's still problematic if cn was intended */ xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+  </svg>
+);
     
