@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Trash2, Save, X } from 'lucide-react';
+import { Save, X } from 'lucide-react'; // Removed Trash2
 import type { AlteredCard } from '@/types';
 import { cardTypesLookup, raritiesLookup, factionsLookup } from '@/data/cards';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
@@ -100,7 +100,7 @@ export default function DeckForm({ onSubmit, initialData, isEditing, onCancel, a
     if (heroesInDeck.length !== EXACT_HERO_COUNT) {
         errors.push(`Deck must contain exactly ${EXACT_HERO_COUNT} Hero. Found: ${heroesInDeck.length}.`);
     }
-    const heroCard = heroesInDeck[0]; // This will be undefined if not EXACT_HERO_COUNT, which is fine for subsequent checks
+    const heroCard = heroesInDeck[0]; 
 
     const nonHeroCardsInDeck = finalSelectedFullCardsOnSubmit.filter(c => c.type !== cardTypesLookup.HERO.name);
 
@@ -161,17 +161,6 @@ export default function DeckForm({ onSubmit, initialData, isEditing, onCancel, a
   const currentNonHeroCount = selectedFullCards.filter(c => c.type !== cardTypesLookup.HERO.name).length;
   const currentRareNonHeroCount = selectedFullCards.filter(c => c.rarity === raritiesLookup.RARE.name && c.type !== cardTypesLookup.HERO.name).length;
   const heroInDeck = selectedFullCards.find(c => c.type === cardTypesLookup.HERO.name);
-
-  const handleRemoveCardFromDeckPanel = (cardIdToRemove: string) => {
-    const currentCardIds = [...watchedCardIds];
-    const lastIndexOfCard = currentCardIds.lastIndexOf(cardIdToRemove);
-
-    if (lastIndexOfCard > -1) {
-      currentCardIds.splice(lastIndexOfCard, 1);
-      setValue('cardIds', currentCardIds, { shouldValidate: true, shouldDirty: true });
-      trigger('cardIds');
-    }
-  };
 
   return (
     <Form {...form}>
@@ -245,9 +234,7 @@ export default function DeckForm({ onSubmit, initialData, isEditing, onCancel, a
                         {card.name} ({card.type === cardTypesLookup.HERO.name ? 'Hero' : card.rarity})
                         {quantity > 1 && <span className="text-muted-foreground"> x{quantity}</span>}
                       </span>
-                      <Button variant="ghost" size="icon" type="button" onClick={() => handleRemoveCardFromDeckPanel(card.id)} aria-label={`Remove one ${card.name}`}>
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
+                      {/* Removed Trash2 Button */}
                     </div>
                   ))}
                 </div>

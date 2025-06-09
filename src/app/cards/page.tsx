@@ -98,8 +98,10 @@ function CardViewerPageContent() {
       setEditingDeckId(null);
       if (!showDeckPanel) setShowDeckPanel(true);
     } else if (cameFromCardViewerPlusButton) {
+      // Do not reset filters or loaded cards if creating from card viewer "+" button
       if (!showDeckPanel) setShowDeckPanel(true); 
     } else {
+      // If no action/deckId is specified, and panel is open, close it (e.g. direct navigation)
       if (showDeckPanel) { 
           const currentParams = new URLSearchParams(Array.from(searchParams.entries()));
           if (!currentParams.has('action') && !currentParams.has('deckId')) {
@@ -129,18 +131,18 @@ function CardViewerPageContent() {
       .filter(Boolean) as AlteredCard[];
     
     const currentHeroInDeck = currentDeckCards.find(c => c.type === cardTypesLookup.HERO.name);
-    const heroFactionName = currentHeroInDeck?.faction; // This is the faction NAME, e.g., "Axiom"
+    const heroFactionName = currentHeroInDeck?.faction; 
 
     if (heroFactionName) {
       if (filters.selectedFaction !== heroFactionName) {
         handleFilterChange('selectedFaction', heroFactionName);
       }
-    } else { // No hero in deck
+    } else { 
       if (filters.selectedFaction !== 'all') {
         handleFilterChange('selectedFaction', 'all');
       }
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- handleFilterChange is memoized, allCards & cardTypesLookup are stable
+  // eslint-disable-next-line react-hooks/exhaustive-deps 
   }, [deckFormInitialData?.cardIds, showDeckPanel, handleFilterChange, filters.selectedFaction]);
 
 
@@ -243,16 +245,23 @@ function CardViewerPageContent() {
 
     const isHero = card.type === cardTypesLookup.HERO.name;
     const heroesInDeck = currentFullCards.filter(c => c.type === cardTypesLookup.HERO.name);
-    const heroCardInDeck = heroesInDeck[0];
+    const heroCardInDeckIfAny = heroesInDeck[0];
 
     if (isHero) {
+      const countThisSpecificHero = currentCardIds.filter(id => id === card.id).length;
+      if (countThisSpecificHero >= EXACT_HERO_COUNT) {
+          toast({ title: "Deck Rule", description: `A deck can only have ${EXACT_HERO_COUNT} copy of the Hero "${card.name}".`, variant: "destructive" });
+          return;
+      }
+      // Check if trying to add a *different* hero when one already exists
       if (heroesInDeck.length >= EXACT_HERO_COUNT && !currentCardIds.includes(card.id)) {
-        toast({ title: "Deck Rule", description: `A deck can only have ${EXACT_HERO_COUNT} Hero.`, variant: "destructive" });
-        return;
+          toast({ title: "Deck Rule", description: `A deck can only have ${EXACT_HERO_COUNT} Hero. Remove the current Hero to add "${card.name}".`, variant: "destructive" });
+          return;
       }
     } else { 
-      if (heroCardInDeck && heroCardInDeck.faction && card.faction !== heroCardInDeck.faction && card.faction !== NEUTRAL_FACTION_NAME) {
-        toast({ title: "Deck Rule", description: `Card faction (${card.faction}) must match Hero faction (${heroCardInDeck.faction}) or be Neutral.`, variant: "destructive" });
+      // Non-hero card validation
+      if (heroCardInDeckIfAny && heroCardInDeckIfAny.faction && card.faction !== heroCardInDeckIfAny.faction && card.faction !== NEUTRAL_FACTION_NAME) {
+        toast({ title: "Deck Rule", description: `Card faction (${card.faction}) must match Hero faction (${heroCardInDeckIfAny.faction}) or be Neutral.`, variant: "destructive" });
         return;
       }
 
@@ -261,8 +270,8 @@ function CardViewerPageContent() {
         toast({ title: "Deck Rule", description: `Deck cannot exceed ${MAX_DECK_CARDS_NON_HERO} non-Hero cards.`, variant: "destructive" });
         return;
       }
-      const countSameName = currentFullCards.filter(c => c.name === card.name && c.type !== cardTypesLookup.HERO.name).length;
-      if (countSameName >= MAX_DUPLICATES_NON_HERO_BY_NAME) {
+      const countSameNameNonHero = currentFullCards.filter(c => c.name === card.name && c.type !== cardTypesLookup.HERO.name).length;
+      if (countSameNameNonHero >= MAX_DUPLICATES_NON_HERO_BY_NAME) {
         toast({ title: "Deck Rule", description: `Maximum ${MAX_DUPLICATES_NON_HERO_BY_NAME} copies of "${card.name}" allowed.`, variant: "destructive" });
         return;
       }
@@ -484,6 +493,7 @@ function CardViewerPageContent() {
   );
 }
 
+// Minimal loader for when hook is not ready
 const Loader = () => (
   <div className="flex justify-center items-center min-h-screen">
     <LucideLoader className="h-10 w-10 animate-spin text-primary" />
