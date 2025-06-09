@@ -3,7 +3,7 @@ import type { IGameState, IPlayer, ICardInstance, IGameObject, ZoneEntity, IZone
 import { ObjectFactory } from './types/zones';
 import { GamePhase, ZoneIdentifier, StatusType, CounterType, CardType, PermanentZoneType } from './types/enums';
 import type { EventBus } from './EventBus';
-import { BaseZone, HandZone, DiscardPileZone, LimboZone } from './Zone'; 
+import { BaseZone, HandZone, DiscardPileZone, LimboZone } from './Zone';
 import { isGameObject } from './types/objects';
 
 
@@ -33,6 +33,7 @@ export class GameStateManager {
                     reserve: new BaseZone(`${pid}-reserve`, ZoneIdentifier.Reserve, 'visible', pid),
                     landmarkZone: new BaseZone(`${pid}-landmark`, ZoneIdentifier.Landmark, 'visible', pid),
                     heroZone: new BaseZone(`${pid}-hero`, ZoneIdentifier.Hero, 'visible', pid),
+                    expedition: new BaseZone(`${pid}-expedition`, ZoneIdentifier.Expedition, 'visible', pid), // Added player-specific expedition zone
                 },
                 heroExpeditionPosition: 0,
                 companionExpeditionPosition: 0,
@@ -44,7 +45,8 @@ export class GameStateManager {
             players,
             sharedZones: {
                 adventure: new BaseZone("shared-adventure", ZoneIdentifier.Adventure, 'visible'),
-                expedition: new BaseZone("shared-expedition", ZoneIdentifier.Expedition, 'visible'),
+                // Shared expedition zone might be deprecated if player-specific ones are primary
+                expedition: new BaseZone("shared-expedition-deprecated", ZoneIdentifier.Expedition, 'visible'), 
                 limbo: new LimboZone(),
             },
             currentPhase: GamePhase.Setup,
@@ -81,18 +83,16 @@ export class GameStateManager {
                 return;
             }
 
-            // Ensure Hero definition exists for the factory
             if (!this.cardDefinitions.has(heroDefinition.id)) {
                 this.cardDefinitions.set(heroDefinition.id, heroDefinition);
             }
             const heroTempInstance = this.objectFactory.createCardInstance(heroDefinition.id, playerId);
-            const heroGameObject = this.objectFactory.createGameObject(heroTempInstance, playerId) as IGameObject; // Cast for clarity
+            const heroGameObject = this.objectFactory.createGameObject(heroTempInstance, playerId) as IGameObject;
             player.zones.heroZone.add(heroGameObject);
             console.log(`[GSM] Placed Hero ${heroGameObject.name} in ${player.zones.heroZone.id}`);
 
             const nonHeroDeckDefinitions = deckDefinitions.filter(def => def.type !== CardType.Hero);
             let deckCardInstances: ICardInstance[] = nonHeroDeckDefinitions.map(def => {
-                 // Ensure card definition exists for the factory
                 if (!this.cardDefinitions.has(def.id)) {
                     this.cardDefinitions.set(def.id, def);
                 }
@@ -109,7 +109,7 @@ export class GameStateManager {
             for (let i = 0; i < startingHandSize; i++) {
                 const allDeckCards = player.zones.deck.getAll();
                 if (allDeckCards.length > 0) {
-                    const cardToDraw = allDeckCards[0] as ICardInstance; 
+                    const cardToDraw = allDeckCards[0] as ICardInstance;
                     this.moveEntity(cardToDraw.instanceId, player.zones.deck, player.zones.hand, playerId);
                 } else {
                     console.warn(`[GSM] Player ${playerId} ran out of cards to draw for initial hand.`);
@@ -121,8 +121,8 @@ export class GameStateManager {
             for (let i = 0; i < initialManaOrbs; i++) {
                 const manaOrbDefId = `mana_orb_definition_generic_${playerId}_${i}`;
                 if (!this.cardDefinitions.has(manaOrbDefId)) {
-                    this.cardDefinitions.set(manaOrbDefId, { 
-                        id: manaOrbDefId, name: "Mana Orb", type: CardType.ManaOrb, handCost: 0, reserveCost: 0, abilities: [] 
+                    this.cardDefinitions.set(manaOrbDefId, {
+                        id: manaOrbDefId, name: "Mana Orb", type: CardType.ManaOrb, handCost: 0, reserveCost: 0, abilities: []
                     });
                 }
                 const manaOrbTempInstance = this.objectFactory.createCardInstance(manaOrbDefId, playerId);
@@ -139,7 +139,7 @@ export class GameStateManager {
         if (!sourceEntity) {
             throw new Error(`Entity ${entityId} not found in zone ${fromZone.id}.`);
         }
-        
+
         let newEntity: ZoneEntity;
 
         if (toZone.visibility === 'visible') {
@@ -151,17 +151,17 @@ export class GameStateManager {
                  newEntity = sourceEntity;
              }
         }
-        
+
         toZone.add(newEntity);
         this.state.actionHistory.push({ action: 'moveEntity', entityId, from: fromZone.zoneType, to: toZone.zoneType, newId: isGameObject(newEntity) ? newEntity.objectId : newEntity.instanceId });
         this.eventBus.publish('entityMoved', { entity: newEntity, from: fromZone, to: toZone });
         return newEntity;
     }
-    
+
     public getCardDefinition(id: string): ICardDefinition | undefined {
         return this.cardDefinitions.get(id);
     }
-    
+
     public getObject(id: string): IGameObject | undefined {
         for (const zone of this.getAllVisibleZones()) {
             const entity = zone.findById(id);
@@ -179,9 +179,10 @@ export class GameStateManager {
             yield player.zones.reserve;
             yield player.zones.landmarkZone;
             yield player.zones.heroZone;
+            yield player.zones.expedition; // Added player expedition to visible zones
         }
         yield this.state.sharedZones.adventure;
-        yield this.state.sharedZones.expedition;
+        // yield this.state.sharedZones.expedition; // Deprecated if player-specific
         yield this.state.sharedZones.limbo;
     }
 
@@ -199,4 +200,3 @@ export class GameStateManager {
         this.eventBus.publish('phaseChanged', { phase });
     }
 }
-
