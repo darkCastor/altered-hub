@@ -3,12 +3,8 @@ import type { IGameState, IPlayer, ICardInstance, IGameObject, ZoneEntity, IZone
 import { ObjectFactory } from './types/zones'; // Added import
 import { GamePhase, ZoneIdentifier, StatusType, CounterType, CardType, PermanentZoneType } from './types/enums';
 import type { EventBus } from './EventBus';
-import { BaseZone, HandZone, DiscardPileZone, LimboZone } from './Zone'; // Assuming these are correctly imported or defined
-
-// Type guard to check if an entity is a full GameObject
-export function isGameObject(entity: ICardInstance | IGameObject): entity is IGameObject {
-    return (entity as IGameObject).objectId !== undefined;
-}
+import { BaseZone, HandZone, DiscardPileZone, LimboZone } from './Zone'; 
+import { isGameObject } from './types/objects';
 
 
 export class GameStateManager {

@@ -1,3 +1,10 @@
+
+import type { ICardInstance } from './cards';
+import type { ICardDefinition } from './cards';
+import type { CardType, StatusType, CounterType, PermanentZoneType } from './enums';
+import type { IAbility } from './abilities';
+
+
 /**
  * The base interface for all entities in visible game zones.
  * An "object" is created when a card's representation enters a visible zone.

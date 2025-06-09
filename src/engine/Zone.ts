@@ -1,3 +1,9 @@
+
+import type { IZone, ZoneEntity } from './types/zones';
+import { ZoneIdentifier } from './types/enums';
+import { isGameObject } from './types/objects';
+
+
 export abstract class BaseZone implements IZone {
     public readonly id: string;
     public readonly zoneType: ZoneIdentifier;
