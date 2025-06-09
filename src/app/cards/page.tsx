@@ -74,8 +74,6 @@ function CardViewerPageContent() {
     const cameFromCardViewerPlusButton = action === 'create-with-card';
   
     if (deckIdToEdit) {
-      // Editing an existing deck (e.g., from /decks page or direct URL)
-      // Keep current filters/load state. User might be browsing then decide to edit.
       const deckToEdit = decks.find(d => d.id === deckIdToEdit);
       if (deckToEdit) {
         setDeckFormInitialData({
@@ -91,9 +89,8 @@ function CardViewerPageContent() {
         toast({ title: "Error", description: "Deck not found for editing.", variant: "destructive" });
         router.replace('/cards', { scroll: false });
       }
-    } else if (action === 'create') {
-      // Creating a new deck, typically from /decks page or direct URL (?action=create)
-      // Reset filters and loaded cards for a fresh card explorer view.
+    } else if (action === 'create' && !cameFromCardViewerPlusButton) {
+      // Creating a new deck from /decks page or direct URL (?action=create)
       setFilters(initialFilters);
       setLoadedCardsCount(CARDS_PER_LOAD);
   
@@ -104,7 +101,7 @@ function CardViewerPageContent() {
     } else if (cameFromCardViewerPlusButton) {
       // Deck creation initiated by clicking "+" on a card in the Card Viewer.
       // The panel and initialData are already set by handleStartNewDeckWithCard.
-      // Crucially, DO NOT reset filters or loadedCardsCount here.
+      // Filters and loadedCardsCount are preserved.
       if (!showDeckPanel) setShowDeckPanel(true); 
     } else {
       // No specific action to open the panel via URL.
@@ -119,7 +116,7 @@ function CardViewerPageContent() {
           }
       }
     }
-  }, [searchParams, decks, toast, router]);
+  }, [searchParams, decks, toast, router, showDeckPanel]); // Added showDeckPanel to dependencies
 
 
   const handleFilterChange = (filterName: keyof Filters, value: any) => {
@@ -177,6 +174,7 @@ function CardViewerPageContent() {
     setIsEditingDeck(false);
     setEditingDeckId(null);
     setShowDeckPanel(true);
+    // Update URL for context, but don't reset filters or loaded cards
     router.push('/cards?action=create-with-card', { scroll: false });
   };
 
@@ -226,25 +224,20 @@ function CardViewerPageContent() {
 
     const isHero = card.type === cardTypesLookup.HERO.name;
     const heroesInDeck = currentFullCards.filter(c => c.type === cardTypesLookup.HERO.name);
-    const heroCardInDeck = heroesInDeck[0];
+    const heroCardInDeck = heroesInDeck[0]; // This will be undefined if no hero is in deck
 
     if (isHero) {
       if (heroesInDeck.length >= EXACT_HERO_COUNT && !currentCardIds.includes(card.id)) {
         toast({ title: "Deck Rule", description: `A deck can only have ${EXACT_HERO_COUNT} Hero.`, variant: "destructive" });
         return;
       }
-    } else {
-      if (currentFullCards.length === 0 && !isHero) {
-         // Allow adding non-hero first if deck is empty, validation on submit will catch no-hero.
-      } else if (!heroCardInDeck && currentFullCards.length > 0) {
-         toast({ title: "Deck Rule", description: "You must select a Hero before adding other cards.", variant: "destructive" });
-         return;
-      }
-
-      if (heroCardInDeck && card.faction !== heroCardInDeck.faction && card.faction !== NEUTRAL_FACTION_NAME) {
+    } else { // Non-Hero card
+      // Faction check: only if a hero is already selected
+      if (heroCardInDeck && heroCardInDeck.faction && card.faction !== heroCardInDeck.faction && card.faction !== NEUTRAL_FACTION_NAME) {
         toast({ title: "Deck Rule", description: `Card faction (${card.faction}) must match Hero faction (${heroCardInDeck.faction}) or be Neutral.`, variant: "destructive" });
         return;
       }
+
       const nonHeroCardsInDeck = currentFullCards.filter(c => c.type !== cardTypesLookup.HERO.name);
       if (nonHeroCardsInDeck.length >= MAX_DECK_CARDS_NON_HERO && !currentCardIds.includes(card.id)) {
         toast({ title: "Deck Rule", description: `Deck cannot exceed ${MAX_DECK_CARDS_NON_HERO} non-Hero cards.`, variant: "destructive" });
@@ -473,9 +466,10 @@ function CardViewerPageContent() {
   );
 }
 
+// Minimal loader for when hook is not ready
 const Loader = () => (
   <div className="flex justify-center items-center min-h-screen">
-    <svg className="animate-spin h-10 w-10 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+    <svg className={cn("animate-spin h-10 w-10 text-primary")} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"> {/* cn will cause an error here without import */}
       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
     </svg>

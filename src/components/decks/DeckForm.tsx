@@ -100,7 +100,7 @@ export default function DeckForm({ onSubmit, initialData, isEditing, onCancel, a
     if (heroesInDeck.length !== EXACT_HERO_COUNT) {
         errors.push(`Deck must contain exactly ${EXACT_HERO_COUNT} Hero. Found: ${heroesInDeck.length}.`);
     }
-    const heroCard = heroesInDeck[0];
+    const heroCard = heroesInDeck[0]; // This will be undefined if not EXACT_HERO_COUNT, which is fine for subsequent checks
 
     const nonHeroCardsInDeck = finalSelectedFullCardsOnSubmit.filter(c => c.type !== cardTypesLookup.HERO.name);
 
@@ -134,11 +134,8 @@ export default function DeckForm({ onSubmit, initialData, isEditing, onCancel, a
           errors.push(`Card "${card.name}" (Faction: ${card.faction}) does not match Hero's faction (${heroDeckFaction}) and is not Neutral.`);
         }
       });
-    } else if (heroesInDeck.length === 0 && nonHeroCardsInDeck.length > 0) {
-      if(!finalSelectedFullCardsOnSubmit.find(c => c.type === cardTypesLookup.HERO.name)) {
-         errors.push("Deck must start with a Hero card if it's the only card.");
-      }
     }
+
 
     if (errors.length > 0) {
         errors.forEach(err => toast({ title: "Deck Validation Error", description: err, variant: "destructive", duration: 7000 }));
