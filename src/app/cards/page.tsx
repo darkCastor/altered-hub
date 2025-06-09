@@ -161,7 +161,7 @@ export default function CardViewerPage() {
 
   const handleStartNewDeckWithCard = (card: AlteredCard) => {
     const initialHero = card.type === cardTypesLookup.HERO.name ? card : undefined;
-    const initialCardIds = initialHero ? [initialHero.id] : [card.id]; 
+    const initialCardIds = initialHero ? [initialHero.id] : [card.id];
 
     const newDeckData: DeckFormValues = {
       name: `Deck with ${card.name}`,
@@ -181,7 +181,7 @@ export default function CardViewerPage() {
     setDeckFormInitialData(undefined);
     setEditingDeckId(null);
     setIsEditingDeck(false);
-    router.replace('/cards'); 
+    router.replace('/cards');
   };
 
   const handleSaveDeck = (data: DeckFormValues) => {
@@ -196,12 +196,12 @@ export default function CardViewerPage() {
     if (isEditingDeck && editingDeckId) {
       const updatedDecks = decks.map(d =>
         d.id === editingDeckId
-          ? { 
-              ...d, 
-              name: data.name, 
-              description: data.description, 
+          ? {
+              ...d,
+              name: data.name,
+              description: data.description,
               format: data.format,
-              cards: selectedFullCards, 
+              cards: selectedFullCards,
               updatedAt: now,
               hero: heroCard,
               faction: deckFaction,
@@ -244,10 +244,10 @@ export default function CardViewerPage() {
     } else {
         potentialSelectedCards = [...currentSelectedFullCards, card];
     }
-    
+
     const heroInPotentialDeck = potentialSelectedCards.find(c => c.type === cardTypesLookup.HERO.name);
 
-    if (!isCurrentlySelected) { 
+    if (!isCurrentlySelected) {
       if (card.type === cardTypesLookup.HERO.name) {
         const existingHeroes = currentSelectedFullCards.filter(c => c.type === cardTypesLookup.HERO.name);
         if (existingHeroes.length >= EXACT_HERO_COUNT && (!existingHeroes[0] || existingHeroes[0].id !== card.id)) {
@@ -263,7 +263,7 @@ export default function CardViewerPage() {
           return;
         }
       }
-      
+
       if (card.type !== cardTypesLookup.HERO.name) {
         const countOfSameName = potentialSelectedCards.filter(c => c.name === card.name && c.type !== cardTypesLookup.HERO.name).length;
         if (countOfSameName > MAX_DUPLICATES_NON_HERO_BY_NAME) {
@@ -271,9 +271,8 @@ export default function CardViewerPage() {
           return;
         }
       }
-      
+
       if (card.type !== cardTypesLookup.HERO.name && card.rarity === raritiesLookup.RARE.name) {
-        // Count rares EXCLUDING the one we are about to add, then check if ADDING it exceeds the limit
         const currentRareNonHeroCountInDeck = currentSelectedFullCards.filter(c => c.type !== cardTypesLookup.HERO.name && c.rarity === raritiesLookup.RARE.name).length;
         if (currentRareNonHeroCountInDeck >= MAX_RARE_CARDS_NON_HERO) {
            toast({ title: "Deck Rule Violation", description: `Cannot add more than ${MAX_RARE_CARDS_NON_HERO} Rare non-Hero cards.`, variant: "destructive" });
@@ -294,7 +293,7 @@ export default function CardViewerPage() {
     } else {
       updatedCardIds = [...currentCardIds, card.id];
     }
-    
+
     setDeckFormInitialData(prev => prev ? { ...prev, cardIds: updatedCardIds } : undefined);
   };
 
@@ -375,10 +374,10 @@ export default function CardViewerPage() {
         </Card>
 
         {cardsToShow.length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-5 gap-6">
             {cardsToShow.map(card => (
-              <div 
-                key={card.id} 
+              <div
+                key={card.id}
                 onClick={() => {
                   if (showDeckPanel) {
                     handleToggleCardInDeck(card);
@@ -388,9 +387,9 @@ export default function CardViewerPage() {
                 }}
                 className="cursor-pointer"
               >
-                <CardDisplay 
-                  card={card} 
-                  onStartNewDeck={!showDeckPanel ? handleStartNewDeckWithCard : undefined} 
+                <CardDisplay
+                  card={card}
+                  onStartNewDeck={!showDeckPanel ? handleStartNewDeckWithCard : undefined}
                   isSelectedInPanel={showDeckPanel && !!deckFormInitialData?.cardIds.includes(card.id)}
                   isDeckPanelOpen={showDeckPanel}
                 />
@@ -425,11 +424,10 @@ export default function CardViewerPage() {
               onClick={(e) => e.stopPropagation()}
               className="max-w-md w-full bg-card rounded-lg shadow-2xl overflow-hidden"
             >
-              <CardDisplay 
-                card={selectedCardModal} 
-                // When modal is open, panel is conceptually "closed" for the background card grid
-                onStartNewDeck={handleStartNewDeckWithCard} 
-                isSelectedInPanel={false} 
+              <CardDisplay
+                card={selectedCardModal}
+                onStartNewDeck={handleStartNewDeckWithCard}
+                isSelectedInPanel={false}
                 isDeckPanelOpen={false}
               />
               <h2 id="card-details-title" className="sr-only">{selectedCardModal.name} Details</h2>
