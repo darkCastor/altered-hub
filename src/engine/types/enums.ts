@@ -1,3 +1,4 @@
+
 export enum Faction {
     Axiom = "Axiom",
     Bravos = "Bravos",
@@ -5,16 +6,37 @@ export enum Faction {
     Muna = "Muna",
     Ordis = "Ordis",
     Yzmir = "Yzmir",
+    Neutre = "Neutre", // Added for Neutral cards
+    AX = "Axiom", // Alias for mapping
+    BR = "Bravos", // Alias for mapping
+    LY = "Lyra",   // Alias for mapping
+    MU = "Muna",   // Alias for mapping
+    NE = "Neutre", // Alias for mapping
+    OR = "Ordis",  // Alias for mapping
+    YZ = "Yzmir",  // Alias for mapping
 }
 
 export enum CardType {
-    Character = "Character",
-    Emblem = "Emblem",
-    Hero = "Hero",
-    ManaOrb = "ManaOrb",
-    Permanent = "Permanent",
-    Region = "Region",
-    Spell = "Spell",
+    Character = "Personnage", // Match names from cardTypesLookup
+    Emblem = "Emblem", // Assuming this is a valid engine type, not in JSON lookup
+    Hero = "Héros",
+    ManaOrb = "ManaOrb", // Assuming, not in JSON lookup as playable card type
+    Permanent = "Permanent", // Generic, specific types below will also map to this
+    Region = "Region", // Assuming, not in JSON lookup
+    Spell = "Sort",
+    LandmarkPermanent = "Repère Permanent",
+    ExpeditionPermanent = "Permanent d’Expédition",
+    Token = "Jeton Personnage",
+    // Aliases for mapping
+    CHARACTER = "Personnage",
+    HERO = "Héros",
+    SPELL = "Sort",
+    PERMANENT = "Permanent",
+    LANDMARK_PERMANENT = "Repère Permanent",
+    EXPEDITION_PERMANENT = "Permanent d’Expédition",
+    TOKEN = "Jeton Personnage",
+    TOKEN_MANA = "Mana", // Though likely filtered out
+    FOILER = "Foiler", // Though likely filtered out
 }
 
 export enum PermanentZoneType {
@@ -23,10 +45,13 @@ export enum PermanentZoneType {
 }
 
 export enum Rarity {
-    Common = "Common",
+    Common = "Commun", // Match names from raritiesLookup
     Rare = "Rare",
-    Unique = "Unique",
-    Token = "Token",
+    Unique = "Unique", // Assuming, not directly in JSON lookup but good to have
+    Token = "Token", // For token characters
+    // Aliases for mapping
+    COMMON = "Commun",
+    RARE = "Rare",
 }
 
 export enum GamePhase {

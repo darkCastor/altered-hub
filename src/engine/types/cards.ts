@@ -1,3 +1,7 @@
+
+import type { IAbility } from './abilities';
+import type { CardType, Faction, Rarity, PermanentZoneType } from './enums';
+
 /**
  * Represents the static, immutable data of a card as printed.
  * Rule 2.2
@@ -9,8 +13,8 @@ export interface ICardDefinition {
     subTypes?: string[]; // Rule 2.2.2
     rarity?: Rarity; // Rule 2.2.5
     version?: string; // Rule 2.2.6
-    handCost?: number; // Rule 2.2.7
-    reserveCost?: number; // Rule 2.2.8
+    handCost: number; // Rule 2.2.7 - Changed to non-optional, defaulting to 0 if undefined
+    reserveCost: number; // Rule 2.2.8 - Changed to non-optional, defaulting to 0 if undefined
     faction?: Faction; // Rule 2.2.9
     statistics?: { forest: number; mountain: number; water: number }; // Rule 2.2.10
     abilities: IAbility[]; // Structured abilities
