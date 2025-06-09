@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -75,11 +75,11 @@ export default function DeckForm({ onSubmit, initialData, isEditing, onCancel, a
 
     const nonHeroCards = selectedFullCards.filter(c => c.type !== cardTypesLookup.HERO.name);
     const cardsToKeep = selectedFullCards.filter(card => {
-      if (card.type === cardTypesLookup.HERO.name) return true; // Always keep the hero
-      if (currentHeroFaction) { // If a hero faction is set, non-hero cards must match or be neutral
+      if (card.type === cardTypesLookup.HERO.name) return true; 
+      if (currentHeroFaction) { 
         return card.faction === currentHeroFaction || card.faction === NEUTRAL_FACTION_NAME;
       }
-      return true; // If no hero faction, keep all non-hero cards (for now)
+      return true; 
     });
 
     if (cardsToKeep.length < selectedFullCards.length) {
@@ -156,7 +156,7 @@ export default function DeckForm({ onSubmit, initialData, isEditing, onCancel, a
         cardCounts.set(card.id, { card, quantity: 1 });
       }
     });
-    // Sort heroes to the top, then by card name
+    
     return Array.from(cardCounts.values()).sort((a, b) => {
       if (a.card.type === cardTypesLookup.HERO.name && b.card.type !== cardTypesLookup.HERO.name) return -1;
       if (a.card.type !== cardTypesLookup.HERO.name && b.card.type === cardTypesLookup.HERO.name) return 1;
@@ -225,8 +225,7 @@ export default function DeckForm({ onSubmit, initialData, isEditing, onCancel, a
               <h3 className="font-semibold text-base">Selected Cards ({selectedFullCards.length})</h3>
               {heroInDeck && <p className="text-xs text-primary">Hero Faction: {heroInDeck.faction || 'N/A'}</p>}
                <p className="text-xs text-muted-foreground">
-                Non-Hero: {currentNonHeroCount} ({MIN_DECK_CARDS_NON_HERO}-{MAX_DECK_CARDS_NON_HERO}) | 
-                Rare Non-Hero: {currentRareNonHeroCount}/{MAX_RARE_CARDS_NON_HERO}
+                Non-Hero: {currentNonHeroCount} ({MIN_DECK_CARDS_NON_HERO}-{MAX_DECK_CARDS_NON_HERO}) | Rare Non-Hero: {currentRareNonHeroCount}/{MAX_RARE_CARDS_NON_HERO}
               </p>
               <ScrollArea className="flex-1 border rounded-md p-1.5 bg-muted/20">
                 {groupedSelectedCardsForDisplay.length === 0 && (
