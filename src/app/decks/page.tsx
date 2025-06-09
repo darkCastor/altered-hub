@@ -3,8 +3,8 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation'; // Import useRouter
-import { PlusCircle, Trash2, Edit3 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { PlusCircle, Trash2, Edit3, Play } from 'lucide-react'; // Added Play icon
 import type { Deck, DeckListItem } from '@/types';
 import useLocalStorage from '@/hooks/useLocalStorage';
 import { Button } from '@/components/ui/button';
@@ -29,7 +29,7 @@ export default function DeckBuilderPage() {
   const [decks, setDecks] = useLocalStorage<Deck[]>(DECK_STORAGE_KEY, []);
   const [isMounted, setIsMounted] = useState(false);
   const { toast } = useToast();
-  const router = useRouter(); // Initialize useRouter
+  const router = useRouter();
 
   useEffect(() => {
     setIsMounted(true);
@@ -56,6 +56,10 @@ export default function DeckBuilderPage() {
 
   const handleEditDeck = (deckId: string) => {
     router.push(`/cards?deckId=${deckId}`);
+  };
+
+  const handlePlayGame = (deckId: string) => {
+    router.push(`/play/${deckId}`);
   };
 
   if (!isMounted) {
@@ -107,6 +111,9 @@ export default function DeckBuilderPage() {
                 <p className="text-xs text-muted-foreground">Last updated: {new Date(deck.updatedAt).toLocaleDateString()}</p>
               </CardContent>
               <CardFooter className="flex justify-end gap-2">
+                <Button onClick={() => handlePlayGame(deck.id)} variant="default" size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90">
+                  <Play className="mr-1 h-4 w-4" /> Play
+                </Button>
                 <Button onClick={() => handleEditDeck(deck.id)} variant="outline" size="sm">
                   <Edit3 className="mr-1 h-4 w-4" /> Edit
                 </Button>
@@ -137,5 +144,3 @@ export default function DeckBuilderPage() {
     </div>
   );
 }
-
-    
