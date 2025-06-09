@@ -154,7 +154,7 @@ export default function PlayGamePage() {
 
   const eventBus = useState(() => new EventBus())[0]; 
 
-  const mapToDisplayableCard = (cardInstance: ICardInstance | IGameObject): DisplayableCardData => {
+  const mapToDisplayableCard = useCallback((cardInstance: ICardInstance | IGameObject): DisplayableCardData => {
     const definition = allAlteredCards.find(ac => ac.id === cardInstance.definitionId);
     return {
       instanceId: 'objectId' in cardInstance ? cardInstance.objectId : cardInstance.instanceId,
@@ -166,9 +166,10 @@ export default function PlayGamePage() {
       health: definition?.health,
       powerM: definition?.powerM,
     };
-  };
+  }, []);
 
   const updateFullPlayerState = useCallback((playerId: string, gsm: GameStateManager) => {
+    if (!gsm) return;
     const player = gsm.getPlayer(playerId);
     if (!player) return;
 
@@ -200,7 +201,7 @@ export default function PlayGamePage() {
     } else {
       setPlayer2State(newState);
     }
-  }, []);
+  }, [mapToDisplayableCard]);
 
 
   useEffect(() => {
@@ -274,7 +275,7 @@ export default function PlayGamePage() {
       setIsLoading(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [deckId, decks, eventBus, gameStateManager]); 
+  }, [deckId, decks, eventBus, gameStateManager, updateFullPlayerState]); 
 
 
   const handlePassTurn = useCallback(async () => {
@@ -375,18 +376,18 @@ export default function PlayGamePage() {
 
       {/* Row 3 (was Row 4): Mana, Hand, Deck/Discard */}
       <div className="flex items-stretch h-28 md:h-32 p-1 space-x-1">
-         {/* Mana Area (Left for player) */}
-        <div className="flex-1 p-1 bg-black/30 rounded h-full flex flex-col items-center justify-center text-center space-y-1">
+         {/* Mana Area (Left for player if !isOpponent, Right if isOpponent) */}
+        <div className={cn("flex-1 p-1 bg-black/30 rounded h-full flex flex-col items-center justify-center text-center space-y-1", isOpponent ? 'order-3' : 'order-1')}>
           <Zap className="h-5 w-5 text-yellow-400" />
           <p className="text-xs text-muted-foreground">Mana</p>
           <div className="text-sm font-semibold">{playerState.mana.current}/{playerState.mana.max}</div>
         </div>
         {/* Hand Area (Middle) */}
-        <div className="flex-[3_3_0%] h-full flex items-center justify-center bg-black/10 rounded overflow-hidden">
+        <div className={cn("flex-[3_3_0%] h-full flex items-center justify-center bg-black/10 rounded overflow-hidden", 'order-2')}>
           <PlayerHandClient cards={playerState.hand} owner={isOpponent ? "opponent" : "self"} onCardClick={onCardClick} />
         </div>
-        {/* Deck/Discard Area (Right for player) */}
-        <div className="flex-1 p-1 bg-black/30 rounded h-full flex flex-col items-center justify-center text-center space-y-1">
+        {/* Deck/Discard Area (Right for player if !isOpponent, Left if isOpponent) */}
+        <div className={cn("flex-1 p-1 bg-black/30 rounded h-full flex flex-col items-center justify-center text-center space-y-1", isOpponent ? 'order-1' : 'order-3')}>
           <BookOpen className="h-5 w-5 text-blue-400" />
           <p className="text-xs text-muted-foreground">Deck: {playerState.deckCount}</p>
           <Box className="h-5 w-5 text-gray-500" />
@@ -405,15 +406,19 @@ export default function PlayGamePage() {
       </div>
 
       <div className="flex-1 flex flex-col p-1 space-y-1 min-h-0">
+        {/* Opponent's Area - Top */}
         <PlayerAreaLayout playerState={player2State} onCardClick={() => {}} isOpponent={true} />
 
+        {/* Shared Adventure Zone - Center */}
         <div className="h-12 bg-zinc-700/30 rounded border border-zinc-600 p-1 flex items-center justify-center shrink-0">
           <p className="text-xs text-muted-foreground">Adventure Zone (Shared)</p>
         </div>
 
+        {/* Current Player's Area - Bottom */}
         <PlayerAreaLayout playerState={player1State} onCardClick={handlePlayCard} isOpponent={false} />
       </div>
       
+      {/* Action Bar - Bottom */}
       <div className="h-12 flex items-center justify-center space-x-4 p-1 bg-zinc-900 border-t border-zinc-700 shrink-0">
           <Button onClick={handlePassTurn} disabled={!canSelfPass || isProcessingAction} variant="destructive" size="sm">
             {isProcessingAction && canSelfPass ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}

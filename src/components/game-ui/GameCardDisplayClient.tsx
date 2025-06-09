@@ -31,11 +31,11 @@ export default function GameCardDisplayClient({ card, isOpponentHandCard, isHero
         <Image
           src={card.imageUrl}
           alt={card.name}
-          layout="fill"
-          objectFit="cover" // Use "cover" for consistent filling, "contain" if aspect ratio is crucial
+          fill={true}
+          style={{ objectFit: 'cover' }}
           className="rounded-sm"
           data-ai-hint={aiHint}
-          unoptimized // If images are from external non-optimized source
+          unoptimized 
         />
       ) : (
         <div className="w-full h-full bg-muted flex items-center justify-center rounded-sm border border-border">
@@ -52,3 +52,4 @@ export default function GameCardDisplayClient({ card, isOpponentHandCard, isHero
     </div>
   );
 }
+
