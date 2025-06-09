@@ -6,7 +6,7 @@ import { useParams, useRouter } from 'next/navigation';
 import type { Deck, AlteredCard } from '@/types';
 import useLocalStorage from '@/hooks/useLocalStorage';
 import { Button } from '@/components/ui/button';
-import { Card as UiCard } from '@/components/ui/card'; // Renamed to avoid conflict
+import { Card as UiCard } from '@/components/ui/card';
 import { Loader2, ArrowLeft, Zap, BookOpen, Box } from 'lucide-react';
 import Link from 'next/link';
 
@@ -203,7 +203,7 @@ export default function PlayGamePage() {
 
 
   useEffect(() => {
-    if (deckId && decks.length > 0 && !gameStateManager) { // Ensure GSM isn't already set up
+    if (deckId && decks.length > 0 && !gameStateManager) {
       const foundDeck = decks.find(d => d.id === deckId);
       if (foundDeck) {
         setSelectedDeck(foundDeck);
@@ -234,7 +234,7 @@ export default function PlayGamePage() {
           setPhaseManager(phm);
 
           const playerDeckMap = new Map<string, ICardDefinition[]>();
-          playerIds.forEach(pid => playerDeckMap.set(pid, [...deckDefinitions])); // Both players use same deck
+          playerIds.forEach(pid => playerDeckMap.set(pid, [...deckDefinitions]));
           gsm.initializeBoard(playerDeckMap, STARTING_HAND_SIZE, INITIAL_MANA_ORBS);
 
           setCurrentPhase(gsm.state.currentPhase);
@@ -273,7 +273,7 @@ export default function PlayGamePage() {
       setIsLoading(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [deckId, decks, eventBus, gameStateManager]); // updateFullPlayerState is stable
+  }, [deckId, decks, eventBus, gameStateManager]);
 
 
   const handlePassTurn = useCallback(async () => {
@@ -282,10 +282,9 @@ export default function PlayGamePage() {
       console.log(`${PLAYER_ID_SELF} attempts to pass turn.`);
       try {
         await actionHandler.tryPass(PLAYER_ID_SELF);
-      } catch(e) {
+      } catch(e: any) {
         console.error("Error during pass turn:", e);
-        setError("An error occurred while passing the turn.");
-        console.log(`Error passing turn for ${PLAYER_ID_SELF}.`);
+        setError(`An error occurred while passing the turn: ${e.message || 'Unknown error'}`);
       } finally {
         setIsProcessingAction(false);
       }
@@ -308,7 +307,6 @@ export default function PlayGamePage() {
         } catch (e: any) {
             console.error("Error advancing phase manually:", e);
             setError(`An error occurred while advancing the phase: ${e.message}`);
-            console.log("Error manually advancing phase.");
         } finally {
             setIsProcessingAction(false);
         }
@@ -350,37 +348,38 @@ export default function PlayGamePage() {
   const canManuallyAdvancePhase = currentPhase !== GamePhase.Afternoon || (currentPhase === GamePhase.Afternoon && gameStateManager?.getPlayer(PLAYER_ID_SELF)?.hasPassedTurn);
 
   const PlayerAreaLayout = ({ playerState, isOpponent }: { playerState: PlayerState, isOpponent: boolean }) => (
-    <div className={`flex-1 flex flex-col ${isOpponent ? '' : 'flex-col-reverse'} space-y-1 bg-zinc-900/50 p-1 rounded border border-zinc-700`}>
-      {/* Hand - Positioned at the 'outer' edge */}
-      <div className={`h-28 flex items-center justify-center ${isOpponent ? 'order-1' : 'order-3'} my-1`}>
-        <PlayerHandClient cards={playerState.hand} owner={isOpponent ? "opponent" : "self"} onCardClick={isOpponent ? () => {} : handlePlayCard} />
-      </div>
-
-      {/* Expedition Zone - At the very 'top' for opponent, very 'bottom' for player */}
-      <div className={`${isOpponent ? 'order-2' : 'order-2'} h-24`}>
-        <BoardZoneClient cards={playerState.expedition} zoneType={`Expédition (${playerState.expedition.length})`} owner={isOpponent ? "opponent" : "self"} />
-      </div>
-
-      {/* Reserve - Hero - Landmarks Row */}
-      <div className={`flex justify-around items-center h-32 ${isOpponent ? 'order-3' : 'order-1'} space-x-1`}>
-        <BoardZoneClient cards={playerState.reserve} zoneType={`Réserve (${playerState.reserve.length})`} owner={isOpponent ? "opponent" : "self"} className="flex-[1_1_30%]" />
-        <HeroSpotClient hero={playerState.hero} isOpponent={isOpponent} />
-        <BoardZoneClient cards={playerState.landmarks} zoneType={`Repères (${playerState.landmarks.length})`} owner={isOpponent ? "opponent" : "self"} className="flex-[1_1_30%]" />
-      </div>
-
-      {/* Mana - Deck/Discard Row - Closest to center for player, further for opponent */}
-      <div className={`flex justify-between items-center h-20 ${isOpponent ? 'order-4' : 'order-0'} p-1`}>
-        <div className="flex-1 p-1 bg-black/20 rounded h-full flex flex-col items-center justify-center text-center">
-          <Zap className="h-5 w-5 text-yellow-400 mb-1" />
+    <div className={`flex-1 flex flex-col ${isOpponent ? 'space-y-1' : 'space-y-1 flex-col-reverse'} bg-zinc-900/50 p-1 rounded border border-zinc-700`}>
+      {/* Outer Row: Deck/Discard, Hand, Mana */}
+      <div className={`flex items-stretch h-28 md:h-32 p-1 space-x-1 ${isOpponent ? 'order-1' : 'order-3'}`}>
+        {/* Deck/Discard Area */}
+        <div className="flex-1 p-1 bg-black/30 rounded h-full flex flex-col items-center justify-center text-center space-y-1">
+          <BookOpen className="h-5 w-5 text-blue-400" />
+          <p className="text-xs text-muted-foreground">Deck: {playerState.deckCount}</p>
+          <Box className="h-5 w-5 text-gray-500" />
+          <p className="text-xs text-muted-foreground">Discard: {playerState.discardCount}</p>
+        </div>
+        {/* Hand Area (Middle) */}
+        <div className="flex-[3_3_0%] h-full flex items-center justify-center bg-black/10 rounded"> {/* Adjusted flex property and bg for visibility */}
+          <PlayerHandClient cards={playerState.hand} owner={isOpponent ? "opponent" : "self"} onCardClick={isOpponent ? () => {} : handlePlayCard} />
+        </div>
+        {/* Mana Area */}
+        <div className="flex-1 p-1 bg-black/30 rounded h-full flex flex-col items-center justify-center text-center space-y-1">
+          <Zap className="h-5 w-5 text-yellow-400" />
           <p className="text-xs text-muted-foreground">Mana</p>
           <div className="text-sm font-semibold">{playerState.mana.current}/{playerState.mana.max}</div>
         </div>
-        <div className="flex-1 p-1 text-xs text-center h-full flex flex-col items-center justify-center">
-          <BookOpen className="h-5 w-5 text-blue-400 mb-1" />
-          <div className="text-muted-foreground">Deck: {playerState.deckCount}</div>
-          <Box className="h-5 w-5 text-gray-500 mt-1 mb-0.5" />
-          <div className="text-muted-foreground">Discard: {playerState.discardCount}</div>
-        </div>
+      </div>
+  
+      {/* Inner Row 1: Expedition */}
+      <div className={`h-24 md:h-28 p-1 ${isOpponent ? 'order-2' : 'order-2'}`}>
+        <BoardZoneClient cards={playerState.expedition} zoneType={`Expédition (${playerState.expedition.length})`} owner={isOpponent ? "opponent" : "self"} />
+      </div>
+  
+      {/* Inner Row 2: Reserve, Hero, Landmarks */}
+      <div className={`flex justify-around items-stretch h-32 md:h-36 p-1 space-x-1 ${isOpponent ? 'order-3' : 'order-1'}`}>
+        <BoardZoneClient cards={playerState.reserve} zoneType={`Réserve (${playerState.reserve.length})`} owner={isOpponent ? "opponent" : "self"} className="flex-1" />
+        <HeroSpotClient hero={playerState.hero} isOpponent={isOpponent} className="flex-shrink-0" />
+        <BoardZoneClient cards={playerState.landmarks} zoneType={`Repères (${playerState.landmarks.length})`} owner={isOpponent ? "opponent" : "self"} className="flex-1" />
       </div>
     </div>
   );
@@ -388,44 +387,38 @@ export default function PlayGamePage() {
 
   return (
     <div className="flex flex-col h-screen bg-zinc-800 text-foreground overflow-hidden">
-      {/* Top Bar Placeholder */}
       <div className="h-10 bg-zinc-900 text-xs flex items-center justify-between px-4 border-b border-zinc-700 shrink-0">
         <div>Opponent: {PLAYER_ID_OPPONENT} ({player2State.hero?.name || 'No Hero'}) vs You: {PLAYER_ID_SELF} ({player1State.hero?.name || 'No Hero'})</div>
         <div>Day: {dayNumber} | Phase: {currentPhase} | Turn: {currentPlayerId === PLAYER_ID_SELF ? 'Your Turn' : "Opponent's Turn"}</div>
       </div>
 
-      <div className="flex flex-1 min-h-0">
-        {/* Main Game Area */}
-        <div className="flex-1 flex flex-col p-1 space-y-1">
-          {/* Opponent's Area */}
-          <PlayerAreaLayout playerState={player2State} isOpponent={true} />
+      <div className="flex-1 flex flex-col p-1 space-y-1 min-h-0"> {/* Changed to flex-col for player areas stacking */}
+        {/* Opponent's Area */}
+        <PlayerAreaLayout playerState={player2State} isOpponent={true} />
 
-          {/* Shared Adventure Zone */}
-          <div className="h-36 bg-zinc-700/30 rounded border border-zinc-600 p-1 flex items-center justify-center shrink-0">
-            <BoardZoneClient cards={[]} zoneType="Adventure Zone (Shared)" owner="shared" />
-          </div>
-
-          {/* Current Player's Area */}
-          <PlayerAreaLayout playerState={player1State} isOpponent={false} />
-
-          {/* Action Bar */}
-           <div className="h-12 flex items-center justify-center space-x-4 p-1 bg-zinc-900 border-t border-zinc-700 shrink-0">
-                <Button onClick={handlePassTurn} disabled={!canSelfPass || isProcessingAction} variant="destructive" size="sm">
-                  {isProcessingAction && canSelfPass ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                  Pass Turn
-                </Button>
-                <Button onClick={handleAdvancePhase} disabled={isProcessingAction || !canManuallyAdvancePhase} variant="secondary" size="sm">
-                  {isProcessingAction && canManuallyAdvancePhase === false ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                  Advance Phase (Manual)
-                </Button>
-                <Link href="/decks">
-                    <Button variant="outline" size="sm">
-                        <ArrowLeft className="mr-2 h-4 w-4" /> Surrender
-                    </Button>
-                </Link>
-            </div>
+        {/* Shared Adventure Zone */}
+        <div className="h-32 md:h-36 bg-zinc-700/30 rounded border border-zinc-600 p-1 flex items-center justify-center shrink-0">
+          <BoardZoneClient cards={[]} zoneType="Adventure Zone (Shared)" owner="shared" />
         </div>
 
+        {/* Current Player's Area */}
+        <PlayerAreaLayout playerState={player1State} isOpponent={false} />
+      </div>
+      
+      <div className="h-12 flex items-center justify-center space-x-4 p-1 bg-zinc-900 border-t border-zinc-700 shrink-0">
+          <Button onClick={handlePassTurn} disabled={!canSelfPass || isProcessingAction} variant="destructive" size="sm">
+            {isProcessingAction && canSelfPass ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+            Pass Turn
+          </Button>
+          <Button onClick={handleAdvancePhase} disabled={isProcessingAction || !canManuallyAdvancePhase} variant="secondary" size="sm">
+            {isProcessingAction && !canManuallyAdvancePhase ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null} 
+            Advance Phase
+          </Button>
+          <Link href="/decks">
+              <Button variant="outline" size="sm">
+                  <ArrowLeft className="mr-2 h-4 w-4" /> Surrender
+              </Button>
+          </Link>
       </div>
     </div>
   );
