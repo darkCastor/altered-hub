@@ -13,18 +13,18 @@ interface CardDisplayProps {
   card: AlteredCard;
   className?: string;
   onStartNewDeck?: (card: AlteredCard) => void;
-  isSelectedInPanel?: boolean;
   isDeckPanelOpen?: boolean;
-  isMaxCopiesReachedInPanel?: boolean;
+  isSelectedInPanel?: boolean; // Is this specific card.id in the deck
+  isLimitForCardCategoryReached?: boolean; // Is the general limit for this card's name/type met in the deck
 }
 
 export default function CardDisplay({
   card,
   className,
   onStartNewDeck,
-  isSelectedInPanel,
   isDeckPanelOpen,
-  isMaxCopiesReachedInPanel,
+  isSelectedInPanel,
+  isLimitForCardCategoryReached,
 }: CardDisplayProps) {
   const aiHint = card.name ? card.name.toLowerCase().split(' ').slice(0, 2).join(' ') : 'card image';
 
@@ -38,11 +38,11 @@ export default function CardDisplay({
   const cardBaseClasses = "relative w-full max-w-sm overflow-hidden shadow-xl group transition-all duration-300 transform hover:scale-150 hover:z-20 bg-card text-card-foreground rounded-xl border-2 border-border hover:shadow-primary/40";
   
   let dynamicCardClasses = '';
-  if (isDeckPanelOpen && isSelectedInPanel) {
-    if (isMaxCopiesReachedInPanel) {
-      dynamicCardClasses = "ring-2 ring-accent border-accent shadow-accent/30"; // Powerful border
-    } else {
-      dynamicCardClasses = "ring-1 ring-primary/70 border-primary/70 shadow-primary/20"; // Light border
+  if (isDeckPanelOpen) {
+    if (isLimitForCardCategoryReached) {
+      dynamicCardClasses = "ring-2 ring-accent border-accent shadow-accent/30"; // Green border
+    } else if (isSelectedInPanel) {
+      dynamicCardClasses = "ring-1 ring-primary/70 border-primary/70 shadow-primary/20"; // Purple border
     }
   }
 
@@ -85,3 +85,4 @@ export default function CardDisplay({
     </Card>
   );
 }
+

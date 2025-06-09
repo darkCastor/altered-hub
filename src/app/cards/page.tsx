@@ -90,12 +90,12 @@ function CardViewerPageContent() {
         router.replace('/cards', { scroll: false });
       }
     } else if (action === 'create') {
-      setFilters(initialFilters);
-      setLoadedCardsCount(CARDS_PER_LOAD);
-      setDeckFormInitialData({ name: '', description: '', format: 'Standard', cardIds: [] });
-      setIsEditingDeck(false);
-      setEditingDeckId(null);
-      if (!showDeckPanel) setShowDeckPanel(true);
+        setFilters(initialFilters);
+        setLoadedCardsCount(CARDS_PER_LOAD);
+        setDeckFormInitialData({ name: '', description: '', format: 'Standard', cardIds: [] });
+        setIsEditingDeck(false);
+        setEditingDeckId(null);
+        if (!showDeckPanel) setShowDeckPanel(true);
     } else if (action === 'create-with-card') {
       if (!showDeckPanel) setShowDeckPanel(true); 
     } else {
@@ -185,14 +185,14 @@ function CardViewerPageContent() {
         setFilters(prev => ({ ...prev, selectedFaction: targetFactionForFilter! }));
         setLoadedCardsCount(CARDS_PER_LOAD);
       }
-    } else { // No hero, and no other faction cards, or only neutral cards
+    } else { 
       if (filters.selectedFaction !== 'all') {
         setFilters(prev => ({ ...prev, selectedFaction: 'all' }));
         setLoadedCardsCount(CARDS_PER_LOAD);
       }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [deckFormInitialData?.cardIds, showDeckPanel]); 
+  }, [deckFormInitialData?.cardIds, showDeckPanel, filters.selectedFaction]); 
 
 
   const clearFilters = () => {
@@ -330,19 +330,15 @@ function CardViewerPageContent() {
     const heroCardInDeckIfAny = heroesInDeck[0];
 
     if (isHeroType) {
-      // Check if trying to add the SAME hero again
-      if (currentCardIds.includes(card.id)) {
+      if (currentFullCards.some(c => c.id === card.id)) {
          toast({ title: "Deck Rule", description: `A deck can only have ${EXACT_HERO_COUNT} copy of the Hero "${card.name}".`, variant: "destructive" });
          return;
       }
-      // Check if trying to add a DIFFERENT hero when one already exists
       if (heroesInDeck.length >= EXACT_HERO_COUNT) {
         toast({ title: "Deck Rule", description: `A deck can only have ${EXACT_HERO_COUNT} Hero. Remove the current Hero ("${heroCardInDeckIfAny?.name}") to add "${card.name}".`, variant: "destructive" });
         return;
       }
     } else { 
-      // Non-Hero card addition logic
-      // Check faction consistency only if a hero is already chosen
       if (heroCardInDeckIfAny && heroCardInDeckIfAny.faction && card.faction !== heroCardInDeckIfAny.faction && card.faction !== NEUTRAL_FACTION_NAME) {
         toast({ title: "Deck Rule", description: `Card faction (${card.faction || 'N/A'}) must match Hero faction (${heroCardInDeckIfAny.faction}) or be Neutral.`, variant: "destructive" });
         return;
@@ -497,16 +493,29 @@ function CardViewerPageContent() {
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {cardsToDisplay.map(card => {
                 const isSelectedInPanel = showDeckPanel && (deckFormInitialData?.cardIds.includes(card.id) ?? false);
-                const countInDeck = deckFormInitialData?.cardIds.filter(id => id === card.id).length || 0;
-                const isHeroCardType = card.type === cardTypesLookup.HERO.name;
-                
-                let isMaxCopiesReached = false;
-                if (isHeroCardType) {
-                    isMaxCopiesReached = countInDeck >= EXACT_HERO_COUNT;
-                } else {
-                    isMaxCopiesReached = countInDeck >= MAX_DUPLICATES_NON_HERO_BY_NAME;
-                }
+                const isHeroTypeFromGridCard = card.type === cardTypesLookup.HERO.name;
+                let isLimitForCardCategoryReached = false;
 
+                if (deckFormInitialData?.cardIds && deckFormInitialData.cardIds.length > 0) {
+                    const currentDeckFullCards = deckFormInitialData.cardIds
+                        .map(id => allCards.find(c => c.id === id))
+                        .filter(Boolean) as AlteredCard[];
+
+                    if (isHeroTypeFromGridCard) {
+                        const heroesInDeck = currentDeckFullCards.filter(c => c.type === cardTypesLookup.HERO.name);
+                        if (heroesInDeck.length >= EXACT_HERO_COUNT) {
+                            isLimitForCardCategoryReached = true;
+                        }
+                    } else { // Non-Hero card from grid
+                        const countOfThisNameInDeck = currentDeckFullCards.filter(
+                            c => c.name === card.name && c.type !== cardTypesLookup.HERO.name
+                        ).length;
+                        if (countOfThisNameInDeck >= MAX_DUPLICATES_NON_HERO_BY_NAME) {
+                            isLimitForCardCategoryReached = true;
+                        }
+                    }
+                }
+                
               return (
                 <div
                   key={card.id}
@@ -529,9 +538,9 @@ function CardViewerPageContent() {
                   <CardDisplay
                     card={card}
                     onStartNewDeck={!showDeckPanel ? handleStartNewDeckWithCard : undefined}
-                    isSelectedInPanel={isSelectedInPanel}
                     isDeckPanelOpen={showDeckPanel}
-                    isMaxCopiesReachedInPanel={showDeckPanel && isSelectedInPanel && isMaxCopiesReached}
+                    isSelectedInPanel={isSelectedInPanel}
+                    isLimitForCardCategoryReached={isLimitForCardCategoryReached}
                   />
                 </div>
               );
@@ -556,9 +565,9 @@ function CardViewerPageContent() {
                 card={selectedCardModal}
                 className="border-0 shadow-none"
                 onStartNewDeck={handleStartNewDeckWithCard}
-                isSelectedInPanel={false} 
                 isDeckPanelOpen={false} 
-                isMaxCopiesReachedInPanel={false}
+                isSelectedInPanel={false} 
+                isLimitForCardCategoryReached={false}
               />
               <Button
                 onClick={() => setSelectedCardModal(null)}
@@ -595,3 +604,4 @@ export default function CardViewerPage() {
     
 
     
+
