@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import Image from 'next/image';
-import { XCircle, Search, Loader2, PanelLeftOpen, PanelRightOpen } from 'lucide-react';
+import { XCircle, Search, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import useLocalStorage from '@/hooks/useLocalStorage';
 
@@ -237,22 +237,22 @@ export default function CardViewerPage() {
     const isCurrentlySelected = currentCardIds.includes(card.id);
     let potentialSelectedCards: AlteredCard[];
 
-    if (isCurrentlySelected) { // Try to remove
+    if (isCurrentlySelected) { 
         const firstIndexOfCard = currentCardIds.indexOf(card.id);
         if (firstIndexOfCard > -1) {
             const tempCardIds = [...currentCardIds];
             tempCardIds.splice(firstIndexOfCard, 1);
             potentialSelectedCards = tempCardIds.map(id => allCards.find(c => c.id === id)).filter(Boolean) as AlteredCard[];
         } else {
-           potentialSelectedCards = [...currentSelectedFullCards]; // Should not happen if isCurrentlySelected is true
+           potentialSelectedCards = [...currentSelectedFullCards]; 
         }
-    } else { // Try to add
+    } else { 
         potentialSelectedCards = [...currentSelectedFullCards, card];
     }
 
     const heroInPotentialDeck = potentialSelectedCards.find(c => c.type === cardTypesLookup.HERO.name);
 
-    if (!isCurrentlySelected) { // Validations for adding a card
+    if (!isCurrentlySelected) { 
       if (card.type === cardTypesLookup.HERO.name) {
         const existingHeroes = currentSelectedFullCards.filter(c => c.type === cardTypesLookup.HERO.name);
         if (existingHeroes.length >= EXACT_HERO_COUNT && (!existingHeroes[0] || existingHeroes[0].id !== card.id)) {
@@ -293,16 +293,16 @@ export default function CardViewerPage() {
     }
 
     let updatedCardIds: string[];
-    if (isCurrentlySelected) { // Remove one instance
+    if (isCurrentlySelected) { 
       const firstIndexOfCard = currentCardIds.indexOf(card.id);
       if (firstIndexOfCard > -1) {
         const tempCardIds = [...currentCardIds];
         tempCardIds.splice(firstIndexOfCard, 1);
         updatedCardIds = tempCardIds;
       } else {
-        updatedCardIds = [...currentCardIds]; // Should not reach here
+        updatedCardIds = [...currentCardIds]; 
       }
-    } else { // Add card
+    } else { 
       updatedCardIds = [...currentCardIds, card.id];
     }
 
@@ -329,9 +329,8 @@ export default function CardViewerPage() {
         <section className="text-center">
           <div className="flex justify-between items-center mb-4">
             <h1 className="font-headline text-3xl sm:text-4xl font-bold tracking-tight text-primary">Card Explorer</h1>
-            <Button variant="outline" onClick={() => setShowDeckPanel(!showDeckPanel)} title={showDeckPanel ? "Close Deck Panel" : "Open Deck Panel"}>
-              {showDeckPanel ? <PanelRightOpen /> : <PanelLeftOpen />}
-              <span className="ml-2 hidden sm:inline">{showDeckPanel ? "Close Panel" : "Deck Panel"}</span>
+            <Button variant="ghost" size="icon" onClick={() => setShowDeckPanel(!showDeckPanel)} title={showDeckPanel ? "Close Panel" : "Open Panel"}>
+              {showDeckPanel ? <ChevronLeft className="h-5 w-5" /> : <ChevronRight className="h-5 w-5" />}
             </Button>
           </div>
           <p className="mt-2 text-lg text-muted-foreground">
@@ -388,12 +387,12 @@ export default function CardViewerPage() {
         {cardsToShow.length > 0 ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-5 gap-6">
             {cardsToShow.map(card => {
+              const isSelectedInPanelCurrent = showDeckPanel && !!deckFormInitialData?.cardIds.includes(card.id);
               const countInDeck = deckFormInitialData?.cardIds.filter(id => id === card.id).length || 0;
               const isHero = card.type === cardTypesLookup.HERO.name;
               const maxCopiesForCard = isHero ? EXACT_HERO_COUNT : MAX_DUPLICATES_NON_HERO_BY_NAME;
               const isMaxCopiesReached = countInDeck >= maxCopiesForCard;
-              const isSelectedInPanel = showDeckPanel && !!deckFormInitialData?.cardIds.includes(card.id);
-
+              
               return (
                 <div
                   key={card.id}
@@ -409,9 +408,9 @@ export default function CardViewerPage() {
                   <CardDisplay
                     card={card}
                     onStartNewDeck={!showDeckPanel ? handleStartNewDeckWithCard : undefined}
-                    isSelectedInPanel={isSelectedInPanel}
+                    isSelectedInPanel={isSelectedInPanelCurrent}
                     isDeckPanelOpen={showDeckPanel}
-                    isMaxCopiesReachedInPanel={showDeckPanel && isSelectedInPanel && isMaxCopiesReached}
+                    isMaxCopiesReachedInPanel={showDeckPanel && isSelectedInPanelCurrent && isMaxCopiesReached}
                   />
                 </div>
               );
