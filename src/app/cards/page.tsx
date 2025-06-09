@@ -10,10 +10,10 @@ import DeckForm, { type DeckFormValues } from '@/components/decks/DeckForm';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle as UiCardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { X, Search, FilterX, ChevronLeft, ChevronRight } from 'lucide-react';
+import { X, Search, FilterX, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import useLocalStorage from '@/hooks/useLocalStorage';
 import Image from 'next/image';
@@ -93,8 +93,20 @@ function CardViewerPageContent() {
       setIsEditingDeck(false);
       setEditingDeckId(null);
       setShowDeckPanel(true);
+    } else {
+      // If no action or deckId, ensure panel is closed if it was previously open due to query params
+      // This check prevents the panel from staying open if the user manually removes query params
+      if (showDeckPanel && !action && !deckIdToEdit) {
+          const currentParams = new URLSearchParams(Array.from(searchParams.entries()));
+          if (!currentParams.has('action') && !currentParams.has('deckId')) {
+            setShowDeckPanel(false);
+            setDeckFormInitialData(null);
+            setIsEditingDeck(false);
+            setEditingDeckId(null);
+          }
+      }
     }
-  }, [searchParams, decks, toast, router]);
+  }, [searchParams, decks, toast, router, showDeckPanel]);
 
 
   const handleFilterChange = (filterName: keyof Filters, value: any) => {
@@ -152,7 +164,8 @@ function CardViewerPageContent() {
     setIsEditingDeck(false);
     setEditingDeckId(null);
     setShowDeckPanel(true);
-    router.replace('/cards', { scroll: false });
+    // Navigate with query param to ensure consistent state if page is reloaded
+    router.push('/cards?action=create-with-card', { scroll: false });
   };
 
   const handleDeckFormSubmit = (data: DeckFormValues) => {
@@ -180,12 +193,16 @@ function CardViewerPageContent() {
     }
     setShowDeckPanel(false);
     setDeckFormInitialData(null);
+    setIsEditingDeck(false);
+    setEditingDeckId(null);
     router.replace('/cards', { scroll: false });
   };
 
   const handleDeckFormCancel = () => {
     setShowDeckPanel(false);
     setDeckFormInitialData(null);
+    setIsEditingDeck(false);
+    setEditingDeckId(null);
     router.replace('/cards', { scroll: false });
   };
 
@@ -254,10 +271,24 @@ function CardViewerPageContent() {
     return <div className="flex justify-center items-center min-h-[60vh]"><Loader2 className="h-16 w-16 animate-spin text-primary" /></div>;
   }
 
+  let instructionText;
+  if (showDeckPanel && deckFormInitialData) {
+    if (isEditingDeck) {
+      instructionText = `Deck panel open. Editing "${deckFormInitialData.name || 'Deck'}". Left-click cards to add, Right-click to remove.`;
+    } else {
+      instructionText = `Deck panel open. Building new deck. Left-click cards to add, Right-click to remove.`;
+    }
+  } else {
+    instructionText = "Browse Altered TCG cards. Click '+' on a card to start a new deck.";
+  }
+
+  const panelTitle = isEditingDeck ? `Editing: ${deckFormInitialData?.name || 'Deck'}` : 'Create New Deck';
+
   return (
     <div className="flex flex-col md:flex-row gap-6">
       {showDeckPanel && deckFormInitialData && (
         <div className="w-full md:w-1/3 lg:w-1/4 xl:w-1/5 bg-card p-4 rounded-lg shadow-xl sticky top-20 h-[calc(100vh-10rem)] overflow-y-auto">
+          <h2 className="text-xl font-bold mb-4 text-primary">{panelTitle}</h2>
           <DeckForm
             onSubmit={handleDeckFormSubmit}
             initialData={deckFormInitialData}
@@ -274,13 +305,9 @@ function CardViewerPageContent() {
             <h1 className="font-headline text-3xl sm:text-4xl font-bold text-primary">
               Card Explorer
             </h1>
-             <Button variant="ghost" size="icon" onClick={() => setShowDeckPanel(!showDeckPanel)} className="ml-auto">
-                {showDeckPanel ? <ChevronLeft className="h-5 w-5" /> : <ChevronRight className="h-5 w-5" />}
-                <span className="sr-only">{showDeckPanel ? "Close Deck Panel" : "Open Deck Panel"}</span>
-              </Button>
           </div>
           <p className="text-sm text-muted-foreground mb-6 -mt-4">
-              {showDeckPanel ? "Panel Open: Left-click card to add, Right-click to remove." : "Browse Altered TCG cards. Click '+' on a card to start a new deck, or open panel to build."}
+             {instructionText}
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 items-end">
             <div className="space-y-1">
@@ -350,9 +377,9 @@ function CardViewerPageContent() {
             <p>Try adjusting your search or clearing filters.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {cardsToDisplay.map(card => {
-                const isSelectedInPanelCurrently = showDeckPanel && (deckFormInitialData?.cardIds.includes(card.id) ?? false);
+                const isSelectedInPanel = showDeckPanel && (deckFormInitialData?.cardIds.includes(card.id) ?? false);
                 const countInDeck = deckFormInitialData?.cardIds.filter(id => id === card.id).length || 0;
                 const isHeroCard = card.type === cardTypesLookup.HERO.name;
                 
@@ -385,9 +412,9 @@ function CardViewerPageContent() {
                   <CardDisplay
                     card={card}
                     onStartNewDeck={!showDeckPanel ? handleStartNewDeckWithCard : undefined}
-                    isSelectedInPanel={isSelectedInPanelCurrently}
+                    isSelectedInPanel={isSelectedInPanel}
                     isDeckPanelOpen={showDeckPanel}
-                    isMaxCopiesReachedInPanel={showDeckPanel && isSelectedInPanelCurrently && isMaxCopiesReached}
+                    isMaxCopiesReachedInPanel={showDeckPanel && isSelectedInPanel && isMaxCopiesReached}
                   />
                 </div>
               );
@@ -449,12 +476,4 @@ export default function CardViewerPage() {
     </Suspense>
   );
 }
-
-// Minimal loader for when hook is not ready
-const Loader2 = ({ className }: { className?: string }) => (
-  <svg className={cn("animate-spin", className)} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"> {/* cn will cause an error here without import */}
-    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-  </svg>
-);
-
+    
