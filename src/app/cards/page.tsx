@@ -2,44 +2,96 @@
 'use client';
 
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
-import type { AlteredCard } from '@/types';
-import { allCards } from '@/data/cards';
+import { useSearchParams, useRouter } from 'next/navigation';
+import type { AlteredCard, Deck } from '@/types';
+import { allCards, cardTypesLookup, factionsLookup, raritiesLookup } from '@/data/cards';
 import CardDisplay from '@/components/cards/CardDisplay';
+import DeckForm, { type DeckFormValues } from '@/components/decks/DeckForm';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import Image from 'next/image';
-import { XCircle, Search, Loader2 } from 'lucide-react';
-import { useRouter } from 'next/navigation'; // Import useRouter
-import { useToast } from '@/hooks/use-toast'; // Import useToast
-import useLocalStorage from '@/hooks/useLocalStorage'; // Import useLocalStorage
-import type { Deck } from '@/types'; // Import Deck type
-import { cardTypesLookup } from '@/data/cards'; // Import cardTypesLookup
+import { XCircle, Search, Loader2, PanelLeftOpen, PanelRightOpen } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
+import useLocalStorage from '@/hooks/useLocalStorage';
 
 const ALL_OPTION = "all";
-const CARDS_PER_LOAD = 20; // Number of cards to load at a time
-const DECK_STORAGE_KEY = 'alterdeck-decks'; // For saving new decks
+const CARDS_PER_LOAD = 20;
+const DECK_STORAGE_KEY = 'alterdeck-decks';
 
+const MIN_DECK_CARDS_NON_HERO = 39;
+const MAX_DECK_CARDS_NON_HERO = 60;
+const EXACT_HERO_COUNT = 1;
+const MAX_DUPLICATES_NON_HERO_BY_NAME = 3;
+const MAX_RARE_CARDS_NON_HERO = 15;
+const NEUTRAL_FACTION_NAME = factionsLookup.NE?.name || "Neutre";
 
 export default function CardViewerPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const { toast } = useToast();
+
   const [cards, setCards] = useState<AlteredCard[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedFaction, setSelectedFaction] = useState<string>(ALL_OPTION);
-  const [selectedType, setSelectedType] = useState<string>(ALL_OPTION);
-  const [selectedRarity, setSelectedRarity] = useState<string>(ALL_OPTION);
-  const [selectedCard, setSelectedCard] = useState<AlteredCard | null>(null);
+  const [selectedFactionFilter, setSelectedFactionFilter] = useState<string>(ALL_OPTION);
+  const [selectedTypeFilter, setSelectedTypeFilter] = useState<string>(ALL_OPTION);
+  const [selectedRarityFilter, setSelectedRarityFilter] = useState<string>(ALL_OPTION);
+  const [selectedCardModal, setSelectedCardModal] = useState<AlteredCard | null>(null);
   const [displayCount, setDisplayCount] = useState<number>(CARDS_PER_LOAD);
   const [isLoadingMore, setIsLoadingMore] = useState<boolean>(false);
   const observerRef = useRef<HTMLDivElement | null>(null);
 
-  const router = useRouter(); // Initialize useRouter
-  const { toast } = useToast(); // Initialize useToast
-  const [decks, setDecks] = useLocalStorage<Deck[]>(DECK_STORAGE_KEY, []); // For managing decks
+  const [decks, setDecks] = useLocalStorage<Deck[]>(DECK_STORAGE_KEY, []);
+
+  // Deck Panel State
+  const [showDeckPanel, setShowDeckPanel] = useState(false);
+  const [deckFormInitialData, setDeckFormInitialData] = useState<DeckFormValues | undefined>(undefined);
+  const [isEditingDeck, setIsEditingDeck] = useState(false);
+  const [editingDeckId, setEditingDeckId] = useState<string | null>(null);
 
   useEffect(() => {
     setCards(allCards);
   }, []);
+
+  // Effect to handle query params for opening deck panel
+  useEffect(() => {
+    const action = searchParams.get('action');
+    const deckIdToEdit = searchParams.get('deckId');
+
+    if (deckIdToEdit) {
+      const deck = decks.find(d => d.id === deckIdToEdit);
+      if (deck) {
+        setDeckFormInitialData({
+          name: deck.name,
+          description: deck.description || '',
+          format: deck.format as DeckFormValues['format'],
+          cardIds: deck.cards.map(c => c.id),
+        });
+        setIsEditingDeck(true);
+        setEditingDeckId(deck.id);
+        setShowDeckPanel(true);
+      } else {
+        toast({ title: "Error", description: `Deck with ID ${deckIdToEdit} not found.`, variant: "destructive" });
+        router.replace('/cards'); // Clear query params
+      }
+    } else if (action === 'create') {
+      setDeckFormInitialData({ name: 'New Deck', cardIds: [], description: '', format: 'Standard' });
+      setIsEditingDeck(false);
+      setEditingDeckId(null);
+      setShowDeckPanel(true);
+    }
+    // Clean up query params after processing
+    if (action || deckIdToEdit) {
+        const current = new URLSearchParams(Array.from(searchParams.entries()));
+        current.delete('action');
+        current.delete('deckId');
+        const search = current.toString();
+        const query = search ? `?${search}` : "";
+        router.replace(`/cards${query}`);
+    }
+  }, [searchParams, decks, router, toast]);
+
 
   const factions = useMemo(() => {
     const uniqueFactions = [...new Set(cards.map(card => card.faction).filter(Boolean) as string[])];
@@ -62,16 +114,16 @@ export default function CardViewerPage() {
       const matchesSearchTerm = card.name.toLowerCase().includes(searchTermLower) ||
                                 (card.description && card.description.toLowerCase().includes(searchTermLower)) ||
                                 (card.keywords && card.keywords.join(' ').toLowerCase().includes(searchTermLower));
-      const matchesFaction = selectedFaction === ALL_OPTION || card.faction === selectedFaction;
-      const matchesType = selectedType === ALL_OPTION || card.type === selectedType;
-      const matchesRarity = selectedRarity === ALL_OPTION || card.rarity === selectedRarity;
+      const matchesFaction = selectedFactionFilter === ALL_OPTION || card.faction === selectedFactionFilter;
+      const matchesType = selectedTypeFilter === ALL_OPTION || card.type === selectedTypeFilter;
+      const matchesRarity = selectedRarityFilter === ALL_OPTION || card.rarity === selectedRarityFilter;
       return matchesSearchTerm && matchesFaction && matchesType && matchesRarity;
     });
-  }, [cards, searchTerm, selectedFaction, selectedType, selectedRarity]);
+  }, [cards, searchTerm, selectedFactionFilter, selectedTypeFilter, selectedRarityFilter]);
 
   useEffect(() => {
     setDisplayCount(CARDS_PER_LOAD);
-  }, [searchTerm, selectedFaction, selectedType, selectedRarity]);
+  }, [searchTerm, selectedFactionFilter, selectedTypeFilter, selectedRarityFilter]);
 
   const cardsToShow = useMemo(() => {
     return filteredCards.slice(0, displayCount);
@@ -79,12 +131,11 @@ export default function CardViewerPage() {
 
   const handleLoadMore = useCallback(() => {
     if (isLoadingMore || displayCount >= filteredCards.length) return;
-
     setIsLoadingMore(true);
-    setTimeout(() => { 
+    setTimeout(() => {
       setDisplayCount(prevCount => Math.min(prevCount + CARDS_PER_LOAD, filteredCards.length));
       setIsLoadingMore(false);
-    }, 500); 
+    }, 500);
   }, [isLoadingMore, displayCount, filteredCards.length]);
 
   useEffect(() => {
@@ -94,162 +145,297 @@ export default function CardViewerPage() {
           handleLoadMore();
         }
       },
-      { 
-        threshold: 1.0,
-        rootMargin: "0px 0px 300px 0px" 
-      } 
+      { threshold: 1.0, rootMargin: "0px 0px 300px 0px" }
     );
-
     const currentObserverRef = observerRef.current;
-    if (currentObserverRef) {
-      observer.observe(currentObserverRef);
-    }
-
-    return () => {
-      if (currentObserverRef) {
-        observer.unobserve(currentObserverRef);
-      }
-    };
+    if (currentObserverRef) observer.observe(currentObserverRef);
+    return () => { if (currentObserverRef) observer.unobserve(currentObserverRef); };
   }, [isLoadingMore, displayCount, filteredCards.length, handleLoadMore]);
 
   const clearFilters = () => {
     setSearchTerm('');
-    setSelectedFaction(ALL_OPTION);
-    setSelectedType(ALL_OPTION);
-    setSelectedRarity(ALL_OPTION);
+    setSelectedFactionFilter(ALL_OPTION);
+    setSelectedTypeFilter(ALL_OPTION);
+    setSelectedRarityFilter(ALL_OPTION);
   };
 
-  const handleStartNewDeck = (card: AlteredCard) => {
+  const handleStartNewDeckWithCard = (card: AlteredCard) => {
     const now = new Date().toISOString();
-    const newDeck: Deck = {
-      id: `deck-${Date.now()}`,
+    const initialHero = card.type === cardTypesLookup.HERO.name ? card : undefined;
+    const initialCardIds = initialHero ? [initialHero.id] : [card.id]; // Start with the card
+
+    const newDeckData: DeckFormValues = {
       name: `Deck with ${card.name}`,
       description: `A new deck started with ${card.name}.`,
-      cards: [card],
-      createdAt: now,
-      updatedAt: now,
-      hero: card.type === cardTypesLookup.HERO.name ? card : undefined,
-      faction: card.type === cardTypesLookup.HERO.name ? card.faction : undefined, 
-      format: "Standard", // Default format, can be changed in edit page
+      cardIds: initialCardIds,
+      format: "Standard",
     };
+    setDeckFormInitialData(newDeckData);
+    setIsEditingDeck(false);
+    setEditingDeckId(null);
+    setShowDeckPanel(true);
+    toast({ title: "Deck Started", description: `"${card.name}" added to a new deck. Continue building in the panel.` });
+  };
 
-    // Validate if the selected card is a Hero if it's the only card
-    if (newDeck.cards.length === 1 && newDeck.cards[0].type !== cardTypesLookup.HERO.name) {
-      // If it's not a Hero, we might allow starting the deck but flag it,
-      // or prompt the user, or automatically add a default hero etc.
-      // For now, let's allow it and user can fix in edit.
-      // Alternatively, only allow starting with a hero:
-      // if (card.type !== cardTypesLookup.HERO.name) {
-      //   toast({ title: "Cannot Start Deck", description: "Please select a Hero card to start a new deck.", variant: "destructive"});
-      //   return;
-      // }
+  const handleCloseDeckPanel = () => {
+    setShowDeckPanel(false);
+    setDeckFormInitialData(undefined);
+    setEditingDeckId(null);
+    setIsEditingDeck(false);
+    router.replace('/cards'); // Clear query params
+  };
+
+  const handleSaveDeck = (data: DeckFormValues) => {
+    const now = new Date().toISOString();
+    const selectedFullCards: AlteredCard[] = data.cardIds
+      .map(id => allCards.find(card => card.id === id))
+      .filter(Boolean) as AlteredCard[];
+
+    const heroCard = selectedFullCards.find(c => c.type === cardTypesLookup.HERO.name);
+    const deckFaction = heroCard?.faction;
+
+    if (isEditingDeck && editingDeckId) {
+      const updatedDecks = decks.map(d =>
+        d.id === editingDeckId
+          ? { 
+              ...d, 
+              name: data.name, 
+              description: data.description, 
+              format: data.format,
+              cards: selectedFullCards, 
+              updatedAt: now,
+              hero: heroCard,
+              faction: deckFaction,
+            }
+          : d
+      );
+      setDecks(updatedDecks);
+      toast({ title: "Deck Updated", description: `"${data.name}" has been successfully updated.` });
+    } else {
+      const newDeck: Deck = {
+        id: `deck-${Date.now()}`,
+        name: data.name,
+        description: data.description,
+        format: data.format,
+        cards: selectedFullCards,
+        createdAt: now,
+        updatedAt: now,
+        hero: heroCard,
+        faction: deckFaction,
+      };
+      setDecks(prevDecks => [...prevDecks, newDeck]);
+      toast({ title: "Deck Created", description: `"${newDeck.name}" has been successfully created.` });
+    }
+    handleCloseDeckPanel();
+  };
+
+  const handleToggleCardInDeck = (card: AlteredCard) => {
+    if (!deckFormInitialData) return;
+
+    const currentCardIds = deckFormInitialData.cardIds || [];
+    const currentSelectedFullCards = currentCardIds
+        .map(id => allCards.find(c => c.id === id))
+        .filter(Boolean) as AlteredCard[];
+
+    const isCurrentlySelected = currentCardIds.includes(card.id);
+    let potentialSelectedCards: AlteredCard[];
+
+    if (isCurrentlySelected) {
+        potentialSelectedCards = currentSelectedFullCards.filter(c => c.id !== card.id);
+    } else {
+        potentialSelectedCards = [...currentSelectedFullCards, card];
     }
     
-    setDecks(prevDecks => [...prevDecks, newDeck]);
-    toast({ title: "Deck Started", description: `New deck with "${card.name}" created. Editing now...` });
-    router.push(`/decks/edit/${newDeck.id}`);
+    const heroInPotentialDeck = potentialSelectedCards.find(c => c.type === cardTypesLookup.HERO.name);
+
+    // --- Start Validation Logic (moved from DeckForm) ---
+    if (!isCurrentlySelected) { 
+      if (card.type === cardTypesLookup.HERO.name) {
+        const existingHeroes = currentSelectedFullCards.filter(c => c.type === cardTypesLookup.HERO.name);
+        if (existingHeroes.length >= EXACT_HERO_COUNT && (!existingHeroes[0] || existingHeroes[0].id !== card.id)) {
+          toast({ title: "Deck Rule Violation", description: `Cannot add more than ${EXACT_HERO_COUNT} Hero. Please remove the current Hero first.`, variant: "destructive" });
+          return;
+        }
+      }
+
+      const deckHeroForFactionCheck = card.type === cardTypesLookup.HERO.name ? card : heroInPotentialDeck;
+      if (deckHeroForFactionCheck && card.type !== cardTypesLookup.HERO.name) {
+        if (card.faction !== deckHeroForFactionCheck.faction && card.faction !== NEUTRAL_FACTION_NAME) {
+          toast({ title: "Deck Rule Violation", description: `Card "${card.name}" faction (${card.faction}) does not match Hero's faction (${deckHeroForFactionCheck.faction}) and is not Neutral.`, variant: "destructive" });
+          return;
+        }
+      }
+      
+      if (card.type !== cardTypesLookup.HERO.name) {
+        const countOfSameName = potentialSelectedCards.filter(c => c.name === card.name && c.type !== cardTypesLookup.HERO.name).length;
+        if (countOfSameName > MAX_DUPLICATES_NON_HERO_BY_NAME) {
+          toast({ title: "Deck Rule Violation", description: `Cannot add more than ${MAX_DUPLICATES_NON_HERO_BY_NAME} copies of non-Hero card "${card.name}".`, variant: "destructive" });
+          return;
+        }
+      }
+      
+      if (card.type !== cardTypesLookup.HERO.name && card.rarity === raritiesLookup.RARE.name) {
+        const currentRareNonHeroCount = potentialSelectedCards.filter(c => c.type !== cardTypesLookup.HERO.name && c.rarity === raritiesLookup.RARE.name).length;
+        if (currentRareNonHeroCount > MAX_RARE_CARDS_NON_HERO) {
+           toast({ title: "Deck Rule Violation", description: `Cannot add more than ${MAX_RARE_CARDS_NON_HERO} Rare non-Hero cards.`, variant: "destructive" });
+           return;
+        }
+      }
+
+      const nonHeroCardsInPotentialDeck = potentialSelectedCards.filter(c => c.type !== cardTypesLookup.HERO.name);
+      if (nonHeroCardsInPotentialDeck.length > MAX_DECK_CARDS_NON_HERO) {
+         toast({ title: "Deck Rule Violation", description: `Deck cannot exceed ${MAX_DECK_CARDS_NON_HERO} non-Hero cards.`, variant: "destructive" });
+         return;
+      }
+    }
+    // --- End Validation Logic ---
+
+    let updatedCardIds: string[];
+    if (isCurrentlySelected) {
+      updatedCardIds = currentCardIds.filter(id => id !== card.id);
+    } else {
+      updatedCardIds = [...currentCardIds, card.id];
+    }
+    
+    setDeckFormInitialData(prev => prev ? { ...prev, cardIds: updatedCardIds } : undefined);
   };
 
 
   return (
-    <div className="space-y-8">
-      <section className="text-center">
-        <h1 className="font-headline text-4xl font-bold tracking-tight sm:text-5xl text-primary">Card Viewer</h1>
-        <p className="mt-4 text-lg text-muted-foreground">
-          Explore the diverse and powerful cards of Altered TCG.
-        </p>
-      </section>
+    <div className="flex flex-col md:flex-row h-full space-x-0 md:space-x-4">
+      {/* Deck Form Panel */}
+      {showDeckPanel && deckFormInitialData && (
+        <div className="w-full md:w-1/3 lg:w-2/5 xl:w-1/3 p-4 border-r border-border bg-card overflow-y-auto mb-4 md:mb-0 h-screen md:sticky md:top-0">
+          <DeckForm
+            key={editingDeckId || 'new-deck'} // Force re-render on new/edit
+            onSubmit={handleSaveDeck}
+            initialData={deckFormInitialData}
+            isEditing={isEditingDeck}
+            onCancel={handleCloseDeckPanel}
+            allCardsData={allCards} // Pass all cards for internal logic like faction checking on hero change
+          />
+        </div>
+      )}
 
-      <Card className="p-6 shadow-lg">
-        <CardContent className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="relative">
-              <Input
-                type="text"
-                placeholder="Search by name, text, keyword..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
-              />
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-            </div>
-            <Select value={selectedFaction} onValueChange={setSelectedFaction}>
-              <SelectTrigger><SelectValue placeholder="Filter by Faction" /></SelectTrigger>
-              <SelectContent>
-                {factions.map(faction => (
-                  <SelectItem key={faction} value={faction}>{faction === ALL_OPTION ? 'All Factions' : faction}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select value={selectedType} onValueChange={setSelectedType}>
-              <SelectTrigger><SelectValue placeholder="Filter by Type" /></SelectTrigger>
-              <SelectContent>
-                {types.map(type => (
-                  <SelectItem key={type} value={type}>{type === ALL_OPTION ? 'All Types' : type}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select value={selectedRarity} onValueChange={setSelectedRarity}>
-              <SelectTrigger><SelectValue placeholder="Filter by Rarity" /></SelectTrigger>
-              <SelectContent>
-                {rarities.map(rarity => (
-                  <SelectItem key={rarity} value={rarity}>{rarity === ALL_OPTION ? 'All Rarities' : rarity}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="flex justify-start items-center">
-            <Button variant="ghost" onClick={clearFilters} className="text-muted-foreground hover:text-primary">
-              <XCircle className="mr-2 h-4 w-4" /> Clear Filters
+      {/* Card Viewer Main Content */}
+      <div className={`flex-1 space-y-8 ${showDeckPanel ? 'w-full md:w-2/3 lg:w-3/5 xl:w-2/3' : 'w-full'}`}>
+        <section className="text-center">
+          <div className="flex justify-between items-center mb-4">
+            <h1 className="font-headline text-3xl sm:text-4xl font-bold tracking-tight text-primary">Card Explorer</h1>
+            <Button variant="outline" onClick={() => setShowDeckPanel(!showDeckPanel)} title={showDeckPanel ? "Close Deck Panel" : "Open Deck Panel"}>
+              {showDeckPanel ? <PanelRightOpen /> : <PanelLeftOpen />}
+              <span className="ml-2 hidden sm:inline">{showDeckPanel ? "Close Panel" : "Deck Panel"}</span>
             </Button>
           </div>
-        </CardContent>
-      </Card>
+          <p className="mt-2 text-lg text-muted-foreground">
+            Explore Altered TCG cards. {showDeckPanel ? "Click cards to add/remove from your current deck." : "Click the '+' on a card to start a new deck."}
+          </p>
+        </section>
 
-      {cardsToShow.length > 0 ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
-          {cardsToShow.map(card => (
-            <div key={card.id} onClick={() => setSelectedCard(card)}>
-              <CardDisplay card={card} onStartNewDeck={handleStartNewDeck} />
+        <Card className="p-6 shadow-lg">
+          <CardContent className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="relative">
+                <Input
+                  type="text"
+                  placeholder="Search cards..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10"
+                />
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+              </div>
+              <Select value={selectedFactionFilter} onValueChange={setSelectedFactionFilter}>
+                <SelectTrigger><SelectValue placeholder="Filter by Faction" /></SelectTrigger>
+                <SelectContent>
+                  {factions.map(faction => (
+                    <SelectItem key={faction} value={faction}>{faction === ALL_OPTION ? 'All Factions' : faction}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={selectedTypeFilter} onValueChange={setSelectedTypeFilter}>
+                <SelectTrigger><SelectValue placeholder="Filter by Type" /></SelectTrigger>
+                <SelectContent>
+                  {types.map(type => (
+                    <SelectItem key={type} value={type}>{type === ALL_OPTION ? 'All Types' : type}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={selectedRarityFilter} onValueChange={setSelectedRarityFilter}>
+                <SelectTrigger><SelectValue placeholder="Filter by Rarity" /></SelectTrigger>
+                <SelectContent>
+                  {rarities.map(rarity => (
+                    <SelectItem key={rarity} value={rarity}>{rarity === ALL_OPTION ? 'All Rarities' : rarity}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-          ))}
-        </div>
-      ) : (
-        <div className="text-center py-12">
-          <p className="text-xl text-muted-foreground">No cards match your criteria.</p>
-        </div>
-      )}
+            <div className="flex justify-start items-center">
+              <Button variant="ghost" onClick={clearFilters} className="text-muted-foreground hover:text-primary">
+                <XCircle className="mr-2 h-4 w-4" /> Clear Filters
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
 
-      {filteredCards.length > displayCount && !isLoadingMore && (
-        <div ref={observerRef} style={{ height: '50px', marginTop: '20px' }} aria-hidden="true" />
-      )}
-
-      {isLoadingMore && (
-        <div className="flex justify-center py-8">
-          <Loader2 className="h-10 w-10 text-primary animate-spin" />
-        </div>
-      )}
-
-      {selectedCard && (
-        <div
-          className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-          onClick={() => setSelectedCard(null)}
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="card-details-title"
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="max-w-md w-full bg-card rounded-lg shadow-2xl overflow-hidden"
-          >
-             <CardDisplay card={selectedCard} onStartNewDeck={handleStartNewDeck} />
-             <h2 id="card-details-title" className="sr-only">{selectedCard.name} Details</h2>
+        {cardsToShow.length > 0 ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {cardsToShow.map(card => (
+              <div key={card.id} 
+                   onClick={() => showDeckPanel ? handleToggleCardInDeck(card) : setSelectedCardModal(card)}
+                   className="cursor-pointer"
+              >
+                <CardDisplay 
+                  card={card} 
+                  onStartNewDeck={handleStartNewDeckWithCard} 
+                  isSelected={showDeckPanel && !!deckFormInitialData?.cardIds.includes(card.id)}
+                />
+              </div>
+            ))}
           </div>
-          <Button variant="ghost" size="icon" className="absolute top-4 right-4 text-white hover:text-primary" onClick={() => setSelectedCard(null)} aria-label="Close card details">
-            <XCircle className="h-8 w-8" />
-          </Button>
-        </div>
-      )}
+        ) : (
+          <div className="text-center py-12">
+            <p className="text-xl text-muted-foreground">No cards match your criteria.</p>
+          </div>
+        )}
+
+        {filteredCards.length > displayCount && !isLoadingMore && (
+          <div ref={observerRef} style={{ height: '50px', marginTop: '20px' }} aria-hidden="true" />
+        )}
+
+        {isLoadingMore && (
+          <div className="flex justify-center py-8">
+            <Loader2 className="h-10 w-10 text-primary animate-spin" />
+          </div>
+        )}
+
+        {selectedCardModal && (
+          <div
+            className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={() => setSelectedCardModal(null)}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="card-details-title"
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="max-w-md w-full bg-card rounded-lg shadow-2xl overflow-hidden"
+            >
+              <CardDisplay 
+                card={selectedCardModal} 
+                onStartNewDeck={handleStartNewDeckWithCard} 
+                isSelected={showDeckPanel && !!deckFormInitialData?.cardIds.includes(selectedCardModal.id)}
+              />
+              <h2 id="card-details-title" className="sr-only">{selectedCardModal.name} Details</h2>
+            </div>
+            <Button variant="ghost" size="icon" className="absolute top-4 right-4 text-white hover:text-primary" onClick={() => setSelectedCardModal(null)} aria-label="Close card details">
+              <XCircle className="h-8 w-8" />
+            </Button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
+
+    

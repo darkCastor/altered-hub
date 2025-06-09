@@ -3,8 +3,9 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation'; // Import useRouter
 import { PlusCircle, Trash2, Edit3 } from 'lucide-react';
-import type { Deck, DeckListItem, AlteredCard } from '@/types';
+import type { Deck, DeckListItem } from '@/types';
 import useLocalStorage from '@/hooks/useLocalStorage';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -28,6 +29,7 @@ export default function DeckBuilderPage() {
   const [decks, setDecks] = useLocalStorage<Deck[]>(DECK_STORAGE_KEY, []);
   const [isMounted, setIsMounted] = useState(false);
   const { toast } = useToast();
+  const router = useRouter(); // Initialize useRouter
 
   useEffect(() => {
     setIsMounted(true);
@@ -48,9 +50,15 @@ export default function DeckBuilderPage() {
     format: deck.format || "N/A",
   })).sort((a,b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
 
+  const handleCreateNewDeck = () => {
+    router.push('/cards?action=create');
+  };
+
+  const handleEditDeck = (deckId: string) => {
+    router.push(`/cards?deckId=${deckId}`);
+  };
 
   if (!isMounted) {
-    // Return a loading indicator or null to prevent hydration mismatch
     return <div className="text-center p-10">Loading decks...</div>; 
   }
 
@@ -63,11 +71,9 @@ export default function DeckBuilderPage() {
             Create, manage, and refine your Altered TCG decks.
           </p>
         </div>
-        <Link href="/decks/create">
-          <Button className="bg-accent text-accent-foreground hover:bg-accent/90">
-            <PlusCircle className="mr-2 h-5 w-5" /> Create New Deck
-          </Button>
-        </Link>
+        <Button onClick={handleCreateNewDeck} className="bg-accent text-accent-foreground hover:bg-accent/90">
+          <PlusCircle className="mr-2 h-5 w-5" /> Create New Deck
+        </Button>
       </section>
 
       {deckListItems.length === 0 ? (
@@ -77,11 +83,9 @@ export default function DeckBuilderPage() {
           </CardHeader>
           <CardContent>
             <p>Start building your first deck to see it here.</p>
-            <Link href="/decks/create">
-              <Button variant="outline" className="mt-6 border-primary text-primary hover:bg-primary/10">
-                Create Your First Deck
-              </Button>
-            </Link>
+            <Button onClick={handleCreateNewDeck} variant="outline" className="mt-6 border-primary text-primary hover:bg-primary/10">
+              Create Your First Deck
+            </Button>
           </CardContent>
         </Card>
       ) : (
@@ -103,11 +107,9 @@ export default function DeckBuilderPage() {
                 <p className="text-xs text-muted-foreground">Last updated: {new Date(deck.updatedAt).toLocaleDateString()}</p>
               </CardContent>
               <CardFooter className="flex justify-end gap-2">
-                <Link href={`/decks/edit/${deck.id}`}>
-                  <Button variant="outline" size="sm">
-                    <Edit3 className="mr-1 h-4 w-4" /> Edit
-                  </Button>
-                </Link>
+                <Button onClick={() => handleEditDeck(deck.id)} variant="outline" size="sm">
+                  <Edit3 className="mr-1 h-4 w-4" /> Edit
+                </Button>
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
                     <Button variant="destructive" size="sm">
@@ -135,3 +137,5 @@ export default function DeckBuilderPage() {
     </div>
   );
 }
+
+    
