@@ -78,7 +78,7 @@ function mapAlteredCardToEngineDefinition(card: AlteredCard): ICardDefinition | 
 
   const rarityKey = findEnumKeyByValue(raritiesLookup, card.rarity);
   const engineRarity = rarityKey ? EngineRarity[rarityKey as keyof typeof EngineRarity] : EngineRarity.Common;
-   if (!rarityKey && card.rarity !== raritiesLookup.COMMON?.name) {
+   if (!rarityKey && card.rarity !== raritiesLookup.COMMON?.name) { // Assuming 'Common' is the default if not found
      console.warn(`Unknown rarity for mapping: ${card.rarity} for card ${card.name}. Defaulting to Common.`);
    }
 
@@ -90,21 +90,21 @@ function mapAlteredCardToEngineDefinition(card: AlteredCard): ICardDefinition | 
     reserveCost: card.recallCost ?? 0,
     faction: engineFaction,
     rarity: engineRarity,
-    abilities: [],
-    statistics: {
+    abilities: [], // Abilities mapping is deferred
+    statistics: { // Assuming a default mapping, adjust if needed
       mountain: card.powerM ?? 0,
-      forest: card.attack ?? 0,
-      water: card.health ?? 0,
+      forest: card.attack ?? 0, // Mapping attack to forest for now
+      water: card.health ?? 0,   // Mapping health to water for now
     },
     permanentZoneType: enginePermanentZoneType,
-    reserveLimit: engineType === EngineCardType.Hero ? 3 : undefined,
-    landmarkLimit: engineType === EngineCardType.Hero ? 3 : undefined,
+    reserveLimit: engineType === EngineCardType.Hero ? 3 : undefined, // Example: Heroes can have 3 cards in reserve
+    landmarkLimit: engineType === EngineCardType.Hero ? 3 : undefined, // Example: Heroes can have 3 landmarks
   };
 }
 
 export interface DisplayableCardData {
-  instanceId?: string;
-  originalCardId: string;
+  instanceId?: string; // For cards that become game objects
+  originalCardId: string; // The definition ID
   name: string;
   imageUrl?: string;
   cost?: number;
@@ -151,7 +151,7 @@ export default function PlayGamePage() {
   const [player1State, setPlayer1State] = useState<PlayerState>(initialPlayerState);
   const [player2State, setPlayer2State] = useState<PlayerState>(initialPlayerState);
 
-  const eventBus = useState(() => new EventBus())[0];
+  const eventBus = useState(() => new EventBus())[0]; // Persist EventBus instance
 
   const mapToDisplayableCard = (cardInstance: ICardInstance | IGameObject): DisplayableCardData => {
     const definition = allAlteredCards.find(ac => ac.id === cardInstance.definitionId);
@@ -175,8 +175,8 @@ export default function PlayGamePage() {
     const heroCardRaw = player.zones.heroZone.getAll()[0];
     const heroCard = heroCardRaw ? mapToDisplayableCard(heroCardRaw) : undefined;
 
-    const manaObjects = player.zones.manaZone.getAll() as IGameObject[];
-    const currentMana = manaObjects.filter(orb => !orb.statuses.has('Exhausted' as any)).length;
+    const manaObjects = player.zones.manaZone.getAll() as IGameObject[]; // Cast needed if mixed types
+    const currentMana = manaObjects.filter(orb => !orb.statuses.has('Exhausted' as any)).length; // Assuming Exhausted is a status string
     const maxMana = manaObjects.length;
 
     const expeditionCards = player.zones.expedition?.getAll().map(mapToDisplayableCard) || [];
@@ -203,7 +203,7 @@ export default function PlayGamePage() {
 
 
   useEffect(() => {
-    if (deckId && decks.length > 0 && !gameStateManager) {
+    if (deckId && decks.length > 0 && !gameStateManager) { // Ensure GSM isn't already set up
       const foundDeck = decks.find(d => d.id === deckId);
       if (foundDeck) {
         setSelectedDeck(foundDeck);
@@ -234,7 +234,7 @@ export default function PlayGamePage() {
           setPhaseManager(phm);
 
           const playerDeckMap = new Map<string, ICardDefinition[]>();
-          playerIds.forEach(pid => playerDeckMap.set(pid, [...deckDefinitions]));
+          playerIds.forEach(pid => playerDeckMap.set(pid, [...deckDefinitions])); // Both players use same deck
           gsm.initializeBoard(playerDeckMap, STARTING_HAND_SIZE, INITIAL_MANA_ORBS);
 
           setCurrentPhase(gsm.state.currentPhase);
@@ -273,7 +273,7 @@ export default function PlayGamePage() {
       setIsLoading(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [deckId, decks, eventBus, gameStateManager]);
+  }, [deckId, decks, eventBus, gameStateManager]); // updateFullPlayerState is stable
 
 
   const handlePassTurn = useCallback(async () => {
@@ -348,9 +348,9 @@ export default function PlayGamePage() {
   const canManuallyAdvancePhase = currentPhase !== GamePhase.Afternoon || (currentPhase === GamePhase.Afternoon && gameStateManager?.getPlayer(PLAYER_ID_SELF)?.hasPassedTurn);
 
   const PlayerAreaLayout = ({ playerState, isOpponent }: { playerState: PlayerState, isOpponent: boolean }) => (
-    <div className={`flex-1 flex flex-col ${isOpponent ? 'space-y-1' : 'space-y-1 flex-col-reverse'} bg-zinc-900/50 p-1 rounded border border-zinc-700`}>
+    <div className={`flex-1 flex flex-col space-y-1 bg-zinc-900/50 p-1 rounded border border-zinc-700`}>
       {/* Outer Row: Deck/Discard, Hand, Mana */}
-      <div className={`flex items-stretch h-28 md:h-32 p-1 space-x-1 ${isOpponent ? 'order-1' : 'order-3'}`}>
+      <div className={`flex items-stretch h-28 md:h-32 p-1 space-x-1 order-1`}>
         {/* Deck/Discard Area */}
         <div className="flex-1 p-1 bg-black/30 rounded h-full flex flex-col items-center justify-center text-center space-y-1">
           <BookOpen className="h-5 w-5 text-blue-400" />
@@ -359,7 +359,7 @@ export default function PlayGamePage() {
           <p className="text-xs text-muted-foreground">Discard: {playerState.discardCount}</p>
         </div>
         {/* Hand Area (Middle) */}
-        <div className="flex-[3_3_0%] h-full flex items-center justify-center bg-black/10 rounded"> {/* Adjusted flex property and bg for visibility */}
+        <div className="flex-[3_3_0%] h-full flex items-center justify-center bg-black/10 rounded">
           <PlayerHandClient cards={playerState.hand} owner={isOpponent ? "opponent" : "self"} onCardClick={isOpponent ? () => {} : handlePlayCard} />
         </div>
         {/* Mana Area */}
@@ -371,12 +371,12 @@ export default function PlayGamePage() {
       </div>
   
       {/* Inner Row 1: Expedition */}
-      <div className={`h-24 md:h-28 p-1 ${isOpponent ? 'order-2' : 'order-2'}`}>
+      <div className={`h-24 md:h-28 p-1 order-2`}>
         <BoardZoneClient cards={playerState.expedition} zoneType={`Expédition (${playerState.expedition.length})`} owner={isOpponent ? "opponent" : "self"} />
       </div>
   
       {/* Inner Row 2: Reserve, Hero, Landmarks */}
-      <div className={`flex justify-around items-stretch h-32 md:h-36 p-1 space-x-1 ${isOpponent ? 'order-3' : 'order-1'}`}>
+      <div className={`flex justify-around items-stretch h-32 md:h-36 p-1 space-x-1 order-3`}>
         <BoardZoneClient cards={playerState.reserve} zoneType={`Réserve (${playerState.reserve.length})`} owner={isOpponent ? "opponent" : "self"} className="flex-1" />
         <HeroSpotClient hero={playerState.hero} isOpponent={isOpponent} className="flex-shrink-0" />
         <BoardZoneClient cards={playerState.landmarks} zoneType={`Repères (${playerState.landmarks.length})`} owner={isOpponent ? "opponent" : "self"} className="flex-1" />
@@ -392,12 +392,12 @@ export default function PlayGamePage() {
         <div>Day: {dayNumber} | Phase: {currentPhase} | Turn: {currentPlayerId === PLAYER_ID_SELF ? 'Your Turn' : "Opponent's Turn"}</div>
       </div>
 
-      <div className="flex-1 flex flex-col p-1 space-y-1 min-h-0"> {/* Changed to flex-col for player areas stacking */}
+      <div className="flex-1 flex flex-col p-1 space-y-1 min-h-0">
         {/* Opponent's Area */}
         <PlayerAreaLayout playerState={player2State} isOpponent={true} />
 
         {/* Shared Adventure Zone */}
-        <div className="h-32 md:h-36 bg-zinc-700/30 rounded border border-zinc-600 p-1 flex items-center justify-center shrink-0">
+        <div className="h-20 md:h-24 bg-zinc-700/30 rounded border border-zinc-600 p-1 flex items-center justify-center shrink-0">
           <BoardZoneClient cards={[]} zoneType="Adventure Zone (Shared)" owner="shared" />
         </div>
 
