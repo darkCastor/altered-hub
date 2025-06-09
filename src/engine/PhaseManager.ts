@@ -1,3 +1,8 @@
+
+import type { GameStateManager } from './GameStateManager';
+import type { TurnManager } from './TurnManager';
+import { GamePhase } from './types/enums'; // Added import
+
 export class PhaseManager {
     private gameStateManager: GameStateManager;
     private turnManager: TurnManager;
@@ -38,8 +43,9 @@ export class PhaseManager {
                 break;
             case GamePhase.Night:
                 this.gameStateManager.state.dayNumber++;
+                this.gameStateManager.eventBus.publish('dayAdvanced', { dayNumber: this.gameStateManager.state.dayNumber });
                 nextPhase = GamePhase.Morning;
-                // await this.handleMorning();
+                // await this.handleMorning(); // TODO: Implement daily effects if needed
                 break;
             default:
                 throw new Error(`Unknown phase: ${currentPhase}`);
