@@ -10,14 +10,14 @@ import DeckForm, { type DeckFormValues } from '@/components/decks/DeckForm';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle as UiCardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader as UiCardHeader, CardTitle as UiCardTitle } from '@/components/ui/card'; // Renamed CardHeader import
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { X, Search, FilterX, Loader2 as LucideLoader } from 'lucide-react'; // Renamed imported Loader2
+import { X, Search, FilterX, Loader2 as LucideLoader } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import useLocalStorage from '@/hooks/useLocalStorage';
 import Image from 'next/image';
-// import { cn } from '@/lib/utils'; // Reverted: Removed cn import
+import { cn } from '@/lib/utils';
 
 const DECK_STORAGE_KEY = 'alterdeck-decks';
 const CARDS_PER_LOAD = 20;
@@ -71,8 +71,11 @@ function CardViewerPageContent() {
   useEffect(() => {
     const action = searchParams.get('action');
     const deckIdToEdit = searchParams.get('deckId');
-
+    const cameFromCardViewerPlusButton = action === 'create-with-card';
+  
     if (deckIdToEdit) {
+      // Editing an existing deck (e.g., from /decks page or direct URL)
+      // Keep current filters/load state. User might be browsing then decide to edit.
       const deckToEdit = decks.find(d => d.id === deckIdToEdit);
       if (deckToEdit) {
         setDeckFormInitialData({
@@ -83,28 +86,40 @@ function CardViewerPageContent() {
         });
         setIsEditingDeck(true);
         setEditingDeckId(deckIdToEdit);
-        setShowDeckPanel(true);
+        if (!showDeckPanel) setShowDeckPanel(true);
       } else {
         toast({ title: "Error", description: "Deck not found for editing.", variant: "destructive" });
         router.replace('/cards', { scroll: false });
       }
     } else if (action === 'create') {
+      // Creating a new deck, typically from /decks page or direct URL (?action=create)
+      // Reset filters and loaded cards for a fresh card explorer view.
+      setFilters(initialFilters);
+      setLoadedCardsCount(CARDS_PER_LOAD);
+  
       setDeckFormInitialData({ name: '', description: '', format: 'Standard', cardIds: [] });
       setIsEditingDeck(false);
       setEditingDeckId(null);
-      setShowDeckPanel(true);
+      if (!showDeckPanel) setShowDeckPanel(true);
+    } else if (cameFromCardViewerPlusButton) {
+      // Deck creation initiated by clicking "+" on a card in the Card Viewer.
+      // The panel and initialData are already set by handleStartNewDeckWithCard.
+      // Crucially, DO NOT reset filters or loadedCardsCount here.
+      if (!showDeckPanel) setShowDeckPanel(true); 
     } else {
-      if (showDeckPanel && !action && !deckIdToEdit) {
+      // No specific action to open the panel via URL.
+      // If the panel is open but URL doesn't justify it, close it.
+      if (showDeckPanel) { 
           const currentParams = new URLSearchParams(Array.from(searchParams.entries()));
           if (!currentParams.has('action') && !currentParams.has('deckId')) {
-            setShowDeckPanel(false);
-            setDeckFormInitialData(null);
-            setIsEditingDeck(false);
-            setEditingDeckId(null);
+              setShowDeckPanel(false);
+              setDeckFormInitialData(null);
+              setIsEditingDeck(false);
+              setEditingDeckId(null);
           }
       }
     }
-  }, [searchParams, decks, toast, router, showDeckPanel]);
+  }, [searchParams, decks, toast, router]);
 
 
   const handleFilterChange = (filterName: keyof Filters, value: any) => {
@@ -268,22 +283,25 @@ function CardViewerPageContent() {
     return <div className="flex justify-center items-center min-h-[60vh]"><LucideLoader className="h-16 w-16 animate-spin text-primary" /></div>;
   }
 
-  // Reverted: Simplified instructionText logic
-  let instructionText;
-  if (showDeckPanel) {
-    instructionText = "Deck panel open. Left-click cards to add, Right-click to remove.";
-  } else {
-    instructionText = "Browse Altered TCG cards. Click '+' on a card to start a new deck.";
+  let instructionText = "Browse Altered TCG cards. Click '+' on a card to start a new deck.";
+  let panelTitle = "Create New Deck";
+
+  if (showDeckPanel && deckFormInitialData) {
+    if (isEditingDeck && editingDeckId) {
+      panelTitle = `Editing: ${deckFormInitialData.name || 'Deck'}`;
+      instructionText = `Deck panel open. Editing "${deckFormInitialData.name || 'Deck'}". Left-click cards to add, Right-click to remove.`;
+    } else {
+      panelTitle = "Create New Deck";
+      instructionText = "Deck panel open. Building new deck. Left-click cards to add, Right-click to remove.";
+    }
   }
 
-  // Reverted: Removed panelTitle logic
-  // const panelTitle = isEditingDeck ? `Editing: ${deckFormInitialData?.name || 'Deck'}` : 'Create New Deck';
 
   return (
     <div className="flex flex-col md:flex-row gap-6">
       {showDeckPanel && deckFormInitialData && (
         <div className="w-full md:w-1/3 lg:w-1/4 xl:w-1/5 bg-card p-4 rounded-lg shadow-xl sticky top-20 h-[calc(100vh-10rem)] overflow-y-auto">
-          {/* Reverted: Removed <h2 className="text-xl font-bold mb-4 text-primary">{panelTitle}</h2> */}
+          <h2 className="text-xl font-bold mb-4 text-primary">{panelTitle}</h2>
           <DeckForm
             onSubmit={handleDeckFormSubmit}
             initialData={deckFormInitialData}
@@ -372,7 +390,7 @@ function CardViewerPageContent() {
             <p>Try adjusting your search or clearing filters.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-6"> {/* Reverted layout */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-5 gap-6">
             {cardsToDisplay.map(card => {
                 const isSelectedInPanel = showDeckPanel && (deckFormInitialData?.cardIds.includes(card.id) ?? false);
                 const countInDeck = deckFormInitialData?.cardIds.filter(id => id === card.id).length || 0;
@@ -471,12 +489,4 @@ export default function CardViewerPage() {
     </Suspense>
   );
 }
-
-// Reverted: Added back custom Loader2 definition (will conflict with imported LucideLoader and cause cn error)
-const Loader2 = ({ className }: { className?: string }) => (
-  <svg className={/*cn(*/"animate-spin"/*, className)*/} /* Removed cn here to avoid immediate error, but it's still problematic if cn was intended */ xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-  </svg>
-);
     
