@@ -10,7 +10,7 @@ import DeckForm, { type DeckFormValues } from '@/components/decks/DeckForm';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader as UiCardHeader, CardTitle as UiCardTitle } from '@/components/ui/card'; // Renamed CardHeader import
+import { Card as UiCard, CardContent as UiCardContent, CardHeader as UiCardHeader, CardTitle as UiCardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { X, Search, FilterX, Loader2 as LucideLoader } from 'lucide-react';
@@ -27,6 +27,7 @@ const EXACT_HERO_COUNT = 1;
 const MAX_DUPLICATES_NON_HERO_BY_NAME = 3;
 const MAX_RARE_CARDS_NON_HERO = 15;
 const NEUTRAL_FACTION_NAME = factionsLookup.NE?.name || "Neutre";
+
 
 interface Filters {
   searchTerm: string;
@@ -71,8 +72,7 @@ function CardViewerPageContent() {
   useEffect(() => {
     const action = searchParams.get('action');
     const deckIdToEdit = searchParams.get('deckId');
-    const cameFromCardViewerPlusButton = action === 'create-with-card';
-  
+    
     if (deckIdToEdit) {
       const deckToEdit = decks.find(d => d.id === deckIdToEdit);
       if (deckToEdit) {
@@ -89,30 +89,31 @@ function CardViewerPageContent() {
         toast({ title: "Error", description: "Deck not found for editing.", variant: "destructive" });
         router.replace('/cards', { scroll: false });
       }
-    } else if (action === 'create' && !cameFromCardViewerPlusButton) {
+    } else if (action === 'create') {
+      // Coming from /decks page to create new deck, reset filters and loaded cards
       setFilters(initialFilters);
       setLoadedCardsCount(CARDS_PER_LOAD);
-  
       setDeckFormInitialData({ name: '', description: '', format: 'Standard', cardIds: [] });
       setIsEditingDeck(false);
       setEditingDeckId(null);
       if (!showDeckPanel) setShowDeckPanel(true);
-    } else if (cameFromCardViewerPlusButton) {
-      // Do not reset filters or loaded cards if creating from card viewer "+" button
+    } else if (action === 'create-with-card') {
+      // Creating from Card Viewer "+" button, filters and loaded cards are preserved by not resetting them here
+      // DeckFormInitialData is set by handleStartNewDeckWithCard
       if (!showDeckPanel) setShowDeckPanel(true); 
     } else {
-      // If no action/deckId is specified, and panel is open, close it (e.g. direct navigation)
-      if (showDeckPanel) { 
-          const currentParams = new URLSearchParams(Array.from(searchParams.entries()));
-          if (!currentParams.has('action') && !currentParams.has('deckId')) {
-              setShowDeckPanel(false);
-              setDeckFormInitialData(null);
-              setIsEditingDeck(false);
-              setEditingDeckId(null);
+      const currentParams = new URLSearchParams(Array.from(searchParams.entries()));
+      if (!currentParams.has('action') && !currentParams.has('deckId')) {
+          if (showDeckPanel) { 
+            setShowDeckPanel(false);
+            setDeckFormInitialData(null);
+            setIsEditingDeck(false);
+            setEditingDeckId(null);
           }
       }
     }
-  }, [searchParams, decks, toast, router, showDeckPanel]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, decks, toast, router]);
 
 
   const handleFilterChange = useCallback((filterName: keyof Filters, value: any) => {
@@ -120,29 +121,42 @@ function CardViewerPageContent() {
     setLoadedCardsCount(CARDS_PER_LOAD);
   }, []);
 
-  // Effect to sync Card Explorer faction filter with the hero in the deck panel
   useEffect(() => {
     if (!showDeckPanel || !deckFormInitialData?.cardIds) {
+      if (filters.selectedFaction !== 'all') {
+         handleFilterChange('selectedFaction', 'all');
+      }
       return;
     }
-
+  
     const currentDeckCards = (deckFormInitialData.cardIds || [])
       .map(id => allCards.find(c => c.id === id))
       .filter(Boolean) as AlteredCard[];
-    
+  
+    let targetFactionForFilter: string | undefined = undefined;
+  
     const currentHeroInDeck = currentDeckCards.find(c => c.type === cardTypesLookup.HERO.name);
-    const heroFactionName = currentHeroInDeck?.faction; 
-
-    if (heroFactionName) {
-      if (filters.selectedFaction !== heroFactionName) {
-        handleFilterChange('selectedFaction', heroFactionName);
+  
+    if (currentHeroInDeck?.faction) {
+      targetFactionForFilter = currentHeroInDeck.faction;
+    } else if (currentDeckCards.length > 0) {
+      const firstNonNeutralCardWithFaction = currentDeckCards.find(
+        c => c.faction && c.faction !== NEUTRAL_FACTION_NAME
+      );
+      if (firstNonNeutralCardWithFaction?.faction) {
+        targetFactionForFilter = firstNonNeutralCardWithFaction.faction;
       }
-    } else { 
+    }
+  
+    if (targetFactionForFilter) {
+      if (filters.selectedFaction !== targetFactionForFilter) {
+        handleFilterChange('selectedFaction', targetFactionForFilter);
+      }
+    } else {
       if (filters.selectedFaction !== 'all') {
         handleFilterChange('selectedFaction', 'all');
       }
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps 
   }, [deckFormInitialData?.cardIds, showDeckPanel, handleFilterChange, filters.selectedFaction]);
 
 
@@ -196,7 +210,7 @@ function CardViewerPageContent() {
     setIsEditingDeck(false);
     setEditingDeckId(null);
     setShowDeckPanel(true);
-    router.push('/cards?action=create-with-card', { scroll: false });
+    router.push('/cards?action=create-with-card', { scroll: false }); 
   };
 
   const handleDeckFormSubmit = (data: DeckFormValues) => {
@@ -238,35 +252,32 @@ function CardViewerPageContent() {
   };
 
   const handleLeftClickCardOnGrid = (card: AlteredCard) => {
-    if (!deckFormInitialData) return;
+    if (!deckFormInitialData) return; 
 
     const currentCardIds = deckFormInitialData.cardIds || [];
     const currentFullCards = currentCardIds.map(id => allCards.find(c => c.id === id)).filter(Boolean) as AlteredCard[];
 
-    const isHero = card.type === cardTypesLookup.HERO.name;
-    const heroesInDeck = currentFullCards.filter(c => c.type === cardTypesLookup.HERO.name);
-    const heroCardInDeckIfAny = heroesInDeck[0];
+    const isHeroType = card.type === cardTypesLookup.HERO.name;
+    const heroesInDeckCount = currentFullCards.filter(c => c.type === cardTypesLookup.HERO.name).length;
+    const heroCardInDeckIfAny = currentFullCards.find(c => c.type === cardTypesLookup.HERO.name);
 
-    if (isHero) {
-      const countThisSpecificHero = currentCardIds.filter(id => id === card.id).length;
-      if (countThisSpecificHero >= EXACT_HERO_COUNT) {
-          toast({ title: "Deck Rule", description: `A deck can only have ${EXACT_HERO_COUNT} copy of the Hero "${card.name}".`, variant: "destructive" });
-          return;
+    if (isHeroType) {
+      if (currentCardIds.includes(card.id)) {
+         toast({ title: "Deck Rule", description: `A deck can only have ${EXACT_HERO_COUNT} copy of the Hero "${card.name}".`, variant: "destructive" });
+         return;
       }
-      // Check if trying to add a *different* hero when one already exists
-      if (heroesInDeck.length >= EXACT_HERO_COUNT && !currentCardIds.includes(card.id)) {
-          toast({ title: "Deck Rule", description: `A deck can only have ${EXACT_HERO_COUNT} Hero. Remove the current Hero to add "${card.name}".`, variant: "destructive" });
-          return;
+      if (heroesInDeckCount >= EXACT_HERO_COUNT) {
+        toast({ title: "Deck Rule", description: `A deck can only have ${EXACT_HERO_COUNT} Hero. Remove the current Hero to add "${card.name}".`, variant: "destructive" });
+        return;
       }
     } else { 
-      // Non-hero card validation
       if (heroCardInDeckIfAny && heroCardInDeckIfAny.faction && card.faction !== heroCardInDeckIfAny.faction && card.faction !== NEUTRAL_FACTION_NAME) {
-        toast({ title: "Deck Rule", description: `Card faction (${card.faction}) must match Hero faction (${heroCardInDeckIfAny.faction}) or be Neutral.`, variant: "destructive" });
+        toast({ title: "Deck Rule", description: `Card faction (${card.faction || 'N/A'}) must match Hero faction (${heroCardInDeckIfAny.faction}) or be Neutral.`, variant: "destructive" });
         return;
       }
 
       const nonHeroCardsInDeck = currentFullCards.filter(c => c.type !== cardTypesLookup.HERO.name);
-      if (nonHeroCardsInDeck.length >= MAX_DECK_CARDS_NON_HERO && !currentCardIds.includes(card.id)) {
+      if (nonHeroCardsInDeck.length >= MAX_DECK_CARDS_NON_HERO && !currentCardIds.includes(card.id)) { 
         toast({ title: "Deck Rule", description: `Deck cannot exceed ${MAX_DECK_CARDS_NON_HERO} non-Hero cards.`, variant: "destructive" });
         return;
       }
@@ -277,7 +288,7 @@ function CardViewerPageContent() {
       }
       if (card.rarity === raritiesLookup.RARE.name) {
         const rareNonHeroCardsInDeck = nonHeroCardsInDeck.filter(c => c.rarity === raritiesLookup.RARE.name);
-        if (rareNonHeroCardsInDeck.length >= MAX_RARE_CARDS_NON_HERO && !currentCardIds.includes(card.id)) {
+        if (rareNonHeroCardsInDeck.length >= MAX_RARE_CARDS_NON_HERO && !currentFullCards.some(c => c.id === card.id && c.rarity === raritiesLookup.RARE.name)) {
            toast({ title: "Deck Rule", description: `Deck cannot exceed ${MAX_RARE_CARDS_NON_HERO} Rare non-Hero cards.`, variant: "destructive" });
            return;
         }
@@ -363,9 +374,10 @@ function CardViewerPageContent() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Factions</SelectItem>
-                  {Object.entries(factionsLookup).map(([key, faction]) => (
+                  {Object.entries(factionsLookup).filter(([key]) => key !== 'NE').map(([key, faction]) => (
                     <SelectItem key={key} value={faction.name}>{faction.name}</SelectItem>
                   ))}
+                   <SelectItem value={NEUTRAL_FACTION_NAME}>{NEUTRAL_FACTION_NAME}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -414,10 +426,10 @@ function CardViewerPageContent() {
             {cardsToDisplay.map(card => {
                 const isSelectedInPanel = showDeckPanel && (deckFormInitialData?.cardIds.includes(card.id) ?? false);
                 const countInDeck = deckFormInitialData?.cardIds.filter(id => id === card.id).length || 0;
-                const isHeroCard = card.type === cardTypesLookup.HERO.name;
+                const isHeroCardType = card.type === cardTypesLookup.HERO.name;
                 
                 let isMaxCopiesReached = false;
-                if (isHeroCard) {
+                if (isHeroCardType) {
                     isMaxCopiesReached = countInDeck >= EXACT_HERO_COUNT;
                 } else {
                     isMaxCopiesReached = countInDeck >= MAX_DUPLICATES_NON_HERO_BY_NAME;
@@ -508,4 +520,6 @@ export default function CardViewerPage() {
     </Suspense>
   );
 }
+    
+
     
