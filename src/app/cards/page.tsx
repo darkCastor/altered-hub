@@ -18,6 +18,7 @@ import { X, Search, FilterX, PanelLeftOpen, PanelRightOpen, CheckCircle, Trash2 
 import { useToast } from '@/hooks/use-toast';
 import useLocalStorage from '@/hooks/useLocalStorage';
 import Image from 'next/image';
+import { cn } from '@/lib/utils';
 
 const DECK_STORAGE_KEY = 'alterdeck-decks';
 const CARDS_PER_LOAD = 20;
@@ -290,7 +291,7 @@ function CardViewerPageContent() {
             <h1 className="font-headline text-3xl sm:text-4xl font-bold text-primary">
               Card Explorer
               <Button variant="ghost" size="icon" onClick={() => setShowDeckPanel(!showDeckPanel)} className="ml-2">
-                {showDeckPanel ? <PanelLeftOpen className="h-5 w-5" /> : <PanelRightOpen className="h-5 w-5" />}
+                {showDeckPanel ? <ChevronLeft className="h-5 w-5" /> : <ChevronRight className="h-5 w-5" />}
                 <span className="sr-only">{showDeckPanel ? "Close Deck Panel" : "Open Deck Panel"}</span>
               </Button>
             </h1>
@@ -478,3 +479,6 @@ const Loader2 = ({ className }: { className?: string }) => (
     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
   </svg>
 );
+
+// Lucide icons for panel toggle
+import { ChevronLeft, ChevronRight } from 'lucide-react';
