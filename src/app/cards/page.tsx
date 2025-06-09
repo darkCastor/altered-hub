@@ -90,7 +90,6 @@ function CardViewerPageContent() {
         router.replace('/cards', { scroll: false });
       }
     } else if (action === 'create' && !cameFromCardViewerPlusButton) {
-      // Creating a new deck from /decks page or direct URL (?action=create)
       setFilters(initialFilters);
       setLoadedCardsCount(CARDS_PER_LOAD);
   
@@ -99,13 +98,8 @@ function CardViewerPageContent() {
       setEditingDeckId(null);
       if (!showDeckPanel) setShowDeckPanel(true);
     } else if (cameFromCardViewerPlusButton) {
-      // Deck creation initiated by clicking "+" on a card in the Card Viewer.
-      // The panel and initialData are already set by handleStartNewDeckWithCard.
-      // Filters and loadedCardsCount are preserved.
       if (!showDeckPanel) setShowDeckPanel(true); 
     } else {
-      // No specific action to open the panel via URL.
-      // If the panel is open but URL doesn't justify it, close it.
       if (showDeckPanel) { 
           const currentParams = new URLSearchParams(Array.from(searchParams.entries()));
           if (!currentParams.has('action') && !currentParams.has('deckId')) {
@@ -116,13 +110,39 @@ function CardViewerPageContent() {
           }
       }
     }
-  }, [searchParams, decks, toast, router, showDeckPanel]); // Added showDeckPanel to dependencies
+  }, [searchParams, decks, toast, router, showDeckPanel]);
 
 
-  const handleFilterChange = (filterName: keyof Filters, value: any) => {
+  const handleFilterChange = useCallback((filterName: keyof Filters, value: any) => {
     setFilters(prev => ({ ...prev, [filterName]: value }));
     setLoadedCardsCount(CARDS_PER_LOAD);
-  };
+  }, []);
+
+  // Effect to sync Card Explorer faction filter with the hero in the deck panel
+  useEffect(() => {
+    if (!showDeckPanel || !deckFormInitialData?.cardIds) {
+      return;
+    }
+
+    const currentDeckCards = (deckFormInitialData.cardIds || [])
+      .map(id => allCards.find(c => c.id === id))
+      .filter(Boolean) as AlteredCard[];
+    
+    const currentHeroInDeck = currentDeckCards.find(c => c.type === cardTypesLookup.HERO.name);
+    const heroFactionName = currentHeroInDeck?.faction; // This is the faction NAME, e.g., "Axiom"
+
+    if (heroFactionName) {
+      if (filters.selectedFaction !== heroFactionName) {
+        handleFilterChange('selectedFaction', heroFactionName);
+      }
+    } else { // No hero in deck
+      if (filters.selectedFaction !== 'all') {
+        handleFilterChange('selectedFaction', 'all');
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- handleFilterChange is memoized, allCards & cardTypesLookup are stable
+  }, [deckFormInitialData?.cardIds, showDeckPanel, handleFilterChange, filters.selectedFaction]);
+
 
   const clearFilters = () => {
     setFilters(initialFilters);
@@ -174,7 +194,6 @@ function CardViewerPageContent() {
     setIsEditingDeck(false);
     setEditingDeckId(null);
     setShowDeckPanel(true);
-    // Update URL for context, but don't reset filters or loaded cards
     router.push('/cards?action=create-with-card', { scroll: false });
   };
 
@@ -224,15 +243,14 @@ function CardViewerPageContent() {
 
     const isHero = card.type === cardTypesLookup.HERO.name;
     const heroesInDeck = currentFullCards.filter(c => c.type === cardTypesLookup.HERO.name);
-    const heroCardInDeck = heroesInDeck[0]; // This will be undefined if no hero is in deck
+    const heroCardInDeck = heroesInDeck[0];
 
     if (isHero) {
       if (heroesInDeck.length >= EXACT_HERO_COUNT && !currentCardIds.includes(card.id)) {
         toast({ title: "Deck Rule", description: `A deck can only have ${EXACT_HERO_COUNT} Hero.`, variant: "destructive" });
         return;
       }
-    } else { // Non-Hero card
-      // Faction check: only if a hero is already selected
+    } else { 
       if (heroCardInDeck && heroCardInDeck.faction && card.faction !== heroCardInDeck.faction && card.faction !== NEUTRAL_FACTION_NAME) {
         toast({ title: "Deck Rule", description: `Card faction (${card.faction}) must match Hero faction (${heroCardInDeck.faction}) or be Neutral.`, variant: "destructive" });
         return;
@@ -466,15 +484,12 @@ function CardViewerPageContent() {
   );
 }
 
-// Minimal loader for when hook is not ready
 const Loader = () => (
   <div className="flex justify-center items-center min-h-screen">
-    <svg className={cn("animate-spin h-10 w-10 text-primary")} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"> {/* cn will cause an error here without import */}
-      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-    </svg>
+    <LucideLoader className="h-10 w-10 animate-spin text-primary" />
   </div>
 );
+
 
 export default function CardViewerPage() {
   return (
