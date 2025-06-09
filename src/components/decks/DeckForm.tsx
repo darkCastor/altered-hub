@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -15,6 +15,7 @@ import type { AlteredCard } from '@/types';
 import { cardTypesLookup, raritiesLookup, factionsLookup } from '@/data/cards';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from '@/hooks/use-toast';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 const deckFormats = ["Standard", "Legacy", "Commander", "Pauper", "Singleton", "Custom"] as const;
 
@@ -48,7 +49,6 @@ interface GroupedCardDisplay {
 }
 
 export default function DeckForm({ onSubmit, initialData, isEditing, onCancel, allCardsData }: DeckFormProps) {
-  const [selectedHeroFaction, setSelectedHeroFaction] = useState<string | null>(null);
   const { toast } = useToast();
 
   const form = useForm<DeckFormValues>({
@@ -56,7 +56,7 @@ export default function DeckForm({ onSubmit, initialData, isEditing, onCancel, a
     defaultValues: initialData,
   });
 
-  const { watch, setValue, trigger, reset } = form;
+  const { watch, setValue, reset } = form;
   const watchedCardIds = watch('cardIds');
 
   useEffect(() => {
@@ -71,22 +71,24 @@ export default function DeckForm({ onSubmit, initialData, isEditing, onCancel, a
 
   useEffect(() => {
     const hero = selectedFullCards.find(c => c.type === cardTypesLookup.HERO.name);
-    const newHeroFaction = hero?.faction || null;
+    const currentHeroFaction = hero?.faction || null;
 
-    if (newHeroFaction !== selectedHeroFaction) {
-      setSelectedHeroFaction(newHeroFaction);
-      if (newHeroFaction) {
-        const cardsToKeep = selectedFullCards.filter(card => {
-          if (card.type === cardTypesLookup.HERO.name) return true;
-          return card.faction === newHeroFaction || card.faction === NEUTRAL_FACTION_NAME;
-        });
-        if (cardsToKeep.length < selectedFullCards.length) {
-          toast({title: "Faction Update", description: "Some cards were removed as they didn't match the new Hero's faction.", variant: "default"});
-        }
-        setValue('cardIds', cardsToKeep.map(c => c.id), { shouldValidate: true });
+    const nonHeroCards = selectedFullCards.filter(c => c.type !== cardTypesLookup.HERO.name);
+    const cardsToKeep = selectedFullCards.filter(card => {
+      if (card.type === cardTypesLookup.HERO.name) return true; // Always keep the hero
+      if (currentHeroFaction) { // If a hero faction is set, non-hero cards must match or be neutral
+        return card.faction === currentHeroFaction || card.faction === NEUTRAL_FACTION_NAME;
       }
+      return true; // If no hero faction, keep all non-hero cards (for now)
+    });
+
+    if (cardsToKeep.length < selectedFullCards.length) {
+      const removedCount = selectedFullCards.length - cardsToKeep.length;
+      toast({title: "Faction Update", description: `${removedCount} card(s) removed due to faction mismatch with the Hero.`, variant: "default"});
+      setValue('cardIds', cardsToKeep.map(c => c.id), { shouldValidate: true });
     }
-  }, [selectedFullCards, setValue, toast, selectedHeroFaction]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedFullCards, setValue, toast]);
 
 
   const internalOnSubmit = (data: DeckFormValues) => {
@@ -154,8 +156,8 @@ export default function DeckForm({ onSubmit, initialData, isEditing, onCancel, a
         cardCounts.set(card.id, { card, quantity: 1 });
       }
     });
+    // Sort heroes to the top, then by card name
     return Array.from(cardCounts.values()).sort((a, b) => {
-      // Sort by type (Hero first), then by name
       if (a.card.type === cardTypesLookup.HERO.name && b.card.type !== cardTypesLookup.HERO.name) return -1;
       if (a.card.type !== cardTypesLookup.HERO.name && b.card.type === cardTypesLookup.HERO.name) return 1;
       return a.card.name.localeCompare(b.card.name);
@@ -169,8 +171,8 @@ export default function DeckForm({ onSubmit, initialData, isEditing, onCancel, a
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(internalOnSubmit)} className="space-y-6 h-full flex flex-col">
-        <div className="flex-grow space-y-4 overflow-y-auto pr-2">
+      <form onSubmit={form.handleSubmit(internalOnSubmit)} className="space-y-4 h-full flex flex-col">
+        <div className="flex-grow flex flex-col space-y-3 overflow-y-auto pr-1 custom-scrollbar">
             <FormField
               control={form.control}
               name="name"
@@ -191,7 +193,7 @@ export default function DeckForm({ onSubmit, initialData, isEditing, onCancel, a
                 <FormItem>
                   <FormLabel>Description (Optional)</FormLabel>
                   <FormControl>
-                    <Textarea placeholder="A brief description of your deck..." {...field} rows={3} />
+                    <Textarea placeholder="A brief description of your deck..." {...field} rows={2} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -203,7 +205,7 @@ export default function DeckForm({ onSubmit, initialData, isEditing, onCancel, a
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Deck Format</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value || ''} >
+                  <Select onValueChange={field.onChange} value={field.value || 'Standard'} >
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Select a format" />
@@ -219,22 +221,22 @@ export default function DeckForm({ onSubmit, initialData, isEditing, onCancel, a
                 </FormItem>
               )}
             />
-            <div>
-              <h3 className="font-semibold mb-1 text-lg">Selected Cards ({selectedFullCards.length})</h3>
-              {heroInDeck && <p className="text-xs text-primary mb-1">Hero Faction: {heroInDeck.faction || 'N/A'}</p>}
-               <p className="text-xs text-muted-foreground mb-2">
-                Non-Hero Cards: {currentNonHeroCount} (Min: {MIN_DECK_CARDS_NON_HERO}, Max: {MAX_DECK_CARDS_NON_HERO})<br/>
-                Rare Non-Hero Cards: {currentRareNonHeroCount} / {MAX_RARE_CARDS_NON_HERO}
+            <div className="flex flex-col flex-1 min-h-0 space-y-1">
+              <h3 className="font-semibold text-base">Selected Cards ({selectedFullCards.length})</h3>
+              {heroInDeck && <p className="text-xs text-primary">Hero Faction: {heroInDeck.faction || 'N/A'}</p>}
+               <p className="text-xs text-muted-foreground">
+                Non-Hero: {currentNonHeroCount} ({MIN_DECK_CARDS_NON_HERO}-{MAX_DECK_CARDS_NON_HERO}) | 
+                Rare Non-Hero: {currentRareNonHeroCount}/{MAX_RARE_CARDS_NON_HERO}
               </p>
-              <ScrollArea className="h-[250px] md:h-[calc(100vh-620px)] border rounded-md p-2 bg-muted/30">
+              <ScrollArea className="flex-1 border rounded-md p-1.5 bg-muted/20">
                 {groupedSelectedCardsForDisplay.length === 0 && (
                   <p className="text-sm text-muted-foreground p-4 text-center">
                     No cards selected. Click cards from the main viewer to add them.
                   </p>
                 )}
-                <div className="space-y-1.5">
+                <div className="space-y-1">
                   {groupedSelectedCardsForDisplay.map(({ card, quantity }) => (
-                    <div key={card.id} className="flex items-center justify-between py-2.5 px-3 bg-card rounded-md shadow-sm hover:bg-muted/40 transition-colors">
+                    <div key={card.id} className="flex items-center justify-between py-2 px-2.5 bg-card rounded-md shadow-sm hover:bg-muted/40 transition-colors">
                       <div className="flex flex-col">
                         <span className={`text-sm font-semibold leading-tight ${card.type === cardTypesLookup.HERO.name ? 'text-primary' : 'text-card-foreground'}`}>
                           {card.name}
@@ -243,7 +245,7 @@ export default function DeckForm({ onSubmit, initialData, isEditing, onCancel, a
                           {card.type === cardTypesLookup.HERO.name ? 'Hero' : `${card.rarity} - ${card.type}`}
                         </span>
                       </div>
-                      <span className="text-base font-bold text-primary ml-2">
+                      <span className="text-sm font-bold text-primary ml-2">
                         x{quantity}
                       </span>
                     </div>
@@ -254,16 +256,33 @@ export default function DeckForm({ onSubmit, initialData, isEditing, onCancel, a
             </div>
         </div>
 
-        <div className="flex justify-end gap-4 pt-4 border-t sticky bottom-0 bg-card py-4">
-          <Button type="button" variant="outline" onClick={onCancel}>
-            <X className="mr-2 h-4 w-4" /> Cancel
-          </Button>
-          <Button type="submit" className="bg-primary hover:bg-primary/90 text-primary-foreground">
-            <Save className="mr-2 h-4 w-4" /> {isEditing ? 'Save Changes' : 'Create Deck'}
-          </Button>
+        <div className="flex justify-end gap-2 pt-2 pb-2 border-t sticky bottom-0 bg-card">
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button type="button" variant="outline" size="icon" onClick={onCancel}>
+                  <X className="h-5 w-5" />
+                  <span className="sr-only">Cancel</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Cancel</p>
+              </TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button type="submit" size="icon" className="bg-accent text-accent-foreground hover:bg-accent/90">
+                  <Save className="h-5 w-5" />
+                  <span className="sr-only">{isEditing ? 'Save Changes' : 'Create Deck'}</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>{isEditing ? 'Save Changes' : 'Create Deck'}</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         </div>
       </form>
     </Form>
   );
 }
-
