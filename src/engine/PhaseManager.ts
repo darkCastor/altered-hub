@@ -22,14 +22,12 @@ public async advancePhase() {
             nextPhase = GamePhase.Morning;
             this.gameStateManager.setCurrentPhase(nextPhase);
             await this.handleFirstMorning();
-            await this.advancePhase(); // Auto-advance from first morning to noon
             break;
 
         case GamePhase.Morning:
             nextPhase = GamePhase.Noon;
             this.gameStateManager.setCurrentPhase(nextPhase);
             // TODO: Handle "At Noon" reactions
-            await this.advancePhase(); // Auto-advance from noon to afternoon
             break;
 
         case GamePhase.Noon:
@@ -71,6 +69,7 @@ public async advancePhase() {
 /** Rule 4.1.l: The first Morning is skipped. */
 private async handleFirstMorning() {
     console.log("[PhaseManager] Skipping daily effects for the first Morning (Rule 4.1.l).");
+    this.gameStateManager.resetExpandFlags();
 }
 
 /** Rule 4.2.1: Morning daily effects for Day 2+ */
@@ -84,6 +83,7 @@ private async handleSubsequentMorning() {
     for (const playerId of this.gameStateManager.getPlayerIds()) {
         await this.gameStateManager.drawCards(playerId, 2);
     }
+    this.gameStateManager.resetExpandFlags();
     // 4. Expand (TODO: Add player choice)
     console.log("[PhaseManager] Skipping Expand step (player choice not implemented).");
 }

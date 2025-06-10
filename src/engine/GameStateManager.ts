@@ -44,6 +44,7 @@ private initializeGameState(playerIds: string[]): IGameState {
             heroExpeditionPosition: 0,
             companionExpeditionPosition: 0,
             hasPassedTurn: false,
+            hasExpandedThisTurn: false,
         });
     });
 
@@ -62,6 +63,12 @@ private initializeGameState(playerIds: string[]): IGameState {
     };
 }
 
+public resetExpandFlags(): void {
+    for (const player of this.state.players.values()) {
+        player.hasExpandedThisTurn = false;
+    }
+    console.log('[GSM] Reset expand flags for all players.');
+}
 
     public initializeBoard(
         playerDeckDefinitionsMap: Map<string, ICardDefinition[]>,

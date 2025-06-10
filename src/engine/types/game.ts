@@ -18,6 +18,7 @@ export interface IPlayer {
     heroExpeditionPosition: number;
     companionExpeditionPosition: number;
     hasPassedTurn: boolean;
+    hasExpandedThisTurn: boolean;
 }
 
 /**

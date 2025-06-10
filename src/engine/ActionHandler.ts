@@ -136,6 +136,48 @@ export class ActionHandler {
         this.turnManager.advanceTurn();
     }
 
+    public async tryExpand(playerId: string, cardInstanceId: string): Promise<void> {
+    const player = this.gsm.getPlayer(playerId);
+    if (!player) throw new Error(`Player ${playerId} not found.`);
+    if (this.gsm.state.currentPhase !== GamePhase.Morning) {
+        throw new Error('Expand can only be performed during the Morning phase.');
+    }
+    if (player.hasExpandedThisTurn) {
+        throw new Error('You have already expanded this turn.');
+    }
+
+    const cardToExpand = player.zones.hand.findById(cardInstanceId);
+    if (!cardToExpand) {
+        throw new Error(`Card ${cardInstanceId} not found in hand.`);
+    }
+
+    console.log(`[ActionHandler] Player ${playerId} is expanding card ${cardInstanceId}.`);
+
+    const manaObject = this.gsm.moveEntity(cardInstanceId, player.zones.hand, player.zones.manaZone, playerId) as IGameObject;
+    if (manaObject) {
+        // Rule 4.2.1.e: The Mana Orb enters ready.
+        if (manaObject.statuses.has(StatusType.Exhausted)) {
+            manaObject.statuses.delete(StatusType.Exhausted);
+            console.log(`[ActionHandler] Mana Orb ${manaObject.objectId} was made ready.`);
+        }
+    }
+    player.hasExpandedThisTurn = true;
+}
+
+public async trySkipExpand(playerId: string): Promise<void> {
+    const player = this.gsm.getPlayer(playerId);
+    if (!player) throw new Error(`Player ${playerId} not found.`);
+    if (this.gsm.state.currentPhase !== GamePhase.Morning) {
+        throw new Error('Can only skip expand during the Morning phase.');
+    }
+    if (player.hasExpandedThisTurn) {
+        throw new Error('You have already made your expand decision this turn.');
+    }
+
+    console.log(`[ActionHandler] Player ${playerId} has skipped their expand action.`);
+    player.hasExpandedThisTurn = true;
+}
+
     /**
      * Handles a player passing their turn.
      * @param playerId The ID of the player passing.

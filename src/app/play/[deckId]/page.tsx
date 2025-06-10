@@ -129,6 +129,7 @@ interface PlayerState {
   expedition: DisplayableCardData[];
   landmarks: DisplayableCardData[];
   reserve: DisplayableCardData[];
+  hasExpandedThisTurn: boolean;
 }
 
 
@@ -153,6 +154,7 @@ export default function PlayGamePage() {
   const [dayNumber, setDayNumber] = useState<number>(1);
   const [isProcessingAction, setIsProcessingAction] = useState(false);
   const [selectedCardForPlay, setSelectedCardForPlay] = useState<DisplayableCardData | null>(null);
+  const [isChoosingCardToExpand, setIsChoosingCardToExpand] = useState(false);
 
   const initialPlayerState: PlayerState = {
     hand: [], mana: { current: 0, max: 0 }, deckCount: 0, discardCount: 0, expedition: [], landmarks: [], reserve: []
@@ -216,6 +218,7 @@ export default function PlayGamePage() {
         expedition: player1.zones.expedition.getAll().map(mapToDisplayableCard),
         landmarks: player1.zones.landmarkZone.getAll().map(mapToDisplayableCard),
         reserve: player1.zones.reserve.getAll().map(mapToDisplayableCard),
+        hasExpandedThisTurn: player1.hasExpandedThisTurn,
       });
     }
     if (player2) {
@@ -337,8 +340,20 @@ export default function PlayGamePage() {
     }
   }, [handleAction]);
 
+  const handleSkipExpand = useCallback(() => { // <-- ADD THIS ENTIRE FUNCTION
+    if (actionHandlerRef.current) {
+      handleAction(() => actionHandlerRef.current!.trySkipExpand(PLAYER_ID_SELF));
+    }
+  }, [handleAction]);
+
   const handleCardClickInHand = (card: DisplayableCardData) => {
     if (currentPlayerId !== PLAYER_ID_SELF || isProcessingAction) return;
+
+    // Handle card click for expanding
+    if (isChoosingCardToExpand) {
+      handleAction(() => actionHandlerRef.current!.tryExpand(PLAYER_ID_SELF, card.instanceId));
+      return;
+    }
 
     if (selectedCardForPlay?.instanceId === card.instanceId) {
       setSelectedCardForPlay(null);
@@ -410,6 +425,8 @@ export default function PlayGamePage() {
   const canSelfPass = isEngineReady && gsmRef.current && currentPhase === GamePhase.Afternoon &&
     gsmRef.current.getPlayer(PLAYER_ID_SELF)?.hasPassedTurn === false &&
     currentPlayerId === PLAYER_ID_SELF;
+  const expandActionAvailable = isEngineReady && currentPhase === GamePhase.Morning && !player1State.hasExpandedThisTurn;
+
 
   const isMyTurn = currentPlayerId === PLAYER_ID_SELF;
 
@@ -461,6 +478,12 @@ export default function PlayGamePage() {
         </div>
         <PlayerAreaLayout playerState={player1State} isOpponent={false} />
       </div>
+      {expandActionAvailable && (
+        <>
+          <Button onClick={() => setIsChoosingCardToExpand(true)} disabled={isProcessingAction} variant="outline" size="sm">Expand Card</Button>
+          <Button onClick={handleSkipExpand} disabled={isProcessingAction} variant="secondary" size="sm">Skip Expand</Button>
+        </>
+      )}
 
       <div className="h-12 flex items-center justify-center space-x-4 p-1 bg-zinc-900 border-t border-zinc-700 shrink-0">
         <Button onClick={handlePassTurn} disabled={!canSelfPass || isProcessingAction} variant="destructive" size="sm">
