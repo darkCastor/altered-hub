@@ -98,6 +98,33 @@ private resolveStep(step: IEffectStep, sourceObjectId?: string) {
             });
             break;
         }
+        case 'sacrifice': { // Rule 7.3.25
+    targets.forEach(target => {
+        const fromZone = this.gsm.findZoneOfObject(target.objectId);
+        if (fromZone && (fromZone.zoneType === ZoneIdentifier.Expedition || fromZone.zoneType === ZoneIdentifier.Landmark)) {
+            const owner = this.gsm.getPlayer(target.ownerId);
+            if (owner) {
+                this.gsm.moveEntity(target.objectId, fromZone, owner.zones.discardPile, target.controllerId);
+                 console.log(`[EffectResolver] Object ${target.objectId} was sacrificed.`);
+            }
+        }
+    });
+    break;
+}
+case 'exchangeBoosts': { // Hypothetical verb for Rule 7.3.8
+    // Needs to target two characters.
+    // Logic to calculate the difference in boost counters and swap them.
+    break;
+}
+case 'draw': {
+    const player = this.gsm.getPlayer(sourceObjectId!); // Simplification, target might be 'controller'
+    const amount = step.parameters?.amount as number ?? 1;
+    if (player) {
+        this.gsm.drawCards(player.id, amount);
+        console.log(`[EffectResolver] Player ${player.id} drew ${amount} card(s).`);
+    }
+    break;
+}
          case 'augment': { // Rule 7.3.3
             const type = step.parameters?.type as CounterType;
              if (!type) {

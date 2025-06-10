@@ -58,15 +58,17 @@ export enum AbilityType {
  * Rule 1.2.4, 2.2.11
  */
 export interface IAbility {
-    sourceObjectId?: string; // Set when instantiated on an object
-    abilityId: string; // Unique within the card definition
+    sourceObjectId?: string;
+    abilityId: string;
     abilityType: AbilityType;
-    cost?: ICost; // For quick actions
-    trigger?: ITrigger; // For reactions
-    isSelfMove?: boolean; // Rule 6.3.c
+    cost?: ICost;
+    trigger?: ITrigger;
+    isSelfMove?: boolean; // You have this, good!
     effect: IEffect;
-    text: string; // Original card text for display/reference
-    isSupportAbility: boolean; // Rule 2.2.11.c
-     isKeyword?: boolean;
-    keyword?: 'Eternal' | 'Defender' | 'Gigantic' | 'Seasoned' | 'etc.'; // Added Seasoned
+    text: string;
+    isSupportAbility: boolean;
+    isKeyword?: boolean;
+    keyword?: 'Eternal' | 'Defender' | 'Gigantic' | 'Seasoned' | 'Tough' | 'Cooldown' | 'Scout';
+    keywordValue?: number; // For keywords like Scout X and Tough X
 }
+
