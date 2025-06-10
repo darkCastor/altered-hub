@@ -67,4 +67,7 @@ export interface IAbility {
     effect: IEffect;
     text: string; // Original card text for display/reference
     isSupportAbility: boolean; // Rule 2.2.11.c
+     isKeyword?: boolean;
+    keyword?: 'Eternal' | 'Defender' | 'Gigantic' | 'etc.'; // For identifying keywords
+
 }

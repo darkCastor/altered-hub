@@ -1,32 +1,26 @@
-import type { IGameState, IPlayer, IZone, ICardDefinition } from './types/zones';
-import { ObjectFactory } from './types/zones';
+import type { IZone} from './types/zones';
+import { ObjectFactory } from './ObjectFactory'; // Assuming ObjectFactory is in its own file
 import { GamePhase, ZoneIdentifier, StatusType, CardType } from './types/enums';
 import type { EventBus } from './EventBus';
 import { BaseZone, HandZone, DiscardPileZone, LimboZone, DeckZone } from './Zone';
 import type { ICardInstance, IGameObject, ZoneEntity } from './types/objects';
 import { isGameObject } from './types/objects';
+import type { IPlayer, IGameState } from './types/game'; // Assuming these are in game.ts
+import type { ICardDefinition } from './types/cards';
 
 export class GameStateManager {
     public state: IGameState;
     private objectFactory: ObjectFactory;
     public eventBus: EventBus;
     private cardDefinitions: Map<string, ICardDefinition>;
-constructor(playerIds: string[], cardDefinitions: ICardDefinition[], eventBus: EventBus) {
-    this.cardDefinitions = new Map(cardDefinitions.map(def => [def.id, def]));
-    this.objectFactory = new ObjectFactory(this.cardDefinitions);
-    this.eventBus = eventBus;
-    this.state = this.initializeGameState(playerIds);
-}
 
-    public findZoneOfObject(objectId: string): IZone | undefined {
-        for (const zone of this.getAllVisibleZones()) {
-            if (zone.findById(objectId)) {
-                return zone;
-            }
-        }
-        return undefined;
+    constructor(playerIds: string[], cardDefinitions: ICardDefinition[], eventBus: EventBus) {
+        this.cardDefinitions = new Map(cardDefinitions.map(def => [def.id, def]));
+        this.objectFactory = new ObjectFactory(this.cardDefinitions);
+        this.eventBus = eventBus;
+        this.state = this.initializeGameState(playerIds);
     }
-    
+
 private initializeGameState(playerIds: string[]): IGameState {
     const players = new Map<string, IPlayer>();
     playerIds.forEach(pid => {
@@ -66,45 +60,67 @@ private initializeGameState(playerIds: string[]): IGameState {
     };
 }
 
-public initializeBoard(
-    playerDeckDefinitionsMap: Map<string, ICardDefinition[]>,
-    startingHandSize: number,
-    initialManaOrbs: number
-) {
-    this.state.players.forEach((player, playerId) => {
-        // ... (deck and hero initialization as before) ...
-        const deckDefinitions = playerDeckDefinitionsMap.get(playerId);
-        if (!deckDefinitions) {
-            console.warn(`No deck definitions found for player ${playerId}. Skipping deck initialization.`);
-            return;
-        }
-        const heroDefinition = deckDefinitions.find(def => def.type === CardType.Hero);
-        if (!heroDefinition) {
-            console.error(`Player ${playerId}'s deck must contain exactly one Hero. Hero not found.`);
-            return;
-        }
-        if (!this.cardDefinitions.has(heroDefinition.id)) this.cardDefinitions.set(heroDefinition.id, heroDefinition);
-        const heroTempInstance = this.objectFactory.createCardInstance(heroDefinition.id, playerId);
-        const heroGameObject = this.objectFactory.createGameObject(heroTempInstance, playerId) as IGameObject;
-        player.zones.heroZone.add(heroGameObject);
-        console.log(`[GSM] Placed Hero ${heroGameObject.name} in ${player.zones.heroZone.id}`);
-        const nonHeroDeckDefinitions = deckDefinitions.filter(def => def.type !== CardType.Hero);
-        const deckCardInstances: ICardInstance[] = nonHeroDeckDefinitions.map(def => {
-            if (!this.cardDefinitions.has(def.id)) this.cardDefinitions.set(def.id, def);
-            return this.objectFactory.createCardInstance(def.id, playerId);
-        });
-        
-        const deckZone = player.zones.deck as DeckZone;
-        deckCardInstances.forEach(cardInstance => deckZone.add(cardInstance));
-        deckZone.shuffle();
-        console.log(`[GSM] Player ${playerId} deck initialized with ${deckZone.getCount()} cards.`);
+    public initializeBoard(
+        playerDeckDefinitionsMap: Map<string, ICardDefinition[]>,
+        startingHandSize: number,
+        initialManaOrbs: number
+    ) {
+        this.state.players.forEach((player, playerId) => {
+            const deckDefinitions = playerDeckDefinitionsMap.get(playerId);
+            if (!deckDefinitions) {
+                console.warn(`No deck definitions found for player ${playerId}. Skipping deck initialization.`);
+                return;
+            }
+            const heroDefinition = deckDefinitions.find(def => def.type === CardType.Hero);
+            if (!heroDefinition) {
+                console.error(`Player ${playerId}'s deck must contain exactly one Hero. Hero not found.`);
+                return;
+            }
+            if (!this.cardDefinitions.has(heroDefinition.id)) this.cardDefinitions.set(heroDefinition.id, heroDefinition);
+            const heroTempInstance = this.objectFactory.createCardInstance(heroDefinition.id, playerId);
+            const heroGameObject = this.objectFactory.createGameObject(heroTempInstance, playerId) as IGameObject;
+            player.zones.heroZone.add(heroGameObject);
+            console.log(`[GSM] Placed Hero ${heroGameObject.name} in ${player.zones.heroZone.id}`);
+            
+            const nonHeroDeckDefinitions = deckDefinitions.filter(def => def.type !== CardType.Hero);
+            const deckCardInstances: ICardInstance[] = nonHeroDeckDefinitions.map(def => {
+                if (!this.cardDefinitions.has(def.id)) this.cardDefinitions.set(def.id, def);
+                return this.objectFactory.createCardInstance(def.id, playerId);
+            });
+            
+            const deckZone = player.zones.deck as DeckZone;
+            deckCardInstances.forEach(cardInstance => deckZone.add(cardInstance));
+            deckZone.shuffle();
+            console.log(`[GSM] Player ${playerId} deck initialized with ${deckZone.getCount()} cards.`);
+                
+      console.log(`[GSM] Player ${playerId} is placing ${initialManaOrbs} mana orbs from their deck.`);
+            
+            // We need to get the instance IDs of the top cards without removing them yet.
+            const topCardInstances = deckZone.entities.slice(0, initialManaOrbs);
 
-        // Rule 4.1.j: Each player draws six cards.
-        this.drawCards(playerId, startingHandSize);
+            for (const cardInstance of topCardInstances) {
+                // Now, we call moveEntity. It will handle removing the card from the deck
+                // and creating the new Mana Orb object in the mana zone.
+                const manaObject = this.moveEntity(
+                    cardInstance.instanceId,
+                    deckZone,
+                    player.zones.manaZone,
+                    playerId
+                ) as IGameObject;
+                
+                // Rule 4.1.k specifies they are READY. Rule 3.2.9.b implies they might enter exhausted.
+                // We must ensure they are ready, overriding any default.
+                if (manaObject) { // Check if the move was successful
+                    if (manaObject.statuses.has(StatusType.Exhausted)) {
+                        manaObject.statuses.delete(StatusType.Exhausted);
+                    }
+                    console.log(`[GSM] Mana orb ${manaObject.objectId} is ready.`);
+                }
+            }
+            
+            // Rule 4.1.j: Each player draws six cards.
+            this.drawCards(playerId, startingHandSize);
 
-        // Rule 1.3.1.e / 4.1.k: ...and put three of them ready in their Mana zone.
-        // This is a simplified implementation.
-        for (let i = 0; i < initialManaOrbs; i++) { /* ... creating mana orbs ... */ }
     });
 }
 
@@ -209,16 +225,18 @@ public async restPhase() {
             e => isGameObject(e) && e.type === CardType.Character
         ) as IGameObject[];
 
-        for (const char of charactersToProcess) {
-            // Rule 2.4.2 (Anchored), 2.4.3 (Asleep), 7.4.3.b (Eternal) prevent moving to Reserve.
-            // NOTE: A full implementation would check for the "Eternal" passive ability, not a status.
-            if (char.statuses.has(StatusType.Anchored) || char.statuses.has(StatusType.Asleep) || char.statuses.has(StatusType.Eternal)) {
-                console.log(`[GSM] Character ${char.name} is not sent to Reserve due to a status/ability.`);
-                // Rule 2.4.2, 2.4.3: During Rest, lose Anchored/Asleep status.
-                if (char.statuses.has(StatusType.Anchored)) char.statuses.delete(StatusType.Anchored);
-                if (char.statuses.has(StatusType.Asleep)) char.statuses.delete(StatusType.Asleep);
-                continue;
-            }
+   for (const char of charactersToProcess) {
+        // Check for the "Eternal" passive ability (Rule 7.4.3.b)
+        const isEternal = char.abilities.some(ability => ability.text.includes('Eternal')); // Simple text check, a keyword property would be better
+        
+        // Rule 2.4.2 (Anchored), 2.4.3 (Asleep), 7.4.3.b (Eternal) prevent moving to Reserve.
+        if (char.statuses.has(StatusType.Anchored) || char.statuses.has(StatusType.Asleep) || isEternal) {
+            console.log(`[GSM] Character ${char.name} is not sent to Reserve due to a status/ability.`);
+            // Rule 2.4.2, 2.4.3: During Rest, lose Anchored/Asleep status.
+            if (char.statuses.has(StatusType.Anchored)) char.statuses.delete(StatusType.Anchored);
+            if (char.statuses.has(StatusType.Asleep)) char.statuses.delete(StatusType.Asleep);
+            continue;
+        }
 
             // Rule 2.4.6.d: If a Fleeting character would go to Reserve, it is discarded instead.
             if (char.statuses.has(StatusType.Fleeting)) {

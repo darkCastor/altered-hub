@@ -34,8 +34,8 @@ export interface IGameObject {
 // Rule 2.2.1.g, 6.3.g
 export interface IEmblemObject extends IGameObject {
     type: CardType.Emblem;
-    emblemSubType: 'Reaction' | 'Ongoing'; // Rule 2.2.2.h, 2.2.2.m -- FIX: Renamed from emblemType
-    boundEffect: IEffect; // The effect to resolve, with targets bound from the trigger
+    emblemSubType: 'Reaction' | 'Ongoing'; // Rule 2.2.2.h
+    boundEffect: IEffect; // Rule 6.3.h: The effect to resolve, with targets bound from the trigger
     duration?: 'this turn' | 'this Afternoon' | 'this Day'; // Rule 2.2.14
 }
 
@@ -57,11 +57,6 @@ export interface IHeroObject extends IGameObject {
 
 export interface ISpellObject extends IGameObject {
     type: CardType.Spell;
-}
-
-export interface IEmblemObject extends IGameObject {
-    type: CardType.Emblem;
-    emblemType: 'Reaction' | 'Ongoing';
 }
 
 export interface IManaOrbObject extends IGameObject {

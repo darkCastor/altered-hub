@@ -66,12 +66,12 @@ export enum GamePhase {
 }
 
 export enum StatusType {
-    Anchored = "Anchored",
-    Asleep = "Asleep",
-    Boosted = "Boosted",
-    Exhausted = "Exhausted",
-    Fleeting = "Fleeting",
-    Eternal = "Eternal",
+    Anchored = "Anchored", // Rule 2.4.2
+    Asleep = "Asleep", // Rule 2.4.3
+    Boosted = "Boosted", // Rule 2.4.4
+    Exhausted = "Exhausted", // Rule 2.4.5
+    Fleeting = "Fleeting", // Rule 2.4.6
+    // FIX: Eternal is a keyword ability (Rule 7.4.3), not a status. It has been removed.
 }
 
 export enum CounterType {
