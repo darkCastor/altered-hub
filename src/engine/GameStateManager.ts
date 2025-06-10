@@ -7,21 +7,30 @@ import type { IGameObject } from './types/objects';
 import type { ICardInstance } from './types/cards';
 import type { ZoneEntity } from './types/zones';
 import { isGameObject } from './types/objects';
-import type { IPlayer, IGameState } from './types/game';
+import type { IPlayer, IGameState, IExpeditionState, ITerrainStats } from './types/game';
 import type { ICardDefinition } from './types/cards';
-import { CounterType } from './types/enums';
+import { CounterType, KeywordAbility } from './types/enums';
+import { KeywordAbilityHandler } from './KeywordAbilityHandler';
+import { SupportAbilityHandler } from './SupportAbilityHandler';
+import { AdvancedTriggerHandler } from './AdvancedTriggerHandler';
 
 
 export class GameStateManager {
     public state: IGameState;
     public objectFactory: ObjectFactory;
     public eventBus: EventBus;
+    public keywordHandler: KeywordAbilityHandler;
+    public supportHandler: SupportAbilityHandler;
+    public triggerHandler: AdvancedTriggerHandler;
     private cardDefinitions: Map<string, ICardDefinition>;
 
     constructor(playerIds: string[], cardDefinitions: ICardDefinition[], eventBus: EventBus) {
         this.cardDefinitions = new Map(cardDefinitions.map(def => [def.id, def]));
         this.objectFactory = new ObjectFactory(this.cardDefinitions);
         this.eventBus = eventBus;
+        this.keywordHandler = new KeywordAbilityHandler(this);
+        this.supportHandler = new SupportAbilityHandler(this);
+        this.triggerHandler = new AdvancedTriggerHandler(this);
         this.state = this.initializeGameState(playerIds);
     }
 
@@ -41,8 +50,8 @@ private initializeGameState(playerIds: string[]): IGameState {
                 heroZone: new BaseZone(`${pid}-hero`, ZoneIdentifier.Hero, 'visible', pid),
                 expedition: new BaseZone(`${pid}-expedition`, ZoneIdentifier.Expedition, 'visible', pid), 
             },
-            heroExpeditionPosition: 0,
-            companionExpeditionPosition: 0,
+            heroExpedition: { position: 0, canMove: true, hasMoved: false },
+            companionExpedition: { position: 0, canMove: true, hasMoved: false },
             hasPassedTurn: false,
             hasExpandedThisTurn: false,
         });
@@ -188,6 +197,13 @@ public moveEntity(entityId: string, fromZone: IZone, toZone: IZone, controllerId
     }
 
     finalDestinationZone.add(newEntity);
+    
+    // Process keyword abilities and triggers for the move
+    if (isGameObject(newEntity)) {
+        this.keywordHandler.processKeywordOnLeavePlay(newEntity, fromZone, finalDestinationZone);
+        this.triggerHandler.processMovementTriggers(newEntity, fromZone, finalDestinationZone);
+    }
+    
     this.eventBus.publish('entityMoved', { entity: newEntity, from: fromZone, to: finalDestinationZone });
     return newEntity;
 }
@@ -240,6 +256,9 @@ public getPlayerIds(): string[] {
 public setCurrentPhase(phase: GamePhase) {
     this.state.currentPhase = phase;
     this.eventBus.publish('phaseChanged', { phase });
+    
+    // Process "At [Phase]" triggers
+    this.triggerHandler.processPhaseTriggersForPhase(phase);
 }
 
 /**
@@ -281,20 +300,33 @@ public async restPhase() {
             e => isGameObject(e) && e.type === CardType.Character
         ) as IGameObject[];
 
+        // Check if any expedition moved forward this turn
+        const anyExpeditionMoved = player.heroExpedition.hasMoved || player.companionExpedition.hasMoved;
+
         for (const char of charactersToProcess) {
-            // This is a simplified logic. A real implementation would check which expedition moved.
-            const isEternal = char.abilities.some(ability => ability.keyword === 'Eternal'); 
+            // Handle status removal first (Rule 2.4.2, 2.4.3)
+            if (char.statuses.has(StatusType.Anchored)) {
+                char.statuses.delete(StatusType.Anchored);
+                continue; // Anchored characters don't go to Reserve
+            }
             
-            if (char.statuses.has(StatusType.Anchored) || char.statuses.has(StatusType.Asleep) || isEternal) {
-                if (char.statuses.has(StatusType.Anchored)) char.statuses.delete(StatusType.Anchored);
-                if (char.statuses.has(StatusType.Asleep)) char.statuses.delete(StatusType.Asleep);
-                continue;
+            if (char.statuses.has(StatusType.Asleep)) {
+                char.statuses.delete(StatusType.Asleep);
+                continue; // Asleep characters don't go to Reserve
             }
 
-            if (char.statuses.has(StatusType.Fleeting)) {
-                this.moveEntity(char.objectId, expeditionZone, player.zones.discardPile, char.controllerId);
-            } else {
-                this.moveEntity(char.objectId, expeditionZone, player.zones.reserve, char.controllerId);
+            // Check for Eternal keyword (Rule 7.4.3)
+            if (this.keywordHandler.isEternal(char)) {
+                continue; // Eternal characters don't go to Reserve
+            }
+
+            // Only characters in expeditions that moved go to Reserve
+            if (anyExpeditionMoved) {
+                if (char.statuses.has(StatusType.Fleeting)) {
+                    this.moveEntity(char.objectId, expeditionZone, player.zones.discardPile, char.controllerId);
+                } else {
+                    this.moveEntity(char.objectId, expeditionZone, player.zones.reserve, char.controllerId);
+                }
             }
         }
     }
@@ -336,6 +368,109 @@ public async cleanupPhase(): Promise<void> {
 }
 
 
+/**
+ * Calculates the terrain statistics for an expedition
+ * Rule 4.2.4, 7.1.2
+ */
+public calculateExpeditionStats(playerId: string, expeditionType: 'hero' | 'companion'): ITerrainStats {
+    const player = this.getPlayer(playerId);
+    if (!player) return { forest: 0, mountain: 0, water: 0 };
+
+    const expeditionZone = player.zones.expedition;
+    const stats: ITerrainStats = { forest: 0, mountain: 0, water: 0 };
+
+    for (const entity of expeditionZone.getAll()) {
+        if (isGameObject(entity) && entity.type === CardType.Character) {
+            // Skip if Character has Asleep status during Progress (Rule 2.4.3)
+            if (entity.statuses.has(StatusType.Asleep)) continue;
+
+            // Get base statistics
+            const entityStats = entity.currentCharacteristics.statistics;
+            if (entityStats) {
+                stats.forest += entityStats.forest || 0;
+                stats.mountain += entityStats.mountain || 0; 
+                stats.water += entityStats.water || 0;
+            }
+
+            // Add boost counters (Rule 2.5.1.b)
+            const boostCount = entity.counters.get(CounterType.Boost) || 0;
+            stats.forest += boostCount;
+            stats.mountain += boostCount;
+            stats.water += boostCount;
+        }
+    }
+
+    return stats;
+}
+
+/**
+ * Handles the Progress daily effect during Dusk phase
+ * Rule 4.2.4.c-j
+ */
+public async progressPhase(): Promise<void> {
+    console.log('[GSM] Beginning Progress phase.');
+
+    for (const player of this.state.players.values()) {
+        // Reset movement flags
+        player.heroExpedition.hasMoved = false;
+        player.companionExpedition.hasMoved = false;
+        player.heroExpedition.canMove = true;
+        player.companionExpedition.canMove = true;
+
+        // Check for Defender keyword (Rule 7.4.2)
+        const movementRestrictions = this.keywordHandler.checkDefenderRestrictions(player.id);
+        player.heroExpedition.canMove = movementRestrictions.hero;
+        player.companionExpedition.canMove = movementRestrictions.companion;
+
+        if (!player.heroExpedition.canMove || !player.companionExpedition.canMove) {
+            console.log(`[GSM] Player ${player.id} expeditions cannot move due to Defender.`);
+            continue;
+        }
+
+        // Calculate expedition statistics
+        const heroStats = this.calculateExpeditionStats(player.id, 'hero');
+        const companionStats = this.calculateExpeditionStats(player.id, 'companion');
+
+        // Find opponent (for 2-player game)
+        const opponents = Array.from(this.state.players.values()).filter(p => p.id !== player.id);
+        
+        for (const opponent of opponents) {
+            const oppHeroStats = this.calculateExpeditionStats(opponent.id, 'hero');
+            const oppCompanionStats = this.calculateExpeditionStats(opponent.id, 'companion');
+
+            // Hero expedition vs opponent hero expedition
+            if (this.expeditionShouldMove(heroStats, oppHeroStats) && player.heroExpedition.canMove) {
+                player.heroExpedition.position++;
+                player.heroExpedition.hasMoved = true;
+                console.log(`[GSM] Player ${player.id} hero expedition moved to position ${player.heroExpedition.position}`);
+            }
+
+            // Companion expedition vs opponent companion expedition  
+            if (this.expeditionShouldMove(companionStats, oppCompanionStats) && player.companionExpedition.canMove) {
+                player.companionExpedition.position++;
+                player.companionExpedition.hasMoved = true;
+                console.log(`[GSM] Player ${player.id} companion expedition moved to position ${player.companionExpedition.position}`);
+            }
+        }
+    }
+}
+
+/**
+ * Determines if an expedition should move forward based on statistics comparison
+ * Rule 4.2.4.e: "An expedition moves forward if it has a greater positive total for at least one terrain"
+ */
+private expeditionShouldMove(myStats: ITerrainStats, opponentStats: ITerrainStats): boolean {
+    const myForest = Math.max(0, myStats.forest);
+    const myMountain = Math.max(0, myStats.mountain);  
+    const myWater = Math.max(0, myStats.water);
+
+    const oppForest = Math.max(0, opponentStats.forest);
+    const oppMountain = Math.max(0, opponentStats.mountain);
+    const oppWater = Math.max(0, opponentStats.water);
+
+    return (myForest > oppForest) || (myMountain > oppMountain) || (myWater > oppWater);
+}
+
 public async drawCards(playerId: string, count: number): Promise<void> {
     const player = this.getPlayer(playerId);
     if (!player) {
@@ -373,5 +508,45 @@ public async drawCards(playerId: string, count: number): Promise<void> {
             this.eventBus.publish('entityMoved', { entity: cardToDraw, from: deck, to: hand });
         }
     }
+}
+
+/**
+ * Checks victory conditions after Night phase
+ * Rule 4.2.5.d
+ */
+public checkVictoryConditions(): string | null {
+    console.log('[GSM] Checking victory conditions.');
+    
+    const playerIds = Array.from(this.state.players.keys());
+    const playerScores = new Map<string, number>();
+    
+    // Calculate total expedition distances for each player
+    for (const playerId of playerIds) {
+        const player = this.getPlayer(playerId);
+        if (!player) continue;
+        
+        const totalDistance = player.heroExpedition.position + player.companionExpedition.position;
+        playerScores.set(playerId, totalDistance);
+        console.log(`[GSM] Player ${playerId} total expedition distance: ${totalDistance}`);
+    }
+    
+    // Find the maximum score
+    const maxScore = Math.max(...Array.from(playerScores.values()));
+    
+    // Check if any player has reached victory threshold (≥7) and has the highest score
+    if (maxScore >= 7) {
+        const winners = playerIds.filter(pid => playerScores.get(pid) === maxScore);
+        
+        if (winners.length === 1) {
+            console.log(`[GSM] Player ${winners[0]} wins with score ${maxScore}!`);
+            return winners[0];
+        } else {
+            console.log('[GSM] Tie detected, proceeding to tiebreaker.');
+            // TODO: Implement tiebreaker rules
+            return null;
+        }
+    }
+    
+    return null; // No winner yet
 }
 }

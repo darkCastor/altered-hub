@@ -80,6 +80,22 @@ export enum CounterType {
     Kelon = "KelonCounter",
 }
 
+export enum TerrainType {
+    Forest = "forest",
+    Mountain = "mountain", 
+    Water = "water",
+}
+
+export enum KeywordAbility {
+    Cooldown = "Cooldown",
+    Defender = "Defender", 
+    Eternal = "Eternal",
+    Gigantic = "Gigantic",
+    Scout = "Scout",
+    Seasoned = "Seasoned",
+    Tough = "Tough",
+}
+
 /**
  * Identifies the specific type of a zone.
  * Rule 1.2.3, 3.1

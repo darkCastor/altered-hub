@@ -1,4 +1,4 @@
-import type { CounterType } from './enums'; 
+import type { CounterType, KeywordAbility } from './enums'; 
 import type { IGameObject } from './objects'; 
 import type { GameStateManager } from '../GameStateManager'; 
 
@@ -49,7 +49,8 @@ export interface ITrigger {
 export enum AbilityType {
     QuickAction = "quick_action",
     Reaction = "reaction",
-    Passive = "passive",
+    Passive = "passive", 
+    Support = "support", // Rule 2.2.11.e - Support abilities work only in Reserve
     EffectSource = "effect_source", // For simple effects from spells etc.
 }
 
@@ -68,7 +69,7 @@ export interface IAbility {
     text: string;
     isSupportAbility: boolean;
     isKeyword?: boolean;
-    keyword?: 'Eternal' | 'Defender' | 'Gigantic' | 'Seasoned' | 'Tough' | 'Cooldown' | 'Scout';
+    keyword?: KeywordAbility;
     keywordValue?: number; // For keywords like Scout X and Tough X
 }
 
