@@ -1,4 +1,3 @@
-
 import type { IAbility } from './abilities';
 import type { CardType, Faction, Rarity, PermanentZoneType, CounterType } from './enums';
 
@@ -22,7 +21,7 @@ export interface ICardDefinition {
     reserveLimit?: number; // For Heroes (Rule 2.2.12)
     landmarkLimit?: number; // For Heroes (Rule 2.2.13)
     permanentZoneType?: PermanentZoneType; // For Permanents (Rule 2.2.3)
-    startingCounters?: Map<CounterType, number>; // FIX: Rule 2.5.e - For heroes that start with counters
+    startingCounters?: Map<CounterType, number>; // Rule 2.5.e - For heroes that start with counters
 }
 
 /**

@@ -1,6 +1,6 @@
-import type { CounterType } from './enums'; // FIX: Imported CounterType
-import type { IGameObject } from './objects'; // FIX: Imported IGameObject
-import type { GameStateManager } from '../GameStateManager'; // FIX: Imported GameStateManager
+import type { CounterType } from './enums'; 
+import type { IGameObject } from './objects'; 
+import type { GameStateManager } from '../GameStateManager'; 
 
 /**
  * Represents the cost to play a card or activate an ability.
@@ -68,5 +68,5 @@ export interface IAbility {
     text: string; // Original card text for display/reference
     isSupportAbility: boolean; // Rule 2.2.11.c
      isKeyword?: boolean;
-    keyword?: 'Eternal' | 'Defender' | 'Gigantic' | 'Seasoned' | 'etc.'; // FIX: Added Seasoned
+    keyword?: 'Eternal' | 'Defender' | 'Gigantic' | 'Seasoned' | 'etc.'; // Added Seasoned
 }

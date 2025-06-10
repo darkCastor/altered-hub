@@ -14,7 +14,7 @@ import { CounterType } from './types/enums';
 
 export class GameStateManager {
     public state: IGameState;
-    private objectFactory: ObjectFactory;
+    public objectFactory: ObjectFactory;
     public eventBus: EventBus;
     private cardDefinitions: Map<string, ICardDefinition>;
 
@@ -86,7 +86,7 @@ private initializeGameState(playerIds: string[]): IGameState {
             const heroTempInstance = this.objectFactory.createCardInstance(heroDefinition.id, playerId);
             const heroGameObject = this.objectFactory.createGameObject(heroTempInstance, playerId) as IGameObject;
             
-            // FIX: Rule 2.5.e - Apply starting counters to Hero
+            // Rule 2.5.e - Apply starting counters to Hero
             if (heroDefinition.startingCounters) {
                 heroGameObject.counters = new Map(heroDefinition.startingCounters);
                  console.log(`[GSM] Applied starting counters to Hero ${heroGameObject.name}.`);
@@ -168,7 +168,7 @@ public moveEntity(entityId: string, fromZone: IZone, toZone: IZone, controllerId
         finalDestinationZone = correctZone;
     }
 
-    // --- FIX: COUNTER RETENTION LOGIC ---
+    // --- COUNTER RETENTION LOGIC ---
     // This block determines which counters, if any, the new object will have.
     const countersToKeep = new Map<CounterType, number>();
     const sourceGameObject = isGameObject(sourceEntity) ? sourceEntity : undefined;
@@ -182,7 +182,9 @@ public moveEntity(entityId: string, fromZone: IZone, toZone: IZone, controllerId
 
         if (fromZoneIsReserveOrLimbo) {
             // Rule 2.5.k: Keeps counters when moving from Reserve or Limbo (to a non-losing zone).
-            countersToKeep.set(...sourceGameObject.counters.entries());
+            for(const [type, amount] of sourceGameObject.counters.entries()) {
+                countersToKeep.set(type, amount);
+            }
         } else if (fromZoneIsExpeditionOrLandmark) {
             // Rule 2.5.j: Loses counters when moving from Expedition or Landmark, with an exception.
             const isMovingToReserve = finalDestinationZone.zoneType === ZoneIdentifier.Reserve;
@@ -199,11 +201,11 @@ public moveEntity(entityId: string, fromZone: IZone, toZone: IZone, controllerId
             // Otherwise, counters are lost, so countersToKeep remains empty.
         }
     }
-    // --- END FIX ---
+    // --- END COUNTER RETENTION LOGIC ---
 
     let newEntity: ZoneEntity;
     if (finalDestinationZone.visibility === 'visible') {
-        // FIX: Pass the calculated counters to the factory.
+        // Pass the calculated counters to the factory.
         newEntity = this.objectFactory.createGameObject(sourceEntity, controllerId, countersToKeep);
     } else {
          newEntity = isGameObject(sourceEntity) ? this.objectFactory.createCardInstance(sourceEntity.definitionId, sourceEntity.ownerId) : sourceEntity;
@@ -214,6 +216,7 @@ public moveEntity(entityId: string, fromZone: IZone, toZone: IZone, controllerId
     this.eventBus.publish('entityMoved', { entity: newEntity, from: fromZone, to: finalDestinationZone });
     return newEntity;
 }
+
 
 public getCardDefinition(id: string): ICardDefinition | undefined {
     return this.cardDefinitions.get(id);
@@ -229,7 +232,6 @@ public getObject(id: string): IGameObject | undefined {
     return undefined;
 }
 
-// FIX: Added missing helper method used by ReactionManager
 public findZoneOfObject(objectId: string): IZone | undefined {
     for (const zone of this.getAllVisibleZones()) {
         if (zone.findById(objectId)) {

@@ -41,7 +41,7 @@ export class CostProcessor {
             }
         }
 
-        // FIX: Spend Counters Cost (Rule 2.5.h)
+        // Spend Counters Cost (Rule 2.5.h)
         if (cost.spendCounters) {
              if (!sourceObjectId) {
                 console.error(`[Cost] spendCounters cost requires a sourceObjectId, but none was provided.`);
@@ -100,7 +100,7 @@ export class CostProcessor {
             console.log(`[Cost] Exhausted object ${sourceObject.objectId} ('${sourceObject.name}') to pay a cost.`);
         }
 
-        // FIX: Pay Spend Counters (Rule 2.5.h / 7.3.27)
+        // Pay Spend Counters (Rule 2.5.h / 7.3.27)
         if (cost.spendCounters) {
             if (!sourceObjectId) {
                 throw new Error("Cannot pay spendCounters cost without a sourceObjectId.");

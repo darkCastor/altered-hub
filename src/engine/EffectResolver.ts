@@ -47,7 +47,7 @@ private resolveStep(step: IEffectStep, sourceObjectId?: string) {
             });
             break;
         }
-        // FIX: Implement counter modification verbs
+        // Implement counter modification verbs
         case 'gainCounter': { // Rule 2.5.f / 7.3.12
             const type = step.parameters?.type as CounterType;
             const amount = step.parameters?.amount as number ?? 1;

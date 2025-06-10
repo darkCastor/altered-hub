@@ -12,7 +12,7 @@ dayAdvanced: { dayNumber: number };
 manaSpent: { playerId: string; amount: number };
 statusGained: { targetId: string; status: string };
 afternoonEnded: Record<string, never>;
-// FIX: Add events for counter changes
+// Add events for counter changes
 counterGained: { targetId: string; type: CounterType; amount: number };
 countersSpent: { sourceId: string; type: CounterType; amount: number };
 };

@@ -15,9 +15,13 @@ interface GameCardDisplayProps {
 }
 
 export default function GameCardDisplayClient({ card, isOpponentHandCard, isHero, className }: GameCardDisplayProps) {
-  // FIX: Add a guard clause to prevent crashing if card data is invalid or missing.
-  if (!card || !card.instanceId) {
-    return null;
+  // Guard clause to prevent crashing if card data is invalid or missing.
+  if (!card || (!card.instanceId && !isOpponentHandCard)) {
+    return (
+      <Card className={cn("w-16 h-24 md:w-20 md:h-28 bg-destructive/50 border-destructive shadow-md flex items-center justify-center", className)}>
+        <CardContent className="p-1 text-center text-xs text-destructive-foreground">Error: Missing Card Data</CardContent>
+      </Card>
+    );
   }
 
   if (isOpponentHandCard) {
@@ -31,9 +35,11 @@ export default function GameCardDisplayClient({ card, isOpponentHandCard, isHero
   }
   const aiHint = card.name ? card.name.toLowerCase().split(' ').slice(0, 2).join(' ') : 'game card';
 
-  // FIX: Use optional chaining and nullish coalescing for safety.
-  // This ensures that even if statuses or counters are undefined, we don't crash.
-  const hasStatusesOrCounters = (card.statuses?.length ?? 0) > 0 || (card.counters?.length ?? 0) > 0;
+  // Use optional chaining and nullish coalescing for safety.
+  const hasStatuses = (card.statuses?.length ?? 0) > 0;
+  const hasCounters = (card.counters?.length ?? 0) > 0;
+  const hasOverlay = hasStatuses || hasCounters;
+
 
   return (
     <div className={cn("w-full h-full relative shadow-md rounded-sm group", className)}>
@@ -66,12 +72,12 @@ export default function GameCardDisplayClient({ card, isOpponentHandCard, isHero
       )}
 
       {/* Statuses and Counters Overlay */}
-      {hasStatusesOrCounters && (
-        <div className="absolute bottom-0 w-full p-0.5 bg-black/60 flex justify-center items-center gap-1">
-          {card.statuses?.map(status => (
-            <Badge key={status} variant="secondary" className="text-white text-[0.5rem] leading-none px-1 py-0.5 h-auto">{status.slice(0, 3).toUpperCase()}</Badge>
+      {hasOverlay && (
+        <div className="absolute top-1/2 -translate-y-1/2 w-full p-0.5 bg-black/60 flex flex-col justify-center items-center gap-1">
+          {hasStatuses && card.statuses?.map(status => (
+            <Badge key={status} variant="secondary" className="text-white text-[0.5rem] leading-none px-1 py-0.5 h-auto">{status.toUpperCase()}</Badge>
           ))}
-          {card.counters?.map(counter => (
+          {hasCounters && card.counters?.map(counter => (
             <Badge key={counter.type} variant="destructive" className="text-white text-[0.5rem] leading-none px-1 py-0.5 h-auto">
               {`${counter.type.slice(0, 3).toUpperCase()} +${counter.amount}`}
             </Badge>

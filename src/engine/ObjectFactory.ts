@@ -1,5 +1,3 @@
-// --- START OF FILE ObjectFactory.ts ---
-
 import type { ICardDefinition, ICardInstance } from './types/cards';
 import type { IGameObject, IEmblemObject } from './types/objects';
 import { CardType, CounterType, StatusType } from './types/enums';
@@ -43,7 +41,7 @@ export class ObjectFactory {
     public createGameObject(
         source: ICardInstance | IGameObject, 
         controllerId: string,
-        initialCounters?: Map<CounterType, number> // FIX: Allow specifying initial counters
+        initialCounters?: Map<CounterType, number> // Allow specifying initial counters
     ): IGameObject {
         const definition = this.cardDefinitions.get(source.definitionId);
         if (!definition) {
@@ -66,16 +64,16 @@ export class ObjectFactory {
             controllerId: controllerId,
             timestamp: ObjectFactory.getNewTimestamp(),
             statuses: new Set<StatusType>(),
-            counters: new Map<CounterType, number>(), // FIX: Default to empty map
+            counters: new Map<CounterType, number>(), // Default to empty map
             abilities: [],
         };
         
-        // FIX: Apply initial counters if provided by the GameStateManager.
+        // Apply initial counters if provided by the GameStateManager.
         if (initialCounters) {
             newObject.counters = new Map(initialCounters);
         }
 
-        // FIX: Correctly copy statuses from the source if it was an object (e.g., in Limbo/Reserve).
+        // Correctly copy statuses from the source if it was an object (e.g., in Limbo/Reserve).
         if (isGameObject(source)) {
             newObject.statuses = new Set(source.statuses);
         }

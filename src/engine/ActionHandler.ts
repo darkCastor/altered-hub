@@ -6,7 +6,7 @@ import { EffectResolver } from './EffectResolver';
 import type { IZone} from './types/zones';
 import type { ICardInstance } from './types/cards';
 import type { ICost } from './types/abilities';
-import { CardType, StatusType } from './types/enums';
+import { CardType, StatusType, ZoneIdentifier } from './types/enums';
 import { isGameObject } from './types/objects';
 
 /**
@@ -41,40 +41,38 @@ export class ActionHandler {
         // --- 1. Validation and Declaration of Intent ---
         const player = this.gsm.getPlayer(playerId);
         if (!player || this.gsm.state.currentPlayerId !== playerId) {
-            console.error(`[ActionHandler] FAILED: It is not ${playerId}'s turn.`);
-            return;
+            throw new Error(`It is not ${playerId}'s turn.`);
         }
 
         const cardInstance = player.zones.hand.findById(cardInstanceId) as ICardInstance;
         if (!cardInstance) {
-            console.error(`[ActionHandler] FAILED: Card ${cardInstanceId} not found in player's hand.`);
-            return;
+            throw new Error(`Card ${cardInstanceId} not found in player's hand.`);
         }
 
         const definition = this.gsm.getCardDefinition(cardInstance.definitionId);
         if (!definition) {
-            console.error(`[ActionHandler] FAILED: Card definition not found for ${cardInstance.definitionId}.`);
-            return;
+            throw new Error(`Card definition not found for ${definition.name}.`);
         }
         
         const cost: ICost = { mana: definition.handCost };
 
         if (!this.costProcessor.canPay(playerId, cost)) {
-            console.error(`[ActionHandler] FAILED: Player ${playerId} cannot pay the costs for ${definition.name}.`);
-            return;
+            throw new Error(`Player ${playerId} cannot pay the costs for ${definition.name}.`);
         }
         console.log(`[ActionHandler] Intent to play ${definition.name} is valid.`);
 
         // --- 2. Move to Limbo (Rule 5.1.2.g) ---
-        const limboMovePayload = this.gsm.moveEntity(cardInstance.instanceId, player.zones.hand, this.gsm.state.sharedZones.limbo, playerId);
-        if (!limboMovePayload) {
-             console.error(`[ActionHandler] FAILED: Card ${cardInstance.instanceId} could not be moved to Limbo.`);
-             return;
+        const limboMoveResult = this.gsm.moveEntity(cardInstance.instanceId, player.zones.hand, this.gsm.state.sharedZones.limbo, playerId);
+        if (!limboMoveResult) {
+             throw new Error(`Card ${cardInstance.instanceId} could not be moved to Limbo.`);
         }
+        const limboMovePayload = { entity: limboMoveResult, from: player.zones.hand, to: this.gsm.state.sharedZones.limbo };
         this.reactionManager.checkForTriggers('entityMoved', limboMovePayload);
         await this.reactionManager.processReactions();
 
-        const objectInLimbo = this.gsm.state.sharedZones.limbo.findById(limboMovePayload.newId);
+        const objectInLimboId = isGameObject(limboMoveResult) ? limboMoveResult.objectId : limboMoveResult.instanceId;
+        const objectInLimbo = this.gsm.state.sharedZones.limbo.findById(objectInLimboId);
+        
         if (!objectInLimbo || !isGameObject(objectInLimbo)) {
             console.warn(`[ActionHandler] Card ${definition.name} was removed from Limbo by a reaction before it could resolve. Aborting action.`);
             this.turnManager.advanceTurn();
@@ -83,8 +81,9 @@ export class ActionHandler {
         
         // --- 3. Pay Costs (Rule 5.1.2.h) ---
         if (!this.costProcessor.canPay(playerId, cost)) {
-            console.error(`[ActionHandler] FAILED: Cost became unpayable after reactions. Returning card to hand.`);
+            console.error(`[ActionHandler] Cost became unpayable after reactions. Returning card to hand.`);
             this.gsm.moveEntity(objectInLimbo.objectId, this.gsm.state.sharedZones.limbo, player.zones.hand, playerId);
+            // NOTE: Do not advance turn, player action failed.
             return;
         }
         this.costProcessor.pay(playerId, cost);
@@ -95,34 +94,29 @@ export class ActionHandler {
         switch (definition.type) {
             case CardType.Character:
             case CardType.ExpeditionPermanent:
-                const targetExpedition = player.zones.expedition; // FIX: Correctly access player's expedition zone
-                if (!targetExpedition) {
-                     console.error(`[ActionHandler] FAILED: Target expedition for player ${playerId} not found.`);
-                     this.gsm.moveEntity(objectInLimbo.objectId, this.gsm.state.sharedZones.limbo, player.zones.hand, playerId);
-                     return;
+                const targetExpeditionZone = this.gsm.state.players.get(playerId)?.zones.expedition;
+                if (!targetExpeditionZone) {
+                    throw new Error(`Target expedition for player ${playerId} not found.`);
                 }
-                finalDestinationZone = targetExpedition;
+                finalDestinationZone = targetExpeditionZone;
                 break;
-
             case CardType.LandmarkPermanent:
                 finalDestinationZone = player.zones.landmarkZone;
                 break;
-
             case CardType.Spell:
                  const isFleeting = objectInLimbo.statuses.has(StatusType.Fleeting);
                  finalDestinationZone = isFleeting ? player.zones.discardPile : player.zones.reserve;
                  break;
-
             default:
-                 console.error(`[ActionHandler] FAILED: Unknown card type resolution: ${definition.type}.`);
                  this.gsm.moveEntity(objectInLimbo.objectId, this.gsm.state.sharedZones.limbo, player.zones.hand, playerId);
-                 return;
+                 throw new Error(`Unknown card type resolution: ${definition.type}.`);
         }
         
-        const finalMovePayload = this.gsm.moveEntity(objectInLimbo.objectId, this.gsm.state.sharedZones.limbo, finalDestinationZone, playerId);
         console.log(`[ActionHandler] ${definition.name} is moving from Limbo to ${finalDestinationZone.zoneType}.`);
+        const finalMoveResult = this.gsm.moveEntity(objectInLimbo.objectId, this.gsm.state.sharedZones.limbo, finalDestinationZone, playerId);
 
-        if (finalMovePayload) {
+        if (finalMoveResult) {
+            const finalMovePayload = { entity: finalMoveResult, from: this.gsm.state.sharedZones.limbo, to: finalDestinationZone };
             this.reactionManager.checkForTriggers('entityMoved', finalMovePayload);
             await this.reactionManager.processReactions();
         }
@@ -140,8 +134,10 @@ export class ActionHandler {
     public async tryPass(playerId: string): Promise<void> {
         const player = this.gsm.getPlayer(playerId);
         if (!player || this.gsm.state.currentPlayerId !== playerId) {
-            console.error(`[ActionHandler] FAILED: It is not ${playerId}'s turn to pass.`);
-            return;
+            throw new Error(`It is not ${playerId}'s turn to pass.`);
+        }
+        if (player.hasPassedTurn) {
+            throw new Error(`Player ${playerId} has already passed.`);
         }
 
         console.log(`[ActionHandler] Player ${playerId} passes the turn.`);
