@@ -13,6 +13,8 @@ import { CounterType, KeywordAbility } from './types/enums';
 import { KeywordAbilityHandler } from './KeywordAbilityHandler';
 import { SupportAbilityHandler } from './SupportAbilityHandler';
 import { AdvancedTriggerHandler } from './AdvancedTriggerHandler';
+import { PlayerActionHandler } from './PlayerActionHandler';
+import { EffectProcessor } from './EffectProcessor';
 
 
 export class GameStateManager {
@@ -22,6 +24,9 @@ export class GameStateManager {
     public keywordHandler: KeywordAbilityHandler;
     public supportHandler: SupportAbilityHandler;
     public triggerHandler: AdvancedTriggerHandler;
+    public actionHandler: PlayerActionHandler;
+    public effectProcessor: EffectProcessor;
+    public turnManager?: any; // Will be set by TurnManager
     private cardDefinitions: Map<string, ICardDefinition>;
 
     constructor(playerIds: string[], cardDefinitions: ICardDefinition[], eventBus: EventBus) {
@@ -31,6 +36,8 @@ export class GameStateManager {
         this.keywordHandler = new KeywordAbilityHandler(this);
         this.supportHandler = new SupportAbilityHandler(this);
         this.triggerHandler = new AdvancedTriggerHandler(this);
+        this.actionHandler = new PlayerActionHandler(this);
+        this.effectProcessor = new EffectProcessor(this);
         this.state = this.initializeGameState(playerIds);
     }
 
