@@ -1,10 +1,10 @@
 import type { GameStateManager } from './GameStateManager';
-import type { ObjectFactory } from './types/zones';
+import type { ObjectFactory } from './ObjectFactory';
 import type { IGameObject, IEmblemObject } from './types/objects';
 import { isGameObject } from './types/objects';
 import type { EffectResolver } from './EffectResolver';
-import { AbilityType, CardType, StatusType, ZoneIdentifier } from './types/enums';
-import type { IAbility } from './types/abilities';
+import { CardType, StatusType, ZoneIdentifier } from './types/enums';
+import { AbilityType, type IAbility } from './types/abilities';
 
 export class ReactionManager {
     private gsm: GameStateManager;

@@ -6,7 +6,7 @@ import { EffectResolver } from './EffectResolver';
 import type { IZone} from './types/zones';
 import type { ICardInstance } from './types/cards';
 import type { ICost } from './types/abilities';
-import { CardType, StatusType, ZoneIdentifier } from './types/enums';
+import { CardType, StatusType, ZoneIdentifier, PermanentZoneType } from './types/enums';
 import { isGameObject } from './types/objects';
 
 /**
@@ -51,7 +51,7 @@ export class ActionHandler {
 
         const definition = this.gsm.getCardDefinition(cardInstance.definitionId);
         if (!definition) {
-            throw new Error(`Card definition not found for ${definition.name}.`);
+            throw new Error(`Card definition not found for ${cardInstance.definitionId}.`);
         }
         
         const cost: ICost = { mana: definition.handCost };
@@ -83,7 +83,6 @@ export class ActionHandler {
         if (!this.costProcessor.canPay(playerId, cost)) {
             console.error(`[ActionHandler] Cost became unpayable after reactions. Returning card to hand.`);
             this.gsm.moveEntity(objectInLimbo.objectId, this.gsm.state.sharedZones.limbo, player.zones.hand, playerId);
-            // NOTE: Do not advance turn, player action failed.
             return;
         }
         this.costProcessor.pay(playerId, cost);
@@ -93,27 +92,37 @@ export class ActionHandler {
         let finalDestinationZone: IZone;
         switch (definition.type) {
             case CardType.Character:
-            case CardType.ExpeditionPermanent:
-                const targetExpeditionZone = this.gsm.state.players.get(playerId)?.zones.expedition;
-                if (!targetExpeditionZone) {
-                    throw new Error(`Target expedition for player ${playerId} not found.`);
+                const targetExpedition = player.zones.expedition; 
+                if (!targetExpedition) {
+                     this.gsm.moveEntity(objectInLimbo.objectId, this.gsm.state.sharedZones.limbo, player.zones.hand, playerId);
+                     throw new Error(`Target expedition for player ${playerId} not found.`);
                 }
-                finalDestinationZone = targetExpeditionZone;
+                finalDestinationZone = targetExpedition;
                 break;
-            case CardType.LandmarkPermanent:
-                finalDestinationZone = player.zones.landmarkZone;
+
+            case CardType.Permanent:
+                if (definition.permanentZoneType === PermanentZoneType.Landmark) {
+                    finalDestinationZone = player.zones.landmarkZone;
+                } else if (definition.permanentZoneType === PermanentZoneType.Expedition) {
+                    finalDestinationZone = player.zones.expedition;
+                } else {
+                    this.gsm.moveEntity(objectInLimbo.objectId, this.gsm.state.sharedZones.limbo, player.zones.hand, playerId);
+                    throw new Error(`Unknown permanent zone type for ${definition.name}.`);
+                }
                 break;
+
             case CardType.Spell:
                  const isFleeting = objectInLimbo.statuses.has(StatusType.Fleeting);
                  finalDestinationZone = isFleeting ? player.zones.discardPile : player.zones.reserve;
                  break;
+
             default:
                  this.gsm.moveEntity(objectInLimbo.objectId, this.gsm.state.sharedZones.limbo, player.zones.hand, playerId);
                  throw new Error(`Unknown card type resolution: ${definition.type}.`);
         }
         
-        console.log(`[ActionHandler] ${definition.name} is moving from Limbo to ${finalDestinationZone.zoneType}.`);
         const finalMoveResult = this.gsm.moveEntity(objectInLimbo.objectId, this.gsm.state.sharedZones.limbo, finalDestinationZone, playerId);
+        console.log(`[ActionHandler] ${definition.name} is moving from Limbo to ${finalDestinationZone.zoneType}.`);
 
         if (finalMoveResult) {
             const finalMovePayload = { entity: finalMoveResult, from: this.gsm.state.sharedZones.limbo, to: finalDestinationZone };
