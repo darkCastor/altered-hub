@@ -17,8 +17,8 @@ export enum Faction {
 }
 
 export enum CardType {
-    Character = "Personnage", // Match names from cardTypesLookup
-    Emblem = "Emblem", 
+    Character = "Personnage",
+    Emblem = "Emblem", // Added
     Hero = "Héros",
     ManaOrb = "ManaOrb", 
     Permanent = "Permanent", 
@@ -32,6 +32,7 @@ export enum CardType {
     HERO = "Héros",
     SPELL = "Sort",
     PERMANENT = "Permanent",
+    EMBLEM = "Emblem", // Added
     LANDMARK_PERMANENT = "Repère Permanent",
     EXPEDITION_PERMANENT = "Permanent d’Expédition",
     TOKEN = "Jeton Personnage",

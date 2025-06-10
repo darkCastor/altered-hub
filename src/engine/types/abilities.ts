@@ -1,3 +1,7 @@
+import type { CounterType } from './enums'; // FIX: Imported CounterType
+import type { IGameObject } from './objects'; // FIX: Imported IGameObject
+import type { GameStateManager } from '../GameStateManager'; // FIX: Imported GameStateManager
+
 /**
  * Represents the cost to play a card or activate an ability.
  * Rule 1.2.5, 6.4
@@ -28,6 +32,7 @@ export interface IEffectStep {
 export interface IEffect {
     steps: IEffectStep[];
     sourceObjectId?: string; // The object that generated this effect
+    _triggerPayload?: any; // FIX: Added optional property for internal use
 }
 
 /**
@@ -35,8 +40,10 @@ export interface IEffect {
  * Rule 6.3
  */
 export interface ITrigger {
-    eventType: string; // e.g., 'objectEntersZone', 'phaseStarts'
-    conditions: any; // Further criteria to check
+    eventType: string; // e.g., 'entityMoved', corresponds to an EventBus event type
+    // A function to check if the specific event payload meets the trigger's conditions
+    // Rule 6.3.b, 6.3.k
+    condition: (payload: any, sourceObject: IGameObject, gsm: GameStateManager) => boolean;
 }
 
 export enum AbilityType {
@@ -56,6 +63,7 @@ export interface IAbility {
     abilityType: AbilityType;
     cost?: ICost; // For quick actions
     trigger?: ITrigger; // For reactions
+    isSelfMove?: boolean; // Rule 6.3.c
     effect: IEffect;
     text: string; // Original card text for display/reference
     isSupportAbility: boolean; // Rule 2.2.11.c

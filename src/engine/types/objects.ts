@@ -1,8 +1,7 @@
-
 import type { ICardInstance } from './cards';
 import type { ICardDefinition } from './cards';
 import type { CardType, StatusType, CounterType, PermanentZoneType } from './enums';
-import type { IAbility } from './abilities';
+import type { IAbility, IEffect } from './abilities';
 
 
 /**
@@ -30,6 +29,14 @@ export interface IGameObject {
     counters: Map<CounterType, number>; // Rule 2.5
     
     abilities: IAbility[]; // Instantiated abilities for this object
+}
+
+// Rule 2.2.1.g, 6.3.g
+export interface IEmblemObject extends IGameObject {
+    type: CardType.Emblem;
+    emblemSubType: 'Reaction' | 'Ongoing'; // Rule 2.2.2.h, 2.2.2.m
+    boundEffect: IEffect; // The effect to resolve, with targets bound from the trigger
+    duration?: 'this turn' | 'this Afternoon' | 'this Day'; // Rule 2.2.14
 }
 
 // Specializations of IGameObject

@@ -1,3 +1,7 @@
+import type { ICardInstance } from './cards'; // FIX: Import from correct file
+import type { IGameObject, IHeroObject } from './objects'; // FIX: Import from correct file
+import { GamePhase, ZoneIdentifier } from './enums';
+
 export type ZoneEntity = ICardInstance | IGameObject;
 
 /**
@@ -9,7 +13,7 @@ export interface IZone {
     zoneType: ZoneIdentifier;
     visibility: 'hidden' | 'visible'; // Rule 3.1.3
     ownerId?: string; // For personal zones (Rule 3.1.2)
-    entities: Map<string, ZoneEntity>;
+    entities: Map<string, ZoneEntity> | ZoneEntity[]; // Allow array for ordered zones like Deck
 
     add(entity: ZoneEntity): void;
     remove(entityId: string): ZoneEntity | undefined;
@@ -39,6 +43,7 @@ export interface IPlayer {
         reserve: IZone;
         landmarkZone: IZone;
         heroZone: IZone;
+        expedition: IZone; // FIX: Added missing expedition zone
     };
     heroExpeditionPosition: number;
     companionExpeditionPosition: number;
