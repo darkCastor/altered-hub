@@ -1,7 +1,9 @@
-import type { ICardDefinition, ICardInstance } from './engine/types/cards';
-import type { IEmblemObject, IGameObject } from './engine/types/objects';
-import type { IAbility, IEffect } from './engine/types/abilities';
-import { CardType, StatusType, CounterType } from './engine/types/enums';
+// --- START OF FILE ObjectFactory.ts ---
+
+import type { ICardDefinition, ICardInstance } from './types/cards';
+import type { IGameObject, IEmblemObject } from './types/objects';
+import { CardType, CounterType, StatusType } from './types/enums';
+import type { IAbility, IEffect } from './types/abilities';
 
 /**
  * Responsible for creating new instances of game objects.
@@ -11,13 +13,13 @@ import { CardType, StatusType, CounterType } from './engine/types/enums';
 export class ObjectFactory {
     private static nextId = 0;
     private static nextTimestamp = 0;
-
+    
     private cardDefinitions: Map<string, ICardDefinition>;
 
     constructor(definitions: Map<string, ICardDefinition>) {
         this.cardDefinitions = definitions;
     }
-
+    
     public static createUniqueId(): string {
         return `instance-${this.nextId++}`;
     }
@@ -44,6 +46,7 @@ export class ObjectFactory {
         }
 
         const baseCharacteristics = { ...definition };
+        
         const instantiatedAbilities = definition.abilities.map(ability => ({ ...ability }));
 
         const newObject: IGameObject = {
@@ -68,23 +71,28 @@ export class ObjectFactory {
             effect: { ...ability.effect, sourceObjectId: newObject.objectId }
         }));
 
+
         return newObject;
     }
-    
-    // FIX: Added the missing method
+
     public createReactionEmblem(sourceAbility: IAbility, sourceObject: IGameObject, triggerPayload: any): IEmblemObject {
+        if (!sourceAbility.sourceObjectId) {
+            throw new Error("Cannot create emblem from an ability not bound to an object.");
+        }
+    
+        // Bind the trigger payload and original source to the effect for later resolution
         const boundEffect: IEffect = {
             ...sourceAbility.effect,
-            sourceObjectId: sourceObject.objectId,
-            _triggerPayload: triggerPayload,
+            sourceObjectId: sourceObject.objectId, 
+            _triggerPayload: triggerPayload 
         };
-
+    
         const emblem: IEmblemObject = {
-            objectId: ObjectFactory.createUniqueId(), // FIX: Use static context
-            definitionId: `emblem-${sourceObject.definitionId}-${sourceAbility.abilityId}`,
+            objectId: ObjectFactory.createUniqueId(),
+            definitionId: `emblem-reaction-${sourceAbility.abilityId}`,
             name: `Reaction: ${sourceAbility.text}`,
             type: CardType.Emblem,
-            emblemSubType: 'Reaction', // FIX: Use emblemSubType instead of emblemType
+            emblemSubType: 'Reaction', // Rule 2.2.2.m
             baseCharacteristics: {},
             currentCharacteristics: {},
             ownerId: sourceObject.ownerId,
@@ -93,9 +101,9 @@ export class ObjectFactory {
             statuses: new Set(),
             counters: new Map(),
             abilities: [],
-            boundEffect,
+            boundEffect: boundEffect,
         };
-
+    
         return emblem;
     }
 }

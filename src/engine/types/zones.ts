@@ -1,6 +1,7 @@
-import type { ICardInstance } from './cards'; // FIX: Import from correct file
-import type { IGameObject, IHeroObject } from './objects'; // FIX: Import from correct file
-import { GamePhase, ZoneIdentifier } from './enums';
+import type { ICardDefinition, ICardInstance } from './cards';
+import type { IGameObject, IEmblemObject } from './objects';
+import { CardType, CounterType, StatusType } from './enums';
+import type { IAbility, IEffect } from './abilities';
 
 export type ZoneEntity = ICardInstance | IGameObject;
 

@@ -1,14 +1,16 @@
-import type { IGameState, IPlayer, ICardInstance, IGameObject, ZoneEntity, IZone, ICardDefinition } from './types/zones';
+import type { IGameState, IPlayer, IZone, ICardDefinition } from './types/zones';
 import { ObjectFactory } from './types/zones';
-import { GamePhase, ZoneIdentifier, StatusType, CounterType, CardType, PermanentZoneType } from './types/enums';
+import { GamePhase, ZoneIdentifier, StatusType, CardType } from './types/enums';
 import type { EventBus } from './EventBus';
 import { BaseZone, HandZone, DiscardPileZone, LimboZone, DeckZone } from './Zone';
+import type { ICardInstance, IGameObject, ZoneEntity } from './types/objects';
 import { isGameObject } from './types/objects';
+
 export class GameStateManager {
-public state: IGameState;
-private objectFactory: ObjectFactory;
-public eventBus: EventBus;
-private cardDefinitions: Map<string, ICardDefinition>;
+    public state: IGameState;
+    private objectFactory: ObjectFactory;
+    public eventBus: EventBus;
+    private cardDefinitions: Map<string, ICardDefinition>;
 constructor(playerIds: string[], cardDefinitions: ICardDefinition[], eventBus: EventBus) {
     this.cardDefinitions = new Map(cardDefinitions.map(def => [def.id, def]));
     this.objectFactory = new ObjectFactory(this.cardDefinitions);
@@ -16,6 +18,15 @@ constructor(playerIds: string[], cardDefinitions: ICardDefinition[], eventBus: E
     this.state = this.initializeGameState(playerIds);
 }
 
+    public findZoneOfObject(objectId: string): IZone | undefined {
+        for (const zone of this.getAllVisibleZones()) {
+            if (zone.findById(objectId)) {
+                return zone;
+            }
+        }
+        return undefined;
+    }
+    
 private initializeGameState(playerIds: string[]): IGameState {
     const players = new Map<string, IPlayer>();
     playerIds.forEach(pid => {
@@ -156,16 +167,16 @@ public getObject(id: string): IGameObject | undefined {
 }
 
 private *getAllVisibleZones(): Generator<IZone> {
-    for (const player of this.state.players.values()) {
-        yield player.zones.discardPile;
-        yield player.zones.manaZone;
-        yield player.zones.reserve;
-        yield player.zones.landmarkZone;
-        yield player.zones.heroZone;
-        yield player.zones.expedition;
-    }
-    yield this.state.sharedZones.adventure;
-    yield this.state.sharedZones.limbo;
+        for (const player of this.state.players.values()) {
+            yield player.zones.discardPile;
+            yield player.zones.manaZone;
+            yield player.zones.reserve;
+            yield player.zones.landmarkZone;
+            yield player.zones.heroZone;
+            yield player.zones.expedition;
+        }
+        yield this.state.sharedZones.adventure;
+        yield this.state.sharedZones.limbo;
 }
 
 public getPlayer(id: string): IPlayer | undefined {
