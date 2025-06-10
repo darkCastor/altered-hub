@@ -112,6 +112,7 @@ export class ActionHandler {
                 break;
 
             case CardType.Spell:
+                // Rule 2.4.6.e / 5.2.4.b: Fleeting spells are discarded instead of going to Reserve.
                  const isFleeting = objectInLimbo.statuses.has(StatusType.Fleeting);
                  finalDestinationZone = isFleeting ? player.zones.discardPile : player.zones.reserve;
                  break;
@@ -120,16 +121,18 @@ export class ActionHandler {
                  this.gsm.moveEntity(objectInLimbo.objectId, this.gsm.state.sharedZones.limbo, player.zones.hand, playerId);
                  throw new Error(`Unknown card type resolution: ${definition.type}.`);
         }
+                const finalMoveResult = this.gsm.moveEntity(objectInLimbo.objectId, this.gsm.state.sharedZones.limbo, finalDestinationZone, playerId);
         
-        const finalMoveResult = this.gsm.moveEntity(objectInLimbo.objectId, this.gsm.state.sharedZones.limbo, finalDestinationZone, playerId);
-        console.log(`[ActionHandler] ${definition.name} is moving from Limbo to ${finalDestinationZone.zoneType}.`);
-
-        if (finalMoveResult) {
-            const finalMovePayload = { entity: finalMoveResult, from: this.gsm.state.sharedZones.limbo, to: finalDestinationZone };
-            this.reactionManager.checkForTriggers('entityMoved', finalMovePayload);
-            await this.reactionManager.processReactions();
+        // Rule 7.4.1.b / 5.2.4.b: A non-Fleeting spell with Cooldown enters Reserve exhausted.
+        if (finalMoveResult && isGameObject(finalMoveResult) && definition.type === CardType.Spell) {
+            const hasCooldown = definition.abilities.some(a => a.keyword === 'Cooldown');
+            if (hasCooldown && finalDestinationZone.zoneType === ZoneIdentifier.Reserve) {
+                finalMoveResult.statuses.add(StatusType.Exhausted);
+                console.log(`[ActionHandler] Spell ${definition.name} entered Reserve exhausted due to Cooldown.`);
+            }
         }
-        
+
+        console.log(`[ActionHandler] ${definition.name} is moving from Limbo to ${finalDestinationZone.zoneType}.`);
         console.log(`[ActionHandler] Action to play ${definition.name} is complete.`);
 
         // --- 5. End of Turn Effect ---
@@ -177,7 +180,6 @@ public async trySkipExpand(playerId: string): Promise<void> {
     console.log(`[ActionHandler] Player ${playerId} has skipped their expand action.`);
     player.hasExpandedThisTurn = true;
 }
-
     /**
      * Handles a player passing their turn.
      * @param playerId The ID of the player passing.

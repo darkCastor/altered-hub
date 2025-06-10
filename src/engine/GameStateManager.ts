@@ -148,6 +148,7 @@ public moveEntity(entityId: string, fromZone: IZone, toZone: IZone, controllerId
         finalDestinationZone = correctZone;
     }
 
+// --- REPLACE THIS ENTIRE BLOCK ---
     const countersToKeep = new Map<CounterType, number>();
     const sourceGameObject = isGameObject(sourceEntity) ? sourceEntity : undefined;
     const isMovingToLosingZone = finalDestinationZone.zoneType === ZoneIdentifier.DiscardPile || finalDestinationZone.visibility === 'hidden';
@@ -157,11 +158,13 @@ public moveEntity(entityId: string, fromZone: IZone, toZone: IZone, controllerId
         const fromZoneIsReserveOrLimbo = [ZoneIdentifier.Reserve, ZoneIdentifier.Limbo].includes(fromZone.zoneType);
 
         if (fromZoneIsReserveOrLimbo) {
+            // Rule 2.5.k: Objects from Reserve/Limbo keep counters (unless going to discard/hidden)
             for(const [type, amount] of sourceGameObject.counters.entries()) {
                 countersToKeep.set(type, amount);
             }
         } else if (fromZoneIsExpeditionOrLandmark) {
             const isMovingToReserve = finalDestinationZone.zoneType === ZoneIdentifier.Reserve;
+            // Rule 7.4.6.b: Check for Seasoned keyword when moving to Reserve
             const isSeasoned = sourceGameObject.abilities.some(a => a.keyword === 'Seasoned');
 
             if (isSeasoned && isMovingToReserve) {
@@ -172,6 +175,10 @@ public moveEntity(entityId: string, fromZone: IZone, toZone: IZone, controllerId
             }
         }
     }
+
+    let newEntity: ZoneEntity;
+    if (finalDestinationZone.visibility === 'visible') {
+// --- END OF REPLACEMENT ---
 
     let newEntity: ZoneEntity;
     if (finalDestinationZone.visibility === 'visible') {
