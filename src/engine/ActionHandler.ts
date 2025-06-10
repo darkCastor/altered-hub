@@ -6,8 +6,9 @@ import { EffectResolver } from './EffectResolver';
 import type { IZone} from './types/zones';
 import type { ICardInstance } from './types/cards';
 import type { ICost } from './types/abilities';
-import { CardType, StatusType, ZoneIdentifier, PermanentZoneType } from './types/enums';
+import { CardType, StatusType, ZoneIdentifier, PermanentZoneType, GamePhase } from './types/enums';
 import { isGameObject } from './types/objects';
+import type { IGameObject } from './types/objects';
 
 /**
  * Handles high-level player actions, orchestrating the various managers

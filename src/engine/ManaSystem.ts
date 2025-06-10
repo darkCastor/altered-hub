@@ -1,7 +1,7 @@
 import type { GameStateManager } from './GameStateManager';
 import type { IGameObject } from './types/objects';
 import type { ITerrainStats } from './types/game';
-import { TerrainType, StatusType, CardType } from './types/enums';
+import { TerrainType, StatusType, CardType, CounterType } from './types/enums';
 import { isGameObject } from './types/objects';
 
 /**
@@ -102,7 +102,7 @@ export class ManaSystem {
         const stats: ITerrainStats = { ...baseStats };
 
         // Add boost counters to all terrain types (Rule 2.5.1.b)
-        const boostCount = object.counters.get('Boost') || 0;
+        const boostCount = object.counters.get(CounterType.Boost) || 0;
         stats.forest += boostCount;
         stats.mountain += boostCount;
         stats.water += boostCount;

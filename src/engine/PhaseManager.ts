@@ -1,6 +1,7 @@
 import type { GameStateManager } from './GameStateManager';
 import type { TurnManager } from './TurnManager';
 import { GamePhase } from './types/enums';
+import { isGameObject } from './types/objects';
 export class PhaseManager {
 private gameStateManager: GameStateManager;
 private turnManager: TurnManager;
@@ -105,7 +106,8 @@ private async handleNight() {
     // 3. Check Victory
     const winner = this.gameStateManager.checkVictoryConditions();
     if (winner) {
-        this.gameStateManager.eventBus.publish('gameEnded', { winner, reason: 'victory' });
+        // this.gameStateManager.eventBus.publish('gameEnded', { winner, reason: 'victory' });
+        console.log(`[PhaseManager] Game ended - Winner: ${winner}`);
         return;
     }
 }
@@ -124,8 +126,9 @@ private async handleExpandPhase() {
         if (handZone.getCount() > 0) {
             const cardToExpand = handZone.getAll()[0]; // Take first card
             if (cardToExpand) {
+                const cardId = isGameObject(cardToExpand) ? cardToExpand.objectId : cardToExpand.instanceId;
                 this.gameStateManager.moveEntity(
-                    cardToExpand.instanceId,
+                    cardId,
                     handZone,
                     player.zones.manaZone,
                     playerId

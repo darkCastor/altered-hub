@@ -2,7 +2,7 @@ import type { IZone} from './types/zones';
 import { ObjectFactory } from './ObjectFactory';
 import { GamePhase, ZoneIdentifier, StatusType, CardType } from './types/enums';
 import type { EventBus } from './EventBus';
-import { BaseZone, HandZone, DiscardPileZone, LimboZone, DeckZone } from './Zone';
+import { GenericZone, HandZone, DiscardPileZone, LimboZone, DeckZone } from './Zone';
 import type { IGameObject } from './types/objects';
 import type { ICardInstance } from './types/cards';
 import type { ZoneEntity } from './types/zones';
@@ -66,11 +66,11 @@ private initializeGameState(playerIds: string[]): IGameState {
                 deck: new DeckZone(`${pid}-deck`, pid),
                 hand: new HandZone(`${pid}-hand`, pid),
                 discardPile: new DiscardPileZone(`${pid}-discard`, pid),
-                manaZone: new BaseZone(`${pid}-mana`, ZoneIdentifier.Mana, 'visible', pid),
-                reserve: new BaseZone(`${pid}-reserve`, ZoneIdentifier.Reserve, 'visible', pid),
-                landmarkZone: new BaseZone(`${pid}-landmark`, ZoneIdentifier.Landmark, 'visible', pid),
-                heroZone: new BaseZone(`${pid}-hero`, ZoneIdentifier.Hero, 'visible', pid),
-                expedition: new BaseZone(`${pid}-expedition`, ZoneIdentifier.Expedition, 'visible', pid), 
+                manaZone: new GenericZone(`${pid}-mana`, ZoneIdentifier.Mana, 'visible', pid),
+                reserve: new GenericZone(`${pid}-reserve`, ZoneIdentifier.Reserve, 'visible', pid),
+                landmarkZone: new GenericZone(`${pid}-landmark`, ZoneIdentifier.Landmark, 'visible', pid),
+                heroZone: new GenericZone(`${pid}-hero`, ZoneIdentifier.Hero, 'visible', pid),
+                expedition: new GenericZone(`${pid}-expedition`, ZoneIdentifier.Expedition, 'visible', pid), 
             },
             heroExpedition: { position: 0, canMove: true, hasMoved: false },
             companionExpedition: { position: 0, canMove: true, hasMoved: false },
@@ -82,8 +82,8 @@ private initializeGameState(playerIds: string[]): IGameState {
     return {
         players,
         sharedZones: {
-            adventure: new BaseZone("shared-adventure", ZoneIdentifier.Adventure, 'visible'),
-            expedition: new BaseZone("shared-expedition-deprecated", ZoneIdentifier.Expedition, 'visible'), 
+            adventure: new GenericZone("shared-adventure", ZoneIdentifier.Adventure, 'visible'),
+            expedition: new GenericZone("shared-expedition-deprecated", ZoneIdentifier.Expedition, 'visible'), 
             limbo: new LimboZone(),
         },
         currentPhase: GamePhase.Setup,
@@ -135,11 +135,12 @@ public resetExpandFlags(): void {
             deckCardInstances.forEach(cardInstance => deckZone.add(cardInstance));
             deckZone.shuffle();
             
-            const topCardInstances = deckZone.entities.slice(0, initialManaOrbs);
+            const topCardInstances = deckZone.getAll().slice(0, initialManaOrbs);
 
             for (const cardInstance of topCardInstances) {
+                const cardId = isGameObject(cardInstance) ? cardInstance.objectId : cardInstance.instanceId;
                 const manaObject = this.moveEntity(
-                    cardInstance.instanceId,
+                    cardId,
                     deckZone,
                     player.zones.manaZone,
                     playerId
@@ -206,10 +207,6 @@ public moveEntity(entityId: string, fromZone: IZone, toZone: IZone, controllerId
             }
         }
     }
-
-    let newEntity: ZoneEntity;
-    if (finalDestinationZone.visibility === 'visible') {
-// --- END OF REPLACEMENT ---
 
     let newEntity: ZoneEntity;
     if (finalDestinationZone.visibility === 'visible') {
@@ -486,13 +483,16 @@ public async drawCards(playerId: string, count: number): Promise<void> {
 
     const deck = player.zones.deck as DeckZone;
     const hand = player.zones.hand;
-    const discardPile = player.zones.discardPile as BaseZone;
+    const discardPile = player.zones.discardPile;
 
     for (let i = 0; i < count; i++) {
         if (deck.getCount() === 0) {
             if (discardPile.getCount() > 0) {
-                const discardedEntities = Array.from(discardPile.entities.values());
-                discardPile.entities.clear(); 
+                const discardedEntities = discardPile.getAll();
+                discardedEntities.forEach(e => {
+                    const entityId = isGameObject(e) ? e.objectId : e.instanceId;
+                    discardPile.remove(entityId);
+                }); 
 
                 const cardsToReshuffle: ICardInstance[] = discardedEntities.map(e => {
                     return isGameObject(e)

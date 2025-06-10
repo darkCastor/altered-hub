@@ -1,3 +1,7 @@
+import type { IHeroObject } from './objects';
+import type { IZone } from './zones';
+import { GamePhase } from './enums';
+
 /**
  * Terrain statistics for characters/objects
  * Rule 2.2.10, 7.1.2

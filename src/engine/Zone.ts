@@ -46,53 +46,36 @@ export abstract class BaseZone implements IZone {
 }
 
 export class DeckZone extends BaseZone {
-    public entities: ICardInstance[];
 
     constructor(id: string, ownerId: string) {
         super(id, ZoneIdentifier.Deck, 'hidden', ownerId);
-        this.entities = [];
     }
     
-    add(entity: ZoneEntity): void {
-        if (!isGameObject(entity)) {
-            this.entities.push(entity);
-        }
-    }
-
     addBottom(entities: ICardInstance[]): void {
-        this.entities.push(...entities);
+        entities.forEach(entity => this.entities.set(entity.instanceId, entity));
     }
 
     removeTop(): ICardInstance | undefined {
-        return this.entities.shift();
-    }
-
-    remove(entityId: string): ZoneEntity | undefined {
-        const index = this.entities.findIndex(e => e.instanceId === entityId);
-        if (index > -1) {
-            const [removedEntity] = this.entities.splice(index, 1);
-            return removedEntity;
+        const entitiesArray = Array.from(this.entities.values()).filter(e => !isGameObject(e)) as ICardInstance[];
+        if (entitiesArray.length > 0) {
+            const topEntity = entitiesArray[0];
+            this.entities.delete(topEntity.instanceId);
+            return topEntity;
         }
         return undefined;
     }
 
-    findById(entityId: string): ZoneEntity | undefined {
-        return this.entities.find(e => e.instanceId === entityId);
-    }
-
-    getAll(): ZoneEntity[] {
-        return [...this.entities];
-    }
-
-    getCount(): number {
-        return this.entities.length;
-    }
-
     shuffle(): void {
-        for (let i = this.entities.length - 1; i > 0; i--) {
+        const entitiesArray = Array.from(this.entities.values()).filter(e => !isGameObject(e)) as ICardInstance[];
+        this.entities.clear();
+        
+        // Fisher-Yates shuffle
+        for (let i = entitiesArray.length - 1; i > 0; i--) {
             const j = Math.floor(Math.random() * (i + 1));
-            [this.entities[i], this.entities[j]] = [this.entities[j], this.entities[i]];
+            [entitiesArray[i], entitiesArray[j]] = [entitiesArray[j], entitiesArray[i]];
         }
+        
+        entitiesArray.forEach(entity => this.entities.set(entity.instanceId, entity));
         console.log(`[Zone] Deck ${this.id} has been shuffled.`);
     }
 }
@@ -113,5 +96,11 @@ export class DiscardPileZone extends BaseZone {
 export class LimboZone extends BaseZone {
     constructor() {
         super("shared-limbo", ZoneIdentifier.Limbo, 'visible');
+    }
+}
+
+export class GenericZone extends BaseZone {
+    constructor(id: string, zoneType: ZoneIdentifier, visibility: 'hidden' | 'visible', ownerId?: string) {
+        super(id, zoneType, visibility, ownerId);
     }
 }

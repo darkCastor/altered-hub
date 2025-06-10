@@ -1,7 +1,7 @@
 import type { GameStateManager } from './GameStateManager';
 import type { IGameObject } from './types/objects';
 import type { IPlayer, ITerrainStats } from './types/game';
-import { GamePhase, CardType, StatusType } from './types/enums';
+import { GamePhase, CardType, StatusType, CounterType } from './types/enums';
 import { isGameObject } from './types/objects';
 
 /**
@@ -203,7 +203,7 @@ export class TiebreakerSystem {
                 }
                 
                 // Add boost counters
-                const boostCount = entity.counters.get('Boost') || 0;
+                const boostCount = entity.counters.get(CounterType.Boost) || 0;
                 stats.forest += boostCount;
                 stats.mountain += boostCount;
                 stats.water += boostCount;
@@ -267,7 +267,8 @@ export class TiebreakerSystem {
         this.restoreFromArena();
         
         // Publish game end event
-        this.gsm.eventBus.publish('gameEnded', { winner, reason: 'tiebreaker' });
+        // this.gsm.eventBus.publish('gameEnded', { winner, reason: 'tiebreaker' });
+        console.log(`[Tiebreaker] Game ended via tiebreaker - Winner: ${winner}`);
     }
 
     /**

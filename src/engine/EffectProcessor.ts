@@ -129,8 +129,9 @@ export class EffectProcessor {
                 // Discard cards from hand
                 const handCards = player.zones.hand.getAll().slice(0, count);
                 for (const card of handCards) {
+                    const cardId = isGameObject(card) ? card.objectId : card.instanceId;
                     this.gsm.moveEntity(
-                        card.instanceId,
+                        cardId,
                         player.zones.hand,
                         player.zones.discardPile,
                         target
@@ -234,7 +235,7 @@ export class EffectProcessor {
         const ability = step.parameters?.ability;
 
         for (const target of targets) {
-            if (isGameObject(target) && ability) {
+            if (typeof target === 'object' && 'objectId' in target && ability) {
                 target.abilities.push(ability);
                 console.log(`[EffectProcessor] Augmented ${target.name} with new ability`);
             }
@@ -258,7 +259,7 @@ export class EffectProcessor {
         const amount = step.parameters?.amount || 1;
 
         for (const target of targets) {
-            if (isGameObject(target)) {
+            if (this.isTargetGameObject(target)) {
                 const current = target.counters.get(counterType) || 0;
                 target.counters.set(counterType, current + amount);
                 console.log(`[EffectProcessor] ${target.name} gained ${amount} ${counterType} counters`);
@@ -275,7 +276,7 @@ export class EffectProcessor {
         const amount = step.parameters?.amount || 1;
 
         for (const target of targets) {
-            if (isGameObject(target)) {
+            if (this.isTargetGameObject(target)) {
                 const current = target.counters.get(counterType) || 0;
                 target.counters.set(counterType, Math.max(0, current - amount));
                 console.log(`[EffectProcessor] ${target.name} lost ${amount} ${counterType} counters`);
@@ -291,7 +292,7 @@ export class EffectProcessor {
         const statusType = step.parameters?.statusType;
 
         for (const target of targets) {
-            if (isGameObject(target) && statusType) {
+            if (this.isTargetGameObject(target) && statusType) {
                 target.statuses.add(statusType);
                 console.log(`[EffectProcessor] ${target.name} gained ${statusType} status`);
             }
@@ -306,7 +307,7 @@ export class EffectProcessor {
         const statusType = step.parameters?.statusType;
 
         for (const target of targets) {
-            if (isGameObject(target) && statusType) {
+            if (this.isTargetGameObject(target) && statusType) {
                 target.statuses.delete(statusType);
                 console.log(`[EffectProcessor] ${target.name} lost ${statusType} status`);
             }
@@ -321,7 +322,7 @@ export class EffectProcessor {
         const destinationZone = step.parameters?.zone;
 
         for (const target of targets) {
-            if (isGameObject(target) && destinationZone) {
+            if (this.isTargetGameObject(target) && destinationZone) {
                 const currentZone = this.gsm.findZoneOfObject(target.objectId);
                 const destZone = this.findZoneByType(target.controllerId, destinationZone);
                 
@@ -340,7 +341,7 @@ export class EffectProcessor {
         const targets = this.resolveTargets(step.targets, sourceObject);
 
         for (const target of targets) {
-            if (isGameObject(target)) {
+            if (this.isTargetGameObject(target)) {
                 target.statuses.delete(StatusType.Exhausted);
                 console.log(`[EffectProcessor] ${target.name} became ready`);
             }
@@ -354,11 +355,18 @@ export class EffectProcessor {
         const targets = this.resolveTargets(step.targets, sourceObject);
 
         for (const target of targets) {
-            if (isGameObject(target)) {
+            if (this.isTargetGameObject(target)) {
                 target.statuses.add(StatusType.Exhausted);
                 console.log(`[EffectProcessor] ${target.name} became exhausted`);
             }
         }
+    }
+
+    /**
+     * Type guard to check if a target is a game object
+     */
+    private isTargetGameObject(target: IGameObject | string): target is IGameObject {
+        return typeof target === 'object' && 'objectId' in target;
     }
 
     /**

@@ -1,5 +1,8 @@
 import type { ICardInstance } from './cards';
 import type { ICardDefinition } from './cards';
+
+// Re-export for convenience
+export type { ICardInstance, ICardDefinition };
 import type { CardType, StatusType } from './enums';
 import type { IAbility, IEffect } from './abilities';
 import  { CounterType } from './enums';

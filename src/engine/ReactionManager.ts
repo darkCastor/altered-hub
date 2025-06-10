@@ -124,7 +124,7 @@ export class ReactionManager {
     private getReactionsInLimbo(): IEmblemObject[] {
         const limboEntities = this.gsm.state.sharedZones.limbo.getAll();
         return limboEntities.filter(
-            (e): e is IEmblemObject => isGameObject(e) && e.type === CardType.Emblem && e.emblemSubType === 'Reaction'
+            (e): e is IEmblemObject => isGameObject(e) && e.type === CardType.Emblem && (e as IEmblemObject).emblemSubType === 'Reaction'
         );
     }
     

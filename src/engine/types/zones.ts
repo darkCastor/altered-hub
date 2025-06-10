@@ -1,5 +1,6 @@
 import type { ICardInstance } from './cards';
 import type { IGameObject } from './objects';
+import { ZoneIdentifier } from './enums';
 
 export type ZoneEntity = ICardInstance | IGameObject;
 

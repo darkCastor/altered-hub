@@ -1,7 +1,8 @@
 import type { IGameObject } from './types/objects';
 import type { GameStateManager } from './GameStateManager';
 import type { IZone } from './types/zones';
-import { AbilityType, ZoneIdentifier } from './types/enums';
+import { ZoneIdentifier } from './types/enums';
+import { AbilityType } from './types/abilities';
 import { isGameObject } from './types/objects';
 
 /**

@@ -1,7 +1,8 @@
 import type { GameStateManager } from './GameStateManager';
 import type { IGameObject } from './types/objects';
 import type { IAbility } from './types/abilities';
-import { AbilityType, CardType } from './types/enums';
+import { CardType } from './types/enums';
+import { AbilityType } from './types/abilities';
 import { isGameObject } from './types/objects';
 
 /**

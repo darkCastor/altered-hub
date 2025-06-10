@@ -1,6 +1,6 @@
 import type { GameStateManager } from './GameStateManager';
 import type { IEffect, IEffectStep } from './types/abilities';
-import { CounterType, StatusType } from './types/enums';
+import { CounterType, StatusType, ZoneIdentifier } from './types/enums';
 import type { IGameObject } from './types/objects';
 
 export class EffectResolver {

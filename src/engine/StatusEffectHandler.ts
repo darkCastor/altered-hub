@@ -1,6 +1,6 @@
 import type { GameStateManager } from './GameStateManager';
 import type { IGameObject } from './types/objects';
-import { StatusType, CardType, ZoneIdentifier } from './types/enums';
+import { StatusType, CardType, ZoneIdentifier, CounterType } from './types/enums';
 import { isGameObject } from './types/objects';
 
 /**
@@ -90,7 +90,7 @@ export class StatusEffectHandler {
      * Status changes automatically when boosts are added/removed
      */
     public updateBoostedStatus(object: IGameObject): void {
-        const boostCounters = object.counters.get('Boost') || 0;
+        const boostCounters = object.counters.get(CounterType.Boost) || 0;
         const hasBoosted = object.statuses.has(StatusType.Boosted);
 
         if (boostCounters > 0 && !hasBoosted) {
