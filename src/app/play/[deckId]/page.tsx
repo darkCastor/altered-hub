@@ -15,7 +15,7 @@ import { EventBus } from '@/engine/EventBus';
 import { TurnManager } from '@/engine/TurnManager';
 import { PhaseManager } from '@/engine/PhaseManager';
 import { ActionHandler } from '@/engine/ActionHandler';
-import type { ICardDefinition, ICardInstance, IGameObject } from '@/engine/types/zones';
+import type { ICardDefinition, ICardInstance } from '@/engine/types/cards';
 import { Faction as EngineFaction, CardType as EngineCardType, Rarity as EngineRarity, PermanentZoneType as EnginePermanentZoneType, GamePhase } from '@/engine/types/enums';
 import { factionsLookup, raritiesLookup, cardTypesLookup, allCards as allAlteredCards } from '@/data/cards';
 
@@ -23,6 +23,7 @@ import PlayerHandClient from '@/components/game-ui/PlayerHandClient';
 import HeroSpotClient from '@/components/game-ui/HeroSpotClient';
 import BoardZoneClient from '@/components/game-ui/BoardZoneClient';
 import { cn } from '@/lib/utils';
+import { IGameObject } from '@/engine/types/objects';
 
 
 const DECK_STORAGE_KEY = 'alterdeck-decks';
@@ -36,7 +37,7 @@ function findEnumKeyByValue<T extends object>(enumObj: T, value: string): keyof 
     if (Object.prototype.hasOwnProperty.call(enumObj, key)) {
       const enumEntry = enumObj[key as keyof T] as any;
       if ((typeof enumEntry === 'object' && enumEntry !== null && enumEntry.name === value) ||
-          (typeof enumEntry === 'string' && enumEntry === value)) {
+        (typeof enumEntry === 'string' && enumEntry === value)) {
         return key as keyof T;
       }
     }
@@ -79,9 +80,9 @@ function mapAlteredCardToEngineDefinition(card: AlteredCard): ICardDefinition | 
 
   const rarityKey = findEnumKeyByValue(raritiesLookup, card.rarity);
   const engineRarity = rarityKey ? EngineRarity[rarityKey as keyof typeof EngineRarity] : EngineRarity.Common;
-   if (!rarityKey && card.rarity !== raritiesLookup.COMMON?.name) { 
-     console.warn(`Unknown rarity for mapping: ${card.rarity} for card ${card.name}. Defaulting to Common.`);
-   }
+  if (!rarityKey && card.rarity !== raritiesLookup.COMMON?.name) {
+    console.warn(`Unknown rarity for mapping: ${card.rarity} for card ${card.name}. Defaulting to Common.`);
+  }
 
   return {
     id: card.id,
@@ -91,21 +92,22 @@ function mapAlteredCardToEngineDefinition(card: AlteredCard): ICardDefinition | 
     reserveCost: card.recallCost ?? 0,
     faction: engineFaction,
     rarity: engineRarity,
-    abilities: [], 
-    statistics: { 
+    abilities: [],
+    statistics: {
       mountain: card.powerM ?? 0,
-      forest: card.attack ?? 0, 
-      water: card.health ?? 0,   
+      forest: card.attack ?? 0,
+      water: card.health ?? 0,
     },
     permanentZoneType: enginePermanentZoneType,
-    reserveLimit: engineType === EngineCardType.Hero ? 3 : undefined, 
-    landmarkLimit: engineType === EngineCardType.Hero ? 3 : undefined, 
+    reserveLimit: engineType === EngineCardType.Hero ? 3 : undefined,
+    landmarkLimit: engineType === EngineCardType.Hero ? 3 : undefined,
   };
 }
 
 export interface DisplayableCardData {
-  instanceId?: string; 
-  originalCardId: string; 
+  counters: any;
+  instanceId?: string;
+  originalCardId: string;
   name: string;
   imageUrl?: string;
   cost?: number;
@@ -147,12 +149,12 @@ export default function PlayGamePage() {
 
 
   const initialPlayerState: PlayerState = {
-    hand: [], mana: {current: 0, max: 0}, deckCount: 0, discardCount: 0, expedition: [], landmarks: [], reserve: []
+    hand: [], mana: { current: 0, max: 0 }, deckCount: 0, discardCount: 0, expedition: [], landmarks: [], reserve: []
   };
   const [player1State, setPlayer1State] = useState<PlayerState>(initialPlayerState);
-  const [player2State, setPlayer2State] = useState<PlayerState>(initialPlayerState); 
+  const [player2State, setPlayer2State] = useState<PlayerState>(initialPlayerState);
 
-  const eventBus = useState(() => new EventBus())[0]; 
+  const eventBus = useState(() => new EventBus())[0];
 
   const mapToDisplayableCard = useCallback((cardInstance: ICardInstance | IGameObject): DisplayableCardData => {
     const definition = allAlteredCards.find(ac => ac.id === cardInstance.definitionId);
@@ -177,8 +179,8 @@ export default function PlayGamePage() {
     const heroCardRaw = player.zones.heroZone.getAll()[0];
     const heroCard = heroCardRaw ? mapToDisplayableCard(heroCardRaw) : undefined;
 
-    const manaObjects = player.zones.manaZone.getAll() as IGameObject[]; 
-    const currentMana = manaObjects.filter(orb => !orb.statuses.has('Exhausted' as any)).length; 
+    const manaObjects = player.zones.manaZone.getAll() as IGameObject[];
+    const currentMana = manaObjects.filter(orb => !orb.statuses.has('Exhausted' as any)).length;
     const maxMana = manaObjects.length;
 
     const expeditionCards = player.zones.expedition?.getAll().map(mapToDisplayableCard) || [];
@@ -205,7 +207,7 @@ export default function PlayGamePage() {
 
 
   useEffect(() => {
-    if (deckId && decks.length > 0 && !gameStateManager) { 
+    if (deckId && decks.length > 0 && !gameStateManager) {
       const foundDeck = decks.find(d => d.id === deckId);
       if (foundDeck) {
         setSelectedDeck(foundDeck);
@@ -216,13 +218,13 @@ export default function PlayGamePage() {
           .filter((def): def is ICardDefinition => def !== null);
 
         if (deckDefinitions.length === 0 && foundDeck.cards.length > 0) {
-            setError("No valid cards for the game engine could be mapped from this deck.");
-            setIsLoading(false);
-            return;
+          setError("No valid cards for the game engine could be mapped from this deck.");
+          setIsLoading(false);
+          return;
         }
 
         const allGameCardDefinitions = [...new Set(deckDefinitions.map(def => def.id))]
-            .map(id => deckDefinitions.find(def => def.id === id)!);
+          .map(id => deckDefinitions.find(def => def.id === id)!);
 
 
         try {
@@ -236,7 +238,7 @@ export default function PlayGamePage() {
           setPhaseManager(phm);
 
           const playerDeckMap = new Map<string, ICardDefinition[]>();
-          playerIds.forEach(pid => playerDeckMap.set(pid, [...deckDefinitions])); 
+          playerIds.forEach(pid => playerDeckMap.set(pid, [...deckDefinitions]));
           gsm.initializeBoard(playerDeckMap, STARTING_HAND_SIZE, INITIAL_MANA_ORBS);
 
           setCurrentPhase(gsm.state.currentPhase);
@@ -251,7 +253,7 @@ export default function PlayGamePage() {
           const onPhaseChanged = (payload: { phase: GamePhase }) => { setCurrentPhase(payload.phase); console.log(`Phase changed to: ${payload.phase}`); };
           const onTurnAdvanced = (payload: { currentPlayerId: string }) => { setCurrentPlayerId(payload.currentPlayerId); console.log(`Turn for: ${payload.currentPlayerId}`); };
           const onDayAdvanced = (payload: { dayNumber: number }) => { setDayNumber(payload.dayNumber); console.log(`Day advanced to: ${payload.dayNumber}`); };
-          const onEntityMoved = () => { updateFullPlayerState(PLAYER_ID_SELF, gsm); updateFullPlayerState(PLAYER_ID_OPPONENT, gsm);};
+          const onEntityMoved = () => { updateFullPlayerState(PLAYER_ID_SELF, gsm); updateFullPlayerState(PLAYER_ID_OPPONENT, gsm); };
           const onManaSpent = (payload: { playerId: string, amount: number }) => { console.log(`Player ${payload.playerId} spent ${payload.amount} mana.`); updateFullPlayerState(payload.playerId, gsm); };
 
           eventBus.subscribe('phaseChanged', onPhaseChanged);
@@ -274,8 +276,8 @@ export default function PlayGamePage() {
       }
       setIsLoading(false);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [deckId, decks, eventBus, gameStateManager, updateFullPlayerState]); 
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deckId, decks, eventBus, gameStateManager, updateFullPlayerState]);
 
 
   const handlePassTurn = useCallback(async () => {
@@ -284,7 +286,7 @@ export default function PlayGamePage() {
       console.log(`${PLAYER_ID_SELF} attempts to pass turn.`);
       try {
         await actionHandler.tryPass(PLAYER_ID_SELF);
-      } catch(e: any) {
+      } catch (e: any) {
         console.error("Error during pass turn:", e);
         setError(`An error occurred while passing the turn: ${e.message || 'Unknown error'}`);
       } finally {
@@ -302,16 +304,16 @@ export default function PlayGamePage() {
 
   const handleAdvancePhase = useCallback(async () => {
     if (phaseManager && !isProcessingAction) {
-        setIsProcessingAction(true);
-        console.log("Manually attempting to advance phase.");
-        try {
-            await phaseManager.advancePhase();
-        } catch (e: any) {
-            console.error("Error advancing phase manually:", e);
-            setError(`An error occurred while advancing the phase: ${e.message}`);
-        } finally {
-            setIsProcessingAction(false);
-        }
+      setIsProcessingAction(true);
+      console.log("Manually attempting to advance phase.");
+      try {
+        await phaseManager.advancePhase();
+      } catch (e: any) {
+        console.error("Error advancing phase manually:", e);
+        setError(`An error occurred while advancing the phase: ${e.message}`);
+      } finally {
+        setIsProcessingAction(false);
+      }
     }
   }, [phaseManager, isProcessingAction]);
 
@@ -329,29 +331,29 @@ export default function PlayGamePage() {
     return (
       <div className="flex flex-col items-center justify-center h-screen bg-background text-foreground p-4">
         <UiCard className="w-full max-w-md shadow-lg bg-card text-card-foreground p-6">
-            <h2 className="text-destructive text-2xl font-bold mb-2">Game Error</h2>
-            <p className="text-muted-foreground mb-4">{error}</p>
-            <Button variant="outline" onClick={() => router.push('/decks')}>
-              <ArrowLeft className="mr-2 h-4 w-4" /> Back to Decks
-            </Button>
+          <h2 className="text-destructive text-2xl font-bold mb-2">Game Error</h2>
+          <p className="text-muted-foreground mb-4">{error}</p>
+          <Button variant="outline" onClick={() => router.push('/decks')}>
+            <ArrowLeft className="mr-2 h-4 w-4" /> Back to Decks
+          </Button>
         </UiCard>
       </div>
     );
   }
 
   if (!selectedDeck || !gameStateManager) {
-     return <div className="text-center p-10 text-destructive">Deck not found or Engine failed to initialize.</div>;
+    return <div className="text-center p-10 text-destructive">Deck not found or Engine failed to initialize.</div>;
   }
 
   const canSelfPass = currentPhase === GamePhase.Afternoon &&
-                      gameStateManager?.getPlayer(PLAYER_ID_SELF)?.hasPassedTurn === false &&
-                      currentPlayerId === PLAYER_ID_SELF;
+    gameStateManager?.getPlayer(PLAYER_ID_SELF)?.hasPassedTurn === false &&
+    currentPlayerId === PLAYER_ID_SELF;
 
   const canManuallyAdvancePhase = currentPhase !== GamePhase.Afternoon || (currentPhase === GamePhase.Afternoon && gameStateManager?.getPlayer(PLAYER_ID_SELF)?.hasPassedTurn);
 
   const PlayerAreaLayout = ({ playerState, onCardClick, isOpponent }: { playerState: PlayerState, onCardClick: (card: DisplayableCardData) => void, isOpponent: boolean }) => (
-    <div className={cn("flex-1 flex space-y-1 bg-zinc-900/50 p-1 rounded border border-zinc-700 min-h-0", isOpponent ? 'flex-col-reverse' : 'flex-col' )}>
-      
+    <div className={cn("flex-1 flex space-y-1 bg-zinc-900/50 p-1 rounded border border-zinc-700 min-h-0", isOpponent ? 'flex-col-reverse' : 'flex-col')}>
+
       {/* Row 1: Conceptual Hero/Expedition Tracks */}
       <div className="h-20 md:h-24 p-1 flex items-center justify-around space-x-1">
         <div className="flex-1 text-center text-xs text-muted-foreground italic h-full flex items-center justify-center bg-black/10 rounded-md overflow-hidden text-ellipsis">
@@ -362,12 +364,12 @@ export default function PlayGamePage() {
             <HeroSpotClient hero={playerState.hero} isOpponent={isOpponent} />
           </div>
         )}
-         {!playerState.hero && <div className="w-16 h-full md:w-20 flex-shrink-0 bg-black/20 rounded-md flex items-center justify-center text-xs text-muted-foreground text-center p-1">No Hero</div>}
+        {!playerState.hero && <div className="w-16 h-full md:w-20 flex-shrink-0 bg-black/20 rounded-md flex items-center justify-center text-xs text-muted-foreground text-center p-1">No Hero</div>}
         <div className="flex-1 text-center text-xs text-muted-foreground italic h-full flex items-center justify-center bg-black/10 rounded-md">
           {isOpponent ? "Opponent Companion Track" : "Companion Expedition Track"}
         </div>
       </div>
-  
+
       {/* Row 2 (was Row 3): Reserve and Landmarks Zones */}
       <div className="flex justify-around items-stretch h-20 md:h-24 p-1 space-x-1">
         <BoardZoneClient cards={playerState.reserve} zoneType={`Réserve (${playerState.reserve.length})`} owner={isOpponent ? "opponent" : "self"} className="flex-1" />
@@ -376,7 +378,7 @@ export default function PlayGamePage() {
 
       {/* Row 3 (was Row 4): Mana, Hand, Deck/Discard */}
       <div className="flex items-stretch h-28 md:h-32 p-1 space-x-1">
-         {/* Mana Area (Left for player if !isOpponent, Right if isOpponent) */}
+        {/* Mana Area (Left for player if !isOpponent, Right if isOpponent) */}
         <div className={cn("flex-1 p-1 bg-black/30 rounded h-full flex flex-col items-center justify-center text-center space-y-1", isOpponent ? 'order-3' : 'order-1')}>
           <Zap className="h-5 w-5 text-yellow-400" />
           <p className="text-xs text-muted-foreground">Mana</p>
@@ -407,7 +409,7 @@ export default function PlayGamePage() {
 
       <div className="flex-1 flex flex-col p-1 space-y-1 min-h-0">
         {/* Opponent's Area - Top */}
-        <PlayerAreaLayout playerState={player2State} onCardClick={() => {}} isOpponent={true} />
+        <PlayerAreaLayout playerState={player2State} onCardClick={() => { }} isOpponent={true} />
 
         {/* Shared Adventure Zone - Center */}
         <div className="h-12 bg-zinc-700/30 rounded border border-zinc-600 p-1 flex items-center justify-center shrink-0">
@@ -417,22 +419,22 @@ export default function PlayGamePage() {
         {/* Current Player's Area - Bottom */}
         <PlayerAreaLayout playerState={player1State} onCardClick={handlePlayCard} isOpponent={false} />
       </div>
-      
+
       {/* Action Bar - Bottom */}
       <div className="h-12 flex items-center justify-center space-x-4 p-1 bg-zinc-900 border-t border-zinc-700 shrink-0">
-          <Button onClick={handlePassTurn} disabled={!canSelfPass || isProcessingAction} variant="destructive" size="sm">
-            {isProcessingAction && canSelfPass ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-            Pass Turn
+        <Button onClick={handlePassTurn} disabled={!canSelfPass || isProcessingAction} variant="destructive" size="sm">
+          {isProcessingAction && canSelfPass ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+          Pass Turn
+        </Button>
+        <Button onClick={handleAdvancePhase} disabled={isProcessingAction || !canManuallyAdvancePhase} variant="secondary" size="sm">
+          {isProcessingAction && !canManuallyAdvancePhase ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+          Advance Phase
+        </Button>
+        <Link href="/decks">
+          <Button variant="outline" size="sm">
+            <ArrowLeft className="mr-2 h-4 w-4" /> Surrender
           </Button>
-          <Button onClick={handleAdvancePhase} disabled={isProcessingAction || !canManuallyAdvancePhase} variant="secondary" size="sm">
-            {isProcessingAction && !canManuallyAdvancePhase ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null} 
-            Advance Phase
-          </Button>
-          <Link href="/decks">
-              <Button variant="outline" size="sm">
-                  <ArrowLeft className="mr-2 h-4 w-4" /> Surrender
-              </Button>
-          </Link>
+        </Link>
       </div>
     </div>
   );
