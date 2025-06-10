@@ -15,6 +15,11 @@ import { SupportAbilityHandler } from './SupportAbilityHandler';
 import { AdvancedTriggerHandler } from './AdvancedTriggerHandler';
 import { PlayerActionHandler } from './PlayerActionHandler';
 import { EffectProcessor } from './EffectProcessor';
+import { StatusEffectHandler } from './StatusEffectHandler';
+import { ManaSystem } from './ManaSystem';
+import { CardPlaySystem } from './CardPlaySystem';
+import { TiebreakerSystem } from './TiebreakerSystem';
+import { PassiveAbilityManager } from './PassiveAbilityManager';
 
 
 export class GameStateManager {
@@ -26,6 +31,11 @@ export class GameStateManager {
     public triggerHandler: AdvancedTriggerHandler;
     public actionHandler: PlayerActionHandler;
     public effectProcessor: EffectProcessor;
+    public statusHandler: StatusEffectHandler;
+    public manaSystem: ManaSystem;
+    public cardPlaySystem: CardPlaySystem;
+    public tiebreakerSystem: TiebreakerSystem;
+    public passiveManager: PassiveAbilityManager;
     public turnManager?: any; // Will be set by TurnManager
     private cardDefinitions: Map<string, ICardDefinition>;
 
@@ -38,6 +48,11 @@ export class GameStateManager {
         this.triggerHandler = new AdvancedTriggerHandler(this);
         this.actionHandler = new PlayerActionHandler(this);
         this.effectProcessor = new EffectProcessor(this);
+        this.statusHandler = new StatusEffectHandler(this);
+        this.manaSystem = new ManaSystem(this);
+        this.cardPlaySystem = new CardPlaySystem(this);
+        this.tiebreakerSystem = new TiebreakerSystem(this);
+        this.passiveManager = new PassiveAbilityManager(this);
         this.state = this.initializeGameState(playerIds);
     }
 
@@ -274,24 +289,8 @@ public setCurrentPhase(phase: GamePhase) {
  */
 public async preparePhase(): Promise<void> {
     console.log('[GSM] Beginning Prepare phase.');
-    for (const player of this.state.players.values()) {
-        const zonesToReady = [
-            player.zones.heroZone,
-            player.zones.expedition,
-            player.zones.landmarkZone,
-            player.zones.manaZone,
-            player.zones.reserve,
-        ];
-
-        for (const zone of zonesToReady) {
-            for (const entity of zone.getAll()) {
-                if (isGameObject(entity) && entity.statuses.has(StatusType.Exhausted)) {
-                    entity.statuses.delete(StatusType.Exhausted);
-                    console.log(`[GSM] Readied ${entity.name} in ${zone.zoneType} for player ${player.id}.`);
-                }
-            }
-        }
-    }
+    // Use status handler for comprehensive prepare phase processing
+    this.statusHandler.processStatusEffectsDuringPhase('morning');
 }
 
 /**
@@ -311,15 +310,12 @@ public async restPhase() {
         const anyExpeditionMoved = player.heroExpedition.hasMoved || player.companionExpedition.hasMoved;
 
         for (const char of charactersToProcess) {
-            // Handle status removal first (Rule 2.4.2, 2.4.3)
-            if (char.statuses.has(StatusType.Anchored)) {
-                char.statuses.delete(StatusType.Anchored);
-                continue; // Anchored characters don't go to Reserve
-            }
+            // Use status handler to check all status interactions
+            const statusResults = this.statusHandler.checkStatusInteraction(char, 'rest');
             
-            if (char.statuses.has(StatusType.Asleep)) {
-                char.statuses.delete(StatusType.Asleep);
-                continue; // Asleep characters don't go to Reserve
+            // Check if status effects prevent going to Reserve
+            if (statusResults.anchored || statusResults.asleep) {
+                continue; // Status prevents movement to Reserve
             }
 
             // Check for Eternal keyword (Rule 7.4.3)
@@ -329,11 +325,15 @@ public async restPhase() {
 
             // Only characters in expeditions that moved go to Reserve
             if (anyExpeditionMoved) {
-                if (char.statuses.has(StatusType.Fleeting)) {
-                    this.moveEntity(char.objectId, expeditionZone, player.zones.discardPile, char.controllerId);
+                let destinationZone;
+                
+                if (statusResults.fleetingDestination === 'discard') {
+                    destinationZone = player.zones.discardPile;
                 } else {
-                    this.moveEntity(char.objectId, expeditionZone, player.zones.reserve, char.controllerId);
+                    destinationZone = player.zones.reserve;
                 }
+                
+                this.moveEntity(char.objectId, expeditionZone, destinationZone, char.controllerId);
             }
         }
     }
@@ -519,41 +519,17 @@ public async drawCards(playerId: string, count: number): Promise<void> {
 
 /**
  * Checks victory conditions after Night phase
- * Rule 4.2.5.d
+ * Rule 4.2.5.d, 4.3 - Victory and tiebreaker conditions
  */
 public checkVictoryConditions(): string | null {
     console.log('[GSM] Checking victory conditions.');
     
-    const playerIds = Array.from(this.state.players.keys());
-    const playerScores = new Map<string, number>();
-    
-    // Calculate total expedition distances for each player
-    for (const playerId of playerIds) {
-        const player = this.getPlayer(playerId);
-        if (!player) continue;
-        
-        const totalDistance = player.heroExpedition.position + player.companionExpedition.position;
-        playerScores.set(playerId, totalDistance);
-        console.log(`[GSM] Player ${playerId} total expedition distance: ${totalDistance}`);
+    // Check if we're in tiebreaker mode
+    if (this.tiebreakerSystem.isInTiebreakerMode()) {
+        return this.tiebreakerSystem.processTiebreakerProgress();
     }
     
-    // Find the maximum score
-    const maxScore = Math.max(...Array.from(playerScores.values()));
-    
-    // Check if any player has reached victory threshold (≥7) and has the highest score
-    if (maxScore >= 7) {
-        const winners = playerIds.filter(pid => playerScores.get(pid) === maxScore);
-        
-        if (winners.length === 1) {
-            console.log(`[GSM] Player ${winners[0]} wins with score ${maxScore}!`);
-            return winners[0];
-        } else {
-            console.log('[GSM] Tie detected, proceeding to tiebreaker.');
-            // TODO: Implement tiebreaker rules
-            return null;
-        }
-    }
-    
-    return null; // No winner yet
+    // Normal victory condition check with tiebreaker support
+    return this.tiebreakerSystem.checkForTiebreaker();
 }
 }
