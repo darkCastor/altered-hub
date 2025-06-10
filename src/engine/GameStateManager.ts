@@ -85,6 +85,13 @@ private initializeGameState(playerIds: string[]): IGameState {
             if (!this.cardDefinitions.has(heroDefinition.id)) this.cardDefinitions.set(heroDefinition.id, heroDefinition);
             const heroTempInstance = this.objectFactory.createCardInstance(heroDefinition.id, playerId);
             const heroGameObject = this.objectFactory.createGameObject(heroTempInstance, playerId) as IGameObject;
+            
+            // FIX: Rule 2.5.e - Apply starting counters to Hero
+            if (heroDefinition.startingCounters) {
+                heroGameObject.counters = new Map(heroDefinition.startingCounters);
+                 console.log(`[GSM] Applied starting counters to Hero ${heroGameObject.name}.`);
+            }
+
             player.zones.heroZone.add(heroGameObject);
             console.log(`[GSM] Placed Hero ${heroGameObject.name} in ${player.zones.heroZone.id}`);
             
@@ -161,9 +168,43 @@ public moveEntity(entityId: string, fromZone: IZone, toZone: IZone, controllerId
         finalDestinationZone = correctZone;
     }
 
+    // --- FIX: COUNTER RETENTION LOGIC ---
+    // This block determines which counters, if any, the new object will have.
+    const countersToKeep = new Map<CounterType, number>();
+    const sourceGameObject = isGameObject(sourceEntity) ? sourceEntity : undefined;
+    
+    // Rule 2.5.b, 2.5.k: Objects moving to Discard Pile or hidden zones lose all counters.
+    const isMovingToLosingZone = finalDestinationZone.zoneType === ZoneIdentifier.DiscardPile || finalDestinationZone.visibility === 'hidden';
+
+    if (sourceGameObject && !isMovingToLosingZone) {
+        const fromZoneIsExpeditionOrLandmark = [ZoneIdentifier.Expedition, ZoneIdentifier.Landmark].includes(fromZone.zoneType);
+        const fromZoneIsReserveOrLimbo = [ZoneIdentifier.Reserve, ZoneIdentifier.Limbo].includes(fromZone.zoneType);
+
+        if (fromZoneIsReserveOrLimbo) {
+            // Rule 2.5.k: Keeps counters when moving from Reserve or Limbo (to a non-losing zone).
+            countersToKeep.set(...sourceGameObject.counters.entries());
+        } else if (fromZoneIsExpeditionOrLandmark) {
+            // Rule 2.5.j: Loses counters when moving from Expedition or Landmark, with an exception.
+            const isMovingToReserve = finalDestinationZone.zoneType === ZoneIdentifier.Reserve;
+            const isSeasoned = sourceGameObject.abilities.some(a => a.keyword === 'Seasoned');
+
+            // Rule 7.4.6.b (Seasoned Exception): keeps boosts when moving to Reserve.
+            if (isSeasoned && isMovingToReserve) {
+                const boostCount = sourceGameObject.counters.get(CounterType.Boost);
+                if (boostCount && boostCount > 0) {
+                    countersToKeep.set(CounterType.Boost, boostCount);
+                    console.log(`[GSM] Seasoned object ${sourceGameObject.name} keeps ${boostCount} boost counter(s).`);
+                }
+            }
+            // Otherwise, counters are lost, so countersToKeep remains empty.
+        }
+    }
+    // --- END FIX ---
+
     let newEntity: ZoneEntity;
     if (finalDestinationZone.visibility === 'visible') {
-        newEntity = this.objectFactory.createGameObject(sourceEntity, controllerId);
+        // FIX: Pass the calculated counters to the factory.
+        newEntity = this.objectFactory.createGameObject(sourceEntity, controllerId, countersToKeep);
     } else {
          newEntity = isGameObject(sourceEntity) ? this.objectFactory.createCardInstance(sourceEntity.definitionId, sourceEntity.ownerId) : sourceEntity;
     }
@@ -187,6 +228,17 @@ public getObject(id: string): IGameObject | undefined {
     }
     return undefined;
 }
+
+// FIX: Added missing helper method used by ReactionManager
+public findZoneOfObject(objectId: string): IZone | undefined {
+    for (const zone of this.getAllVisibleZones()) {
+        if (zone.findById(objectId)) {
+            return zone;
+        }
+    }
+    return undefined;
+}
+
 
 private *getAllVisibleZones(): Generator<IZone> {
         for (const player of this.state.players.values()) {
@@ -233,7 +285,7 @@ public async restPhase() {
 
    for (const char of charactersToProcess) {
         // Check for the "Eternal" passive ability (Rule 7.4.3.b)
-        const isEternal = char.abilities.some(ability => ability.text.includes('Eternal')); // Simple text check, a keyword property would be better
+        const isEternal = char.abilities.some(ability => ability.keyword === 'Eternal'); 
         
         // Rule 2.4.2 (Anchored), 2.4.3 (Asleep), 7.4.3.b (Eternal) prevent moving to Reserve.
         if (char.statuses.has(StatusType.Anchored) || char.statuses.has(StatusType.Asleep) || isEternal) {

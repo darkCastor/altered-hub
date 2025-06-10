@@ -40,7 +40,11 @@ export class ObjectFactory {
         };
     }
 
-    public createGameObject(source: ICardInstance | IGameObject, controllerId: string): IGameObject {
+    public createGameObject(
+        source: ICardInstance | IGameObject, 
+        controllerId: string,
+        initialCounters?: Map<CounterType, number> // FIX: Allow specifying initial counters
+    ): IGameObject {
         const definition = this.cardDefinitions.get(source.definitionId);
         if (!definition) {
             throw new Error(`Card definition not found: ${source.definitionId}`);
@@ -62,17 +66,19 @@ export class ObjectFactory {
             controllerId: controllerId,
             timestamp: ObjectFactory.getNewTimestamp(),
             statuses: new Set<StatusType>(),
-            counters: isGameObject(source) ? new Set(source.counters) : new Map<CounterType, number>(), // WRONG - should be new Map(source.counters),
+            counters: new Map<CounterType, number>(), // FIX: Default to empty map
             abilities: [],
         };
+        
+        // FIX: Apply initial counters if provided by the GameStateManager.
+        if (initialCounters) {
+            newObject.counters = new Map(initialCounters);
+        }
 
-            // Corrected counters line:
-            newObject.counters = isGameObject(source) ? new Map(source.counters) : new Map<CounterType, number>();
-
-            // This also applies to statuses, which should also be copied from Limbo/Reserve
-            if (isGameObject(source)) {
-                newObject.statuses = new Set(source.statuses);
-            }
+        // FIX: Correctly copy statuses from the source if it was an object (e.g., in Limbo/Reserve).
+        if (isGameObject(source)) {
+            newObject.statuses = new Set(source.statuses);
+        }
 
         newObject.abilities = instantiatedAbilities.map(ability => ({
             ...ability,

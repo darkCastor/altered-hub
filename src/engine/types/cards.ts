@@ -1,6 +1,6 @@
 
 import type { IAbility } from './abilities';
-import type { CardType, Faction, Rarity, PermanentZoneType } from './enums';
+import type { CardType, Faction, Rarity, PermanentZoneType, CounterType } from './enums';
 
 /**
  * Represents the static, immutable data of a card as printed.
@@ -22,6 +22,7 @@ export interface ICardDefinition {
     reserveLimit?: number; // For Heroes (Rule 2.2.12)
     landmarkLimit?: number; // For Heroes (Rule 2.2.13)
     permanentZoneType?: PermanentZoneType; // For Permanents (Rule 2.2.3)
+    startingCounters?: Map<CounterType, number>; // FIX: Rule 2.5.e - For heroes that start with counters
 }
 
 /**

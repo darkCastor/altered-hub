@@ -1,7 +1,8 @@
-import type { GamePhase } from "./types/enums";
+import type { CounterType, GamePhase } from "./types/enums";
 import type { IGameObject } from "./types/objects";
 import type { ICardInstance } from "./types/cards";
 import type { IZone } from "./types/zones";
+
 type EventPayloads = {
 entityMoved: { entity: IGameObject | ICardInstance; from: IZone; to: IZone | null };
 entityCeasedToExist: { entity: IGameObject | ICardInstance; from: IZone; };
@@ -11,7 +12,9 @@ dayAdvanced: { dayNumber: number };
 manaSpent: { playerId: string; amount: number };
 statusGained: { targetId: string; status: string };
 afternoonEnded: Record<string, never>;
-// Add other event types and their expected payload structures here
+// FIX: Add events for counter changes
+counterGained: { targetId: string; type: CounterType; amount: number };
+countersSpent: { sourceId: string; type: CounterType; amount: number };
 };
 type EventType = keyof EventPayloads;
 type EventHandler<T extends EventType> = (payload: EventPayloads[T]) => void;

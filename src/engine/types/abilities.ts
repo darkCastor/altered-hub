@@ -19,9 +19,9 @@ export interface ICost {
  * Rule 1.2.6, 6.5
  */
 export interface IEffectStep {
-    verb: string; // e.g., 'draw', 'createToken', 'gainStatus'
+    verb: string; // e.g., 'draw', 'createToken', 'gainStatus', 'gainCounter'
     targets: 'self' | 'controller' | { type: 'select', criteria: any }; // Target selection
-    parameters?: any; // Verb-specific data, like a status type
+    parameters?: any; // Verb-specific data, like a status type or counter info
     isOptional?: boolean; // For "may" effects (Rule 1.2.6.d, 6.5.c)
 }
 
@@ -32,7 +32,7 @@ export interface IEffectStep {
 export interface IEffect {
     steps: IEffectStep[];
     sourceObjectId?: string; // The object that generated this effect
-    _triggerPayload?: any; // FIX: Added optional property for internal use
+    _triggerPayload?: any; 
 }
 
 /**
@@ -68,6 +68,5 @@ export interface IAbility {
     text: string; // Original card text for display/reference
     isSupportAbility: boolean; // Rule 2.2.11.c
      isKeyword?: boolean;
-    keyword?: 'Eternal' | 'Defender' | 'Gigantic' | 'etc.'; // For identifying keywords
-
+    keyword?: 'Eternal' | 'Defender' | 'Gigantic' | 'Seasoned' | 'etc.'; // FIX: Added Seasoned
 }
