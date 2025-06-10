@@ -4,6 +4,7 @@ import type { ICardDefinition, ICardInstance } from './types/cards';
 import type { IGameObject, IEmblemObject } from './types/objects';
 import { CardType, CounterType, StatusType } from './types/enums';
 import type { IAbility, IEffect } from './types/abilities';
+import { isGameObject } from './types/objects';
 
 /**
  * Responsible for creating new instances of game objects.
@@ -61,9 +62,17 @@ export class ObjectFactory {
             controllerId: controllerId,
             timestamp: ObjectFactory.getNewTimestamp(),
             statuses: new Set<StatusType>(),
-            counters: new Map<CounterType, number>(),
+            counters: isGameObject(source) ? new Set(source.counters) : new Map<CounterType, number>(), // WRONG - should be new Map(source.counters),
             abilities: [],
         };
+
+            // Corrected counters line:
+            newObject.counters = isGameObject(source) ? new Map(source.counters) : new Map<CounterType, number>();
+
+            // This also applies to statuses, which should also be copied from Limbo/Reserve
+            if (isGameObject(source)) {
+                newObject.statuses = new Set(source.statuses);
+            }
 
         newObject.abilities = instantiatedAbilities.map(ability => ({
             ...ability,

@@ -1,5 +1,6 @@
 import type { GamePhase } from "./types/enums";
-import type { IGameObject, ICardInstance } from "./types/objects";
+import type { IGameObject } from "./types/objects";
+import type { ICardInstance } from "./types/cards";
 import type { IZone } from "./types/zones";
 type EventPayloads = {
 entityMoved: { entity: IGameObject | ICardInstance; from: IZone; to: IZone | null };

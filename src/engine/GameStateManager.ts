@@ -3,10 +3,14 @@ import { ObjectFactory } from './ObjectFactory'; // Assuming ObjectFactory is in
 import { GamePhase, ZoneIdentifier, StatusType, CardType } from './types/enums';
 import type { EventBus } from './EventBus';
 import { BaseZone, HandZone, DiscardPileZone, LimboZone, DeckZone } from './Zone';
-import type { ICardInstance, IGameObject, ZoneEntity } from './types/objects';
+import type { IGameObject } from './types/objects';
+import type { ICardInstance } from './types/cards';
+import type { ZoneEntity } from './types/zones';
 import { isGameObject } from './types/objects';
 import type { IPlayer, IGameState } from './types/game'; // Assuming these are in game.ts
 import type { ICardDefinition } from './types/cards';
+import { CounterType } from './types/enums';
+
 
 export class GameStateManager {
     public state: IGameState;
@@ -21,6 +25,7 @@ export class GameStateManager {
         this.state = this.initializeGameState(playerIds);
     }
 
+    
 private initializeGameState(playerIds: string[]): IGameState {
     const players = new Map<string, IPlayer>();
     playerIds.forEach(pid => {
@@ -59,6 +64,7 @@ private initializeGameState(playerIds: string[]): IGameState {
         actionHistory: [],
     };
 }
+
 
     public initializeBoard(
         playerDeckDefinitionsMap: Map<string, ICardDefinition[]>,
@@ -320,4 +326,28 @@ public async drawCards(playerId: string, count: number): Promise<void> {
 public async drawCard(playerId: string): Promise<void> {
     await this.drawCards(playerId, 1);
 }
+}
+/**
+ * Calculates the current, modified statistics for a character object.
+ * This enforces Rule 2.5.1.b.
+ * @param object The character object.
+ * @returns The final statistics after applying modifiers like boost counters.
+ */
+export function getCurrentStatistics(object: IGameObject): { forest: number; mountain: number; water: number } {
+    const baseStats = object.baseCharacteristics.statistics || { forest: 0, mountain: 0, water: 0 };
+    
+    // Start with a copy of base stats
+    const finalStats = { ...baseStats };
+
+    // Apply Boost counters (Rule 2.5.1.b)
+    const boostCount = object.counters.get(CounterType.Boost) || 0;
+    if (boostCount > 0) {
+        finalStats.forest += boostCount;
+        finalStats.mountain += boostCount;
+        finalStats.water += boostCount;
+    }
+    
+    // TODO: Apply other continuous effects from passive abilities here.
+    
+    return finalStats;
 }

@@ -1,7 +1,9 @@
 import type { ICardInstance } from './cards';
 import type { ICardDefinition } from './cards';
-import type { CardType, StatusType, CounterType } from './enums';
+import type { CardType, StatusType } from './enums';
 import type { IAbility, IEffect } from './abilities';
+import  { CounterType } from './enums';
+import { PermanentZoneType } from './enums';
 
 
 /**
@@ -66,4 +68,14 @@ export interface IManaOrbObject extends IGameObject {
 // Type guard to check if an entity is a full GameObject
 export function isGameObject(entity: ICardInstance | IGameObject): entity is IGameObject {
     return (entity as IGameObject).objectId !== undefined;
+}
+
+/**
+ * Checks if a game object should have the Boosted status based on its counters.
+ * This enforces Rule 2.4.4.a and 2.4.4.b.
+ * @param object The game object to check.
+ * @returns True if the object has one or more Boost counters.
+ */
+export function isBoosted(object: IGameObject): boolean {
+    return (object.counters.get(CounterType.Boost) || 0) > 0;
 }
