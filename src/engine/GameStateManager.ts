@@ -71,7 +71,6 @@ private initializeGameState(playerIds: string[]): IGameState {
         this.state.players.forEach((player, playerId) => {
             const deckDefinitions = playerDeckDefinitionsMap.get(playerId);
             if (!deckDefinitions) {
-                console.warn(`No deck definitions found for player ${playerId}. Skipping deck initialization.`);
                 return;
             }
             const heroDefinition = deckDefinitions.find(def => def.type === CardType.Hero);
@@ -85,7 +84,6 @@ private initializeGameState(playerIds: string[]): IGameState {
             
             if (heroDefinition.startingCounters) {
                 heroGameObject.counters = new Map(heroDefinition.startingCounters);
-                 console.log(`[GSM] Applied starting counters to Hero ${heroGameObject.name}.`);
             }
 
             player.zones.heroZone.add(heroGameObject);
@@ -109,10 +107,8 @@ private initializeGameState(playerIds: string[]): IGameState {
                     playerId
                 ) as IGameObject;
                 
-                if (manaObject) {
-                    if (manaObject.statuses.has(StatusType.Exhausted)) {
-                        manaObject.statuses.delete(StatusType.Exhausted);
-                    }
+                if (manaObject && manaObject.statuses.has(StatusType.Exhausted)) {
+                    manaObject.statuses.delete(StatusType.Exhausted);
                 }
             }
             
@@ -132,9 +128,7 @@ public moveEntity(entityId: string, fromZone: IZone, toZone: IZone, controllerId
     if (!definition) throw new Error(`Definition not found for ${sourceEntity.definitionId}`);
     
     if (definition.type === CardType.Token && fromZone.zoneType === ZoneIdentifier.Expedition) {
-        console.log(`[GSM] Token ${entityId} (${definition.name}) is leaving the Expedition zone and ceases to exist.`);
         this.eventBus.publish('entityCeasedToExist', { entity: sourceEntity, from: fromZone });
-        this.state.actionHistory.push({ action: 'entityCeasesToExist', entityId, from: fromZone.zoneType });
         return null;
     }
 
@@ -142,17 +136,13 @@ public moveEntity(entityId: string, fromZone: IZone, toZone: IZone, controllerId
     if (toZone.ownerId && toZone.ownerId !== sourceEntity.ownerId) {
         const owner = this.getPlayer(sourceEntity.ownerId);
         if (!owner) throw new Error(`Owner ${sourceEntity.ownerId} of entity ${entityId} not found.`);
-        
         const correctZone = Object.values(owner.zones).find(z => z.zoneType === toZone.zoneType);
         if (!correctZone) throw new Error(`Cannot find zone of type ${toZone.zoneType} for owner ${sourceEntity.ownerId}`);
-        
-        console.log(`[GSM] Redirecting entity ${entityId} to owner's (${sourceEntity.ownerId}) zone ${correctZone.id} instead of ${toZone.id}`);
         finalDestinationZone = correctZone;
     }
 
     const countersToKeep = new Map<CounterType, number>();
     const sourceGameObject = isGameObject(sourceEntity) ? sourceEntity : undefined;
-    
     const isMovingToLosingZone = finalDestinationZone.zoneType === ZoneIdentifier.DiscardPile || finalDestinationZone.visibility === 'hidden';
 
     if (sourceGameObject && !isMovingToLosingZone) {
@@ -184,7 +174,6 @@ public moveEntity(entityId: string, fromZone: IZone, toZone: IZone, controllerId
     }
 
     finalDestinationZone.add(newEntity);
-    this.state.actionHistory.push({ action: 'moveEntity', entityId, from: fromZone.zoneType, to: finalDestinationZone.zoneType, newId: isGameObject(newEntity) ? newEntity.objectId : newEntity.instanceId });
     this.eventBus.publish('entityMoved', { entity: newEntity, from: fromZone, to: finalDestinationZone });
     return newEntity;
 }
@@ -236,10 +225,39 @@ public getPlayerIds(): string[] {
 
 public setCurrentPhase(phase: GamePhase) {
     this.state.currentPhase = phase;
-    this.state.actionHistory.push({ action: 'phaseChange', phase });
     this.eventBus.publish('phaseChanged', { phase });
 }
 
+/**
+ * Handles the Prepare daily effect during the Morning phase.
+ * Rule 4.2.1.c: Readies all exhausted cards and objects.
+ */
+public async preparePhase(): Promise<void> {
+    console.log('[GSM] Beginning Prepare phase.');
+    for (const player of this.state.players.values()) {
+        const zonesToReady = [
+            player.zones.heroZone,
+            player.zones.expedition,
+            player.zones.landmarkZone,
+            player.zones.manaZone,
+            player.zones.reserve,
+        ];
+
+        for (const zone of zonesToReady) {
+            for (const entity of zone.getAll()) {
+                if (isGameObject(entity) && entity.statuses.has(StatusType.Exhausted)) {
+                    entity.statuses.delete(StatusType.Exhausted);
+                    console.log(`[GSM] Readied ${entity.name} in ${zone.zoneType} for player ${player.id}.`);
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Handles the Rest daily effect during the Night phase.
+ * Rule 4.2.5.b
+ */
 public async restPhase() {
     console.log('[GSM] Beginning Rest phase.');
     
@@ -250,6 +268,7 @@ public async restPhase() {
         ) as IGameObject[];
 
         for (const char of charactersToProcess) {
+            // This is a simplified logic. A real implementation would check which expedition moved.
             const isEternal = char.abilities.some(ability => ability.keyword === 'Eternal'); 
             
             if (char.statuses.has(StatusType.Anchored) || char.statuses.has(StatusType.Asleep) || isEternal) {
@@ -266,10 +285,46 @@ public async restPhase() {
         }
     }
 }
+
+/**
+ * Handles the Clean-up daily effect during the Night phase.
+ * Rule 4.2.5.c: Players discard/sacrifice down to their limits.
+ */
+public async cleanupPhase(): Promise<void> {
+    console.log('[GSM] Beginning Clean-up phase.');
+    for (const player of this.state.players.values()) {
+        const hero = player.zones.heroZone.getAll()[0] as IGameObject | undefined;
+        const reserveLimit = hero?.baseCharacteristics.reserveLimit ?? 2;
+        const landmarkLimit = hero?.baseCharacteristics.landmarkLimit ?? 2;
+
+        // Clean-up Reserve
+        const reserveZone = player.zones.reserve;
+        while(reserveZone.getCount() > reserveLimit) {
+            // TODO: Add player choice. For now, discard the last card.
+            const cardToDiscard = reserveZone.getAll().pop() as IGameObject;
+            if(cardToDiscard) {
+                console.log(`[GSM] ${player.id} is over reserve limit, discarding ${cardToDiscard.name}.`);
+                this.moveEntity(cardToDiscard.objectId, reserveZone, player.zones.discardPile, player.id);
+            }
+        }
+
+        // Clean-up Landmarks (Sacrifice)
+        const landmarkZone = player.zones.landmarkZone;
+        while(landmarkZone.getCount() > landmarkLimit) {
+            // TODO: Add player choice. For now, sacrifice the last card.
+            const cardToSacrifice = landmarkZone.getAll().pop() as IGameObject;
+            if(cardToSacrifice) {
+                console.log(`[GSM] ${player.id} is over landmark limit, sacrificing ${cardToSacrifice.name}.`);
+                this.moveEntity(cardToSacrifice.objectId, landmarkZone, player.zones.discardPile, player.id);
+            }
+        }
+    }
+}
+
+
 public async drawCards(playerId: string, count: number): Promise<void> {
     const player = this.getPlayer(playerId);
     if (!player) {
-        console.error(`[GSM:draw] Player not found: ${playerId}`);
         return;
     }
 
@@ -291,25 +346,18 @@ public async drawCards(playerId: string, count: number): Promise<void> {
 
                 deck.addBottom(cardsToReshuffle);
                 deck.shuffle();
-                this.state.actionHistory.push({ action: 'reshuffle', playerId, count: cardsToReshuffle.length });
             }
         }
         
         if (deck.getCount() === 0) {
-            console.log(`[GSM:draw] Deck and discard pile are empty. Player ${playerId} cannot draw a card.`);
             break; 
         }
 
         const cardToDraw = deck.removeTop();
         if (cardToDraw) {
             hand.add(cardToDraw);
-            this.state.actionHistory.push({ action: 'drawCard', playerId, cardId: cardToDraw.instanceId });
             this.eventBus.publish('entityMoved', { entity: cardToDraw, from: deck, to: hand });
         }
     }
-}
-
-public async drawCard(playerId: string): Promise<void> {
-    await this.drawCards(playerId, 1);
 }
 }
