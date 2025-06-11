@@ -81,22 +81,22 @@ The tests expect the following `data-testid` attributes in the UI:
 
 ```bash
 # Install dependencies
-npm install
+bun install
 
 # Run all tests
-npx playwright test
+bunx playwright test
 
 # Run specific test file
-npx playwright test tests/game-engine.spec.ts
+bunx playwright test tests/game-engine.spec.ts
 
 # Run tests in headed mode (visible browser)
-npx playwright test --headed
+bunx playwright test --headed
 
 # Run tests with debug mode
-npx playwright test --debug
+bunx playwright test --debug
 
 # Generate test report
-npx playwright show-report
+bunx playwright show-report
 ```
 
 ## Test Coverage
@@ -115,10 +115,10 @@ These tests validate:
 
 Before running tests:
 
-1. Ensure the development server is running (`npm run dev`)
+1. Ensure the development server is running (`bun run dev`)
 2. Create at least one deck through the UI
 3. Verify all UI components have the required `data-testid` attributes
-4. Install Playwright browsers (`npx playwright install`)
+4. Install Playwright browsers (`bunx playwright install`)
 
 ## Test Data
 
