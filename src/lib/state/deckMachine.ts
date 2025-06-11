@@ -1,4 +1,6 @@
 import { setup, assign } from 'xstate';
+import { deckValidator, type DeckValidationResult, type DeckFormat } from '$lib/deckValidation';
+import type { AlteredCard } from '$types';
 
 interface DeckContext {
 	decks: Deck[];
@@ -6,7 +8,7 @@ interface DeckContext {
 	selectedCards: string[];
 	searchQuery: string;
 	filters: DeckFilters;
-	validationErrors: string[];
+	validationResult: DeckValidationResult | null;
 	isLoading: boolean;
 	error: string | null;
 }
@@ -17,7 +19,7 @@ interface Deck {
 	description: string;
 	cards: DeckCard[];
 	heroId: string | null;
-	companionId: string | null;
+	format: DeckFormat;
 	isValid: boolean;
 	createdAt: Date;
 	updatedAt: Date;
@@ -37,14 +39,14 @@ interface DeckFilters {
 
 type DeckEvents =
 	| { type: 'LOAD_DECKS' }
-	| { type: 'CREATE_DECK'; name: string; description?: string }
+	| { type: 'CREATE_DECK'; name: string; description?: string; format?: DeckFormat }
 	| { type: 'EDIT_DECK'; deckId: string }
 	| { type: 'DELETE_DECK'; deckId: string }
 	| { type: 'ADD_CARD'; cardId: string; quantity?: number }
 	| { type: 'REMOVE_CARD'; cardId: string }
 	| { type: 'UPDATE_CARD_QUANTITY'; cardId: string; quantity: number }
 	| { type: 'SET_HERO'; cardId: string }
-	| { type: 'SET_COMPANION'; cardId: string }
+	| { type: 'SET_FORMAT'; format: DeckFormat }
 	| { type: 'VALIDATE_DECK' }
 	| { type: 'SAVE_DECK' }
 	| { type: 'SEARCH_CARDS'; query: string }
@@ -80,13 +82,16 @@ export const deckMachine = setup({
 		createDeck: assign(({ context, event }) => {
 			if (event.type !== 'CREATE_DECK') return context;
 			
+			const format = event.format || 'constructed';
+			deckValidator.setFormat(format);
+			
 			const newDeck: Deck = {
 				id: `deck-${Date.now()}`,
 				name: event.name,
 				description: event.description || '',
 				cards: [],
 				heroId: null,
-				companionId: null,
+				format,
 				isValid: false,
 				createdAt: new Date(),
 				updatedAt: new Date()
@@ -95,7 +100,7 @@ export const deckMachine = setup({
 			return {
 				...context,
 				currentDeck: newDeck,
-				validationErrors: [],
+				validationResult: null,
 				error: null
 			};
 		}),
@@ -104,10 +109,14 @@ export const deckMachine = setup({
 			if (event.type !== 'EDIT_DECK') return context;
 			
 			const deck = context.decks.find(d => d.id === event.deckId);
+			if (deck) {
+				deckValidator.setFormat(deck.format);
+			}
+			
 			return {
 				...context,
 				currentDeck: deck || null,
-				validationErrors: [],
+				validationResult: null,
 				error: null
 			};
 		}),
@@ -126,13 +135,28 @@ export const deckMachine = setup({
 		addCard: assign(({ context, event }) => {
 			if (event.type !== 'ADD_CARD' || !context.currentDeck) return context;
 			
+			// Check if card can be added according to deck building rules
+			const canAddResult = deckValidator.canAddCard(
+				context.currentDeck.cards, 
+				event.cardId, 
+				context.currentDeck.heroId || undefined
+			);
+			
+			if (!canAddResult.canAdd) {
+				return {
+					...context,
+					error: canAddResult.reason || 'Cannot add card'
+				};
+			}
+			
 			const existingCard = context.currentDeck.cards.find(c => c.cardId === event.cardId);
 			let updatedCards;
 			
 			if (existingCard) {
+				const maxCopies = context.currentDeck.format === 'constructed' ? 3 : Number.MAX_SAFE_INTEGER;
 				updatedCards = context.currentDeck.cards.map(c =>
 					c.cardId === event.cardId
-						? { ...c, quantity: Math.min(3, c.quantity + (event.quantity || 1)) }
+						? { ...c, quantity: Math.min(maxCopies, c.quantity + (event.quantity || 1)) }
 						: c
 				);
 			} else {
@@ -142,13 +166,22 @@ export const deckMachine = setup({
 				}];
 			}
 
+			const updatedDeck = {
+				...context.currentDeck,
+				cards: updatedCards,
+				updatedAt: new Date()
+			};
+
+			// Auto-validate after adding card
+			const validationResult = deckValidator.validate(updatedDeck.cards, updatedDeck.heroId || undefined);
+
 			return {
 				...context,
 				currentDeck: {
-					...context.currentDeck,
-					cards: updatedCards,
-					updatedAt: new Date()
+					...updatedDeck,
+					isValid: validationResult.isValid
 				},
+				validationResult,
 				error: null
 			};
 		}),
@@ -190,27 +223,47 @@ export const deckMachine = setup({
 		setHero: assign(({ context, event }) => {
 			if (event.type !== 'SET_HERO' || !context.currentDeck) return context;
 			
-			return {
-				...context,
-				currentDeck: {
-					...context.currentDeck,
-					heroId: event.cardId,
-					updatedAt: new Date()
-				},
-				error: null
+			const updatedDeck = {
+				...context.currentDeck,
+				heroId: event.cardId,
+				updatedAt: new Date()
 			};
-		}),
 
-		setCompanion: assign(({ context, event }) => {
-			if (event.type !== 'SET_COMPANION' || !context.currentDeck) return context;
+			// Auto-validate after setting hero
+			const validationResult = deckValidator.validate(updatedDeck.cards, updatedDeck.heroId || undefined);
 			
 			return {
 				...context,
 				currentDeck: {
-					...context.currentDeck,
-					companionId: event.cardId,
-					updatedAt: new Date()
+					...updatedDeck,
+					isValid: validationResult.isValid
 				},
+				validationResult,
+				error: null
+			};
+		}),
+
+		setFormat: assign(({ context, event }) => {
+			if (event.type !== 'SET_FORMAT' || !context.currentDeck) return context;
+			
+			deckValidator.setFormat(event.format);
+			
+			const updatedDeck = {
+				...context.currentDeck,
+				format: event.format,
+				updatedAt: new Date()
+			};
+
+			// Auto-validate after changing format
+			const validationResult = deckValidator.validate(updatedDeck.cards, updatedDeck.heroId || undefined);
+			
+			return {
+				...context,
+				currentDeck: {
+					...updatedDeck,
+					isValid: validationResult.isValid
+				},
+				validationResult,
 				error: null
 			};
 		}),
@@ -218,33 +271,19 @@ export const deckMachine = setup({
 		validateDeck: assign(({ context }) => {
 			if (!context.currentDeck) return context;
 			
-			const errors: string[] = [];
-			const totalCards = context.currentDeck.cards.reduce((sum, card) => sum + card.quantity, 0);
-			
-			// Validate deck size (30 cards minimum for Altered TCG)
-			if (totalCards < 30) {
-				errors.push(`Deck must contain at least 30 cards (currently ${totalCards})`);
-			}
-			
-			// Validate hero
-			if (!context.currentDeck.heroId) {
-				errors.push('Deck must have a hero');
-			}
-			
-			// Validate companion
-			if (!context.currentDeck.companionId) {
-				errors.push('Deck must have a companion');
-			}
-			
-			// Additional validation rules can be added here
+			deckValidator.setFormat(context.currentDeck.format);
+			const validationResult = deckValidator.validate(
+				context.currentDeck.cards, 
+				context.currentDeck.heroId || undefined
+			);
 			
 			return {
 				...context,
 				currentDeck: {
 					...context.currentDeck,
-					isValid: errors.length === 0
+					isValid: validationResult.isValid
 				},
-				validationErrors: errors,
+				validationResult,
 				error: null
 			};
 		}),
@@ -313,8 +352,12 @@ export const deckMachine = setup({
 		canAddCard: ({ context, event }) => {
 			if (event.type !== 'ADD_CARD' || !context.currentDeck) return false;
 			
-			const existingCard = context.currentDeck.cards.find(c => c.cardId === event.cardId);
-			return !existingCard || existingCard.quantity < 3; // Max 3 copies per card
+			const result = deckValidator.canAddCard(
+				context.currentDeck.cards, 
+				event.cardId, 
+				context.currentDeck.heroId || undefined
+			);
+			return result.canAdd;
 		}
 	}
 }).createMachine({
@@ -326,7 +369,7 @@ export const deckMachine = setup({
 		selectedCards: [],
 		searchQuery: '',
 		filters: {},
-		validationErrors: [],
+		validationResult: null,
 		isLoading: false,
 		error: null
 	},
@@ -404,9 +447,9 @@ export const deckMachine = setup({
 					target: 'editing',
 					actions: 'setHero'
 				},
-				SET_COMPANION: {
+				SET_FORMAT: {
 					target: 'editing',
-					actions: 'setCompanion'
+					actions: 'setFormat'
 				},
 				VALIDATE_DECK: {
 					target: 'editing',
