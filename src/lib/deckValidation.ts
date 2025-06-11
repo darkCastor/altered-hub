@@ -95,7 +95,7 @@ export class DeckValidator {
 		}
 
 		// Rule 1.1.4.g - Unique Card Restrictions (max 3 unique cards)
-		const uniqueCount = stats.rarityBreakdown['Unique'] || 0;
+		const uniqueCount = stats.rarityBreakdown['UNIQUE'] || 0;
 		if (uniqueCount > 3) {
 			errors.push(`Maximum 3 unique cards allowed (currently ${uniqueCount})`);
 		}
@@ -265,7 +265,8 @@ export class DeckValidator {
 				return { canAdd: false, reason: 'Maximum 15 rare cards allowed' };
 			}
 			
-			if (card.rarity === 'Unique' && tempStats.rarityBreakdown['Unique'] > 3) {
+			// Assuming card.rarity will be "UNIQUE" for unique cards if not found in lookup
+			if (card.rarity === 'UNIQUE' && (tempStats.rarityBreakdown['UNIQUE'] || 0) > 3) {
 				return { canAdd: false, reason: 'Maximum 3 unique cards allowed' };
 			}
 		}
