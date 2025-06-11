@@ -260,9 +260,11 @@ describe('ManaSystem - Mana and Terrain Rules', () => {
       expect(player!.zones.manaZone.getAll().length).toBe(initialManaCount + 1);
       
       // Card should be in mana zone and face-down
-      const manaCard = player!.zones.manaZone.getAll().find(c => c.id === card.id);
+      const manaCard = player!.zones.manaZone.getAll().find(c => c.id === card.id); // Assuming card.id is the instanceId here
       expect(manaCard).toBeDefined();
       expect(manaCard!.faceDown).toBe(true);
+      // Rule 4.2.1.e: "Expand Each player may put one card from their Hand in their Mana zone as a ready Mana Orb"
+      expect(manaCard!.statuses.has(StatusType.Exhausted)).toBe(false); // Should be ready
     });
 
     test('Should prevent expand if card not in hand', () => {

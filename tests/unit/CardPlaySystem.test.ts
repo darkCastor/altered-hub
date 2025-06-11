@@ -14,6 +14,42 @@ describe('CardPlaySystem - Card Playing Rules', () => {
   let gameStateManager: GameStateManager;
   let eventBus: EventBus;
 
+  // Define new card definitions as per requirements
+  const cardDef_FleetingTestSpell: ICardDefinition = {
+    id: 'spell-fleeting-passive',
+    name: 'Fleeting Passive Spell',
+    type: CardType.Spell,
+    subTypes: [],
+    handCost: { total: 1 }, reserveCost: { total: 1 }, faction: 'Neutral',
+    abilities: [{
+      abilityId: 'abil-passive-fleeting', text: 'This spell is Fleeting.',
+      abilityType: 'passive', keyword: KeywordAbility.Fleeting, // Assuming KeywordAbility enum is imported
+      effect: { steps: [] }, isSupportAbility: false,
+    }],
+    rarity: 'Common', version: '1.0',
+  };
+
+  const cardDef_ExpeditionPermanent_001: ICardDefinition = {
+    id: 'exp-permanent-001',
+    name: 'Test Expedition Permanent',
+    type: CardType.Permanent,
+    subTypes: ['Gear'], // Example subType
+    permanentZoneType: ZoneIdentifier.ExpeditionZone, // Custom property to guide placement
+    handCost: { total: 2 }, reserveCost: { total: 1 }, faction: 'Neutral',
+    statistics: {}, abilities: [], rarity: 'Common', version: '1.0',
+  };
+
+  const cardDef_LandmarkPermanent_001: ICardDefinition = {
+    id: 'landmark-permanent-001',
+    name: 'Test Landmark Permanent',
+    type: CardType.Permanent,
+    subTypes: ['Structure'], // Example subType
+    permanentZoneType: ZoneIdentifier.LandmarkZone, // Custom property to guide placement
+    handCost: { total: 2 }, reserveCost: { total: 1 }, faction: 'Neutral',
+    statistics: {}, abilities: [], rarity: 'Common', version: '1.0',
+  };
+
+
   beforeEach(() => {
     eventBus = new EventBus();
     const mockCardDefinitions: ICardDefinition[] = [
@@ -31,7 +67,7 @@ describe('CardPlaySystem - Card Playing Rules', () => {
         version: '1.0'
       },
       {
-        id: 'spell-001',
+        id: 'spell-001', // Non-fleeting spell
         name: 'Test Spell',
         type: CardType.Spell,
         subTypes: [],
@@ -43,24 +79,18 @@ describe('CardPlaySystem - Card Playing Rules', () => {
         rarity: 'Common',
         version: '1.0'
       },
-      {
-        id: 'permanent-001',
-        name: 'Test Permanent',
-        type: CardType.Permanent,
-        subTypes: [],
-        handCost: { total: 2, forest: 0, mountain: 2, water: 0 },
-        reserveCost: { total: 1, forest: 0, mountain: 1, water: 0 },
-        faction: 'Neutral',
-        statistics: { forest: 0, mountain: 0, water: 0 },
-        abilities: [],
-        rarity: 'Common',
-        version: '1.0'
-      }
+      cardDef_LandmarkPermanent_001, // Use the specific landmark permanent
+      cardDef_FleetingTestSpell,
+      cardDef_ExpeditionPermanent_001
     ];
     
     gameStateManager = new GameStateManager(['player1', 'player2'], mockCardDefinitions, eventBus);
     cardPlaySystem = new CardPlaySystem(gameStateManager);
     gameStateManager.initializeGame();
+    gameStateManager.setCurrentPhase(GamePhase.Afternoon); // Default to a phase where cards can be played
+    // Clear any cost modifiers from previous tests if CardPlaySystem instance is reused across describe blocks (it's new here)
+    // cardPlaySystem.clearCostModifiers('player1');
+    // cardPlaySystem.clearCostModifiers('player2');
   });
 
   describe('Rule 5.1.2: Card Playing Process (4 Parts)', () => {
@@ -287,62 +317,172 @@ describe('CardPlaySystem - Card Playing Rules', () => {
   });
 
   describe('Rule 5.1.4: Permanent Card Placement', () => {
-    test('Permanents should be placed in Landmark zone', () => {
+    test('Landmark Permanents should be placed in Landmark zone', () => {
       const player = gameStateManager.getPlayer('player1');
-      const permanent = gameStateManager.objectFactory.createCard('permanent-001', 'player1');
+      // Use the specific landmark permanent ID
+      const permanent = gameStateManager.objectFactory.createCard(cardDef_LandmarkPermanent_001.id, 'player1');
       
+      // Assuming placePermanent is called by resolveCard or a similar top-level play function
+      // For this test, let's assume placePermanent correctly identifies it as a Landmark type
+      // based on cardDef_LandmarkPermanent_001.permanentZoneType or other internal logic.
       const placementResult = cardPlaySystem.placePermanent('player1', permanent.id);
       
       expect(placementResult.success).toBe(true);
-      expect(placementResult.zone).toBe(ZoneIdentifier.Landmark);
+      expect(placementResult.zone).toBe(ZoneIdentifier.LandmarkZone);
       expect(player!.zones.landmarkZone.contains(permanent.id)).toBe(true);
     });
+
+    test('Expedition Permanents should be placed in Expedition zone', () => {
+      const player = gameStateManager.getPlayer('player1');
+      const permanent = gameStateManager.objectFactory.createCard(cardDef_ExpeditionPermanent_001.id, 'player1');
+      
+      // This test assumes that when cardPlaySystem.placePermanent is called,
+      // it (or a preceding step like resolveCard) determines the correct zone.
+      // If permanentZoneType is used, the system should respect it.
+      const placementResult = cardPlaySystem.placePermanent('player1', permanent.id);
+      
+      expect(placementResult.success).toBe(true);
+      // The CardPlaySystem.placePermanent might be generic, and the actual zone determined by resolveCard.
+      // Let's adjust to test via _playCardForTestSteps which handles resolution.
+      player!.zones.handZone.add(permanent); // Add to hand to play
+      player!.currentMana = 10; // Ensure mana
+      const playCompleteResult = cardPlaySystem._playCardForTestSteps('player1', permanent.id, { paymentMethod: 'hand' });
+      expect(playCompleteResult.success).toBe(true);
+      expect(player!.zones.expeditionZone.contains(permanent.id)).toBe(true);
+    });
   });
 
-  describe('Rule 5.1.5: Spell Card Resolution', () => {
-    test('Spells should resolve and go to Discard pile', () => {
+  describe('Rule 5.1.5 & 5.2.4.b: Spell Card Resolution Destination', () => {
+    test('Non-Fleeting Spells should resolve and go to Reserve (Rule 5.2.4.b)', () => {
       const player = gameStateManager.getPlayer('player1');
-      const spell = gameStateManager.objectFactory.createCard('spell-001', 'player1');
-      
-      const resolutionResult = cardPlaySystem.resolveSpell('player1', spell.id);
-      
-      expect(resolutionResult.success).toBe(true);
-      expect(resolutionResult.finalZone).toBe(ZoneIdentifier.Discard);
-      expect(player!.zones.discardPileZone.contains(spell.id)).toBe(true);
+      const spell = gameStateManager.objectFactory.createCard('spell-001', 'player1'); // spell-001 is non-Fleeting
+
+      // Simulate full play process
+      player!.zones.handZone.add(spell);
+      player!.currentMana = 10;
+      cardPlaySystem._playCardForTestSteps('player1', spell.id, { paymentMethod: 'hand' });
+
+      // Assertion: Spell is in Reserve and not exhausted (unless it had Cooldown)
+      const spellInReserve = player!.zones.reserveZone.findById(spell.id);
+      expect(spellInReserve).toBeDefined();
+      expect(player!.zones.discardPileZone.contains(spell.id)).toBe(false);
+      // Assuming Cooldown is a separate keyword that would make it exhausted.
+      // For a basic spell, it should be ready in reserve.
+      expect(spellInReserve?.statuses.has(StatusType.Exhausted)).toBe(false);
     });
 
-    test('Spells with Cooldown should go to Reserve instead of Discard', () => {
+    test('Fleeting Spells should resolve and go to Discard pile (Rule 5.2.4.b implicitly, 2.4.6.e for spells)', async () => {
+      const player = gameStateManager.getPlayer('player1')!;
+      const fleetingSpell = gameStateManager.objectFactory.createCard(cardDef_FleetingTestSpell.id, player.id);
+      player.zones.handZone.add(fleetingSpell);
+      player.currentMana = 10;
+
+      // Play the fleeting spell
+      const playResult = cardPlaySystem._playCardForTestSteps(player.id, fleetingSpell.id, { paymentMethod: 'hand' });
+      expect(playResult.success).toBe(true);
+      
+      // Assertion: Spell is in Discard pile
+      expect(player.zones.discardPileZone.findById(fleetingSpell.id)).toBeDefined();
+      expect(player.zones.reserveZone.findById(fleetingSpell.id)).toBeUndefined();
+    });
+
+    test('Spells with Cooldown should go to Reserve instead of Discard (and be Exhausted)', () => {
       const player = gameStateManager.getPlayer('player1');
-      const spell = gameStateManager.objectFactory.createCard('spell-001', 'player1');
+      const spell = gameStateManager.objectFactory.createCard('spell-001', 'player1'); // Normal spell
+      player.zones.handZone.add(spell); // Add to hand to play
+      player.currentMana = 10;
+
+      // Manually add Cooldown to its definition for this test or have a specific Cooldown spell
+      // For simplicity, let's assume a way to make THIS INSTANCE gain Cooldown for the test
+      // or that the rule for Cooldown is checked by resolveSpell based on a property.
+      // If Cooldown is a keyword:
+      const spellDef = gameStateManager.getCardDefinition(spell.definitionId)!;
+      spellDef.abilities.push({ abilityId: 'cooldown-abil', keyword: KeywordAbility.Cooldown, text:'Cooldown'}); // Mock Cooldown
       
-      // Add Cooldown keyword
-      spell.keywords = ['Cooldown'];
+      cardPlaySystem._playCardForTestSteps('player1', spell.id, { paymentMethod: 'hand' });
       
-      const resolutionResult = cardPlaySystem.resolveSpell('player1', spell.id);
-      
-      expect(resolutionResult.success).toBe(true);
-      expect(resolutionResult.finalZone).toBe(ZoneIdentifier.Reserve);
-      expect(player!.zones.reserveZone.contains(spell.id)).toBe(true);
-      
-      // Spell should be exhausted in Reserve
-      const cardInReserve = player!.zones.reserveZone.getAll().find(c => c.id === spell.id);
+      const cardInReserve = player!.zones.reserveZone.findById(spell.id);
+      expect(cardInReserve).toBeDefined();
       expect(cardInReserve!.statuses.has(StatusType.Exhausted)).toBe(true);
+      // cleanup mock
+      spellDef.abilities.pop();
     });
   });
 
-  describe('Rule 5.2.1.b: Playing from Reserve - Fleeting', () => {
-    test('Cards played from Reserve should gain Fleeting in Limbo', () => {
+  describe('Rule 5.2.4.a & 2.4.6.c: Fleeting Status Application and Resolution', () => {
+    test('Character played from Reserve should gain Fleeting in Limbo', () => {
       const player = gameStateManager.getPlayer('player1');
       const card = gameStateManager.objectFactory.createCard('character-001', 'player1');
       player!.zones.reserveZone.add(card);
       
+      // Move to Limbo simulating playing from reserve
       cardPlaySystem.moveToLimbo('player1', card.id, 'reserve');
       
-      const cardInLimbo = player!.zones.limboZone.getAll().find(c => c.id === card.id);
+      const cardInLimbo = player!.zones.limboZone.findById(card.id);
+      expect(cardInLimbo).toBeDefined();
       expect(cardInLimbo!.statuses.has(StatusType.Fleeting)).toBe(true);
     });
 
-    test('Cards with Fleeting should go to Discard when leaving play', () => {
+    test('Spell played from Reserve should gain Fleeting in Limbo', () => {
+      const player = gameStateManager.getPlayer('player1');
+      const spell = gameStateManager.objectFactory.createCard('spell-001', 'player1');
+      player!.zones.reserveZone.add(spell);
+
+      cardPlaySystem.moveToLimbo('player1', spell.id, 'reserve');
+
+      const spellInLimbo = player!.zones.limboZone.findById(spell.id);
+      expect(spellInLimbo).toBeDefined();
+      expect(spellInLimbo!.statuses.has(StatusType.Fleeting)).toBe(true);
+    });
+
+    test('Spell with passive Fleeting keyword gains Fleeting in Limbo when played from hand', () => {
+      const player = gameStateManager.getPlayer('player1');
+      const fleetingSpell = gameStateManager.objectFactory.createCard(cardDef_FleetingTestSpell.id, 'player1');
+      player!.zones.handZone.add(fleetingSpell);
+
+      cardPlaySystem.moveToLimbo('player1', fleetingSpell.id, 'hand');
+
+      const spellInLimbo = player!.zones.limboZone.findById(fleetingSpell.id);
+      expect(spellInLimbo).toBeDefined();
+      // This relies on CardPlaySystem or ObjectFactory applying passive statuses when moving to Limbo or upon creation.
+      // If not, this test might need adjustment to spy on status application or pre-apply it if passive handling is elsewhere.
+      // For now, assume moveToLimbo (or a prior step in full play) handles passive status application.
+      // A more robust way: check if the definition has passive fleeting, then the instance should get it.
+      const def = gameStateManager.getCardDefinition(fleetingSpell.definitionId);
+      const hasPassiveFleeting = def?.abilities.some(a => a.keyword === KeywordAbility.Fleeting && (a.abilityType === 'passive' || a.abilityType === 'keyword'));
+      expect(hasPassiveFleeting).toBe(true);
+      // And the instance should have it after moving to limbo
+      expect(spellInLimbo!.statuses.has(StatusType.Fleeting)).toBe(true);
+    });
+
+    test('Character played from Reserve (gains Fleeting) enters Expedition Zone with Fleeting', () => {
+      const player = gameStateManager.getPlayer('player1')!;
+      const character = gameStateManager.objectFactory.createCard('character-001', player.id);
+      player.zones.reserveZone.add(character);
+      player.currentMana = 10;
+
+      cardPlaySystem._playCardForTestSteps(player.id, character.id, { paymentMethod: 'reserve' });
+
+      const charInExpedition = player.zones.expeditionZone.findById(character.id);
+      expect(charInExpedition).toBeDefined();
+      expect(charInExpedition!.statuses.has(StatusType.Fleeting)).toBe(true);
+    });
+
+    test('Expedition Permanent played from Reserve (gains Fleeting) enters Expedition Zone with Fleeting', () => {
+      const player = gameStateManager.getPlayer('player1')!;
+      const expPermanent = gameStateManager.objectFactory.createCard(cardDef_ExpeditionPermanent_001.id, player.id);
+      player.zones.reserveZone.add(expPermanent);
+      player.currentMana = 10;
+
+      cardPlaySystem._playCardForTestSteps(player.id, expPermanent.id, { paymentMethod: 'reserve' });
+
+      const permInExpedition = player.zones.expeditionZone.findById(expPermanent.id);
+      expect(permInExpedition).toBeDefined();
+      expect(permInExpedition!.statuses.has(StatusType.Fleeting)).toBe(true);
+    });
+
+
+    test('Fleeting card (Character) should go to Discard when leaving play from Expedition', () => {
       const player = gameStateManager.getPlayer('player1');
       const card = gameStateManager.objectFactory.createCard('character-001', 'player1');
       card.statuses.add(StatusType.Fleeting);
