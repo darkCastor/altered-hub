@@ -145,7 +145,7 @@
 							<span>Format: 
 								<select 
 									bind:value={currentDeck.format} 
-									on:change={(e) => handleChangeFormat(e.target.value)}
+									onchange={(e) => handleChangeFormat(e.target.value)}
 									class="ml-1 px-2 py-1 border rounded"
 								>
 									<option value="constructed">Constructed</option>
@@ -272,7 +272,7 @@
 					type="text"
 					placeholder="Search cards..."
 					bind:value={searchQuery}
-					on:input={handleSearch}
+					oninput={handleSearch}
 					class="w-full pl-10 pr-4 py-2 border border-input bg-background rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
 				/>
 			</div>
@@ -296,9 +296,9 @@
 									
 									<!-- Deck Building Overlay -->
 									{#if selectedAction === 'create'}
+										{@const quantity = getCardQuantity(card.id)}
+										{@const canAdd = canAddCard(card.id)}
 										<div class="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 transition-all rounded-lg flex items-center justify-center">
-											{@const quantity = getCardQuantity(card.id)}
-											{@const canAdd = canAddCard(card.id)}
 											
 											<div class="opacity-0 group-hover:opacity-100 transition-opacity">
 												{#if quantity > 0}

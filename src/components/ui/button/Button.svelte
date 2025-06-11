@@ -47,6 +47,6 @@
 	}: ButtonProps = $props();
 </script>
 
-<button class={buttonVariants({ variant, size, className })} on:click={onclick} {...restProps}>
+<button class={buttonVariants({ variant, size, className })} onclick={onclick} {...restProps}>
 	{@render children?.()}
 </button>
