@@ -4,6 +4,25 @@ import { DeckValidator, type DeckCard } from '../../src/lib/deckValidation';
 describe('DeckValidator - Direct Logic Tests', () => {
   let validator: DeckValidator;
 
+  // Real card IDs from altered_optimized.json
+  const REAL_CARDS = {
+    // Heroes
+    HERO_AXIOM: 'ALT_ALIZE_B_AX_01_C',      // Sierra & Oddball (Axiom Hero)
+    HERO_BRAVOS: 'ALT_ALIZE_B_BR_01_C',     // Kojo & Booda (Bravos Hero)
+    
+    // Axiom cards (same faction as HERO_AXIOM)
+    AX_CHAR_COMMON: 'ALT_ALIZE_A_AX_35_C',      // Vaike, l'Énergéticienne (Common)
+    AX_CHAR_RARE: 'ALT_ALIZE_A_AX_35_R1',       // Vaike, l'Énergéticienne (Rare)
+    AX_LANDMARK_COMMON: 'ALT_ALIZE_A_AX_46_C',  // Galeries Saisies par les Glaces (Common)
+    
+    // Bravos cards (different faction)
+    BR_CHAR_COMMON: 'ALT_ALIZE_A_BR_37_C',      // Gericht, Bretteur Honoré (Common)
+    
+    // Unknown cards for testing
+    UNKNOWN_CARD: 'INVALID_CARD_ID_12345',
+    UNKNOWN_HERO: 'INVALID_HERO_ID_67890'
+  };
+
   beforeEach(() => {
     validator = new DeckValidator('constructed');
   });
@@ -81,7 +100,7 @@ describe('DeckValidator - Direct Logic Tests', () => {
     it('should require hero in constructed format', () => {
       validator.setFormat('constructed');
       const cards: DeckCard[] = [
-        { cardId: 'dummy_card', quantity: 40 }
+        { cardId: REAL_CARDS.AX_CHAR_COMMON, quantity: 40 }
       ];
       
       const result = validator.validate(cards); // No hero provided
@@ -93,7 +112,7 @@ describe('DeckValidator - Direct Logic Tests', () => {
     it('should not require hero in limited format', () => {
       validator.setFormat('limited');
       const cards: DeckCard[] = [
-        { cardId: 'dummy_card', quantity: 30 }
+        { cardId: REAL_CARDS.AX_CHAR_COMMON, quantity: 30 }
       ];
       
       const result = validator.validate(cards); // No hero provided
@@ -112,8 +131,8 @@ describe('DeckValidator - Direct Logic Tests', () => {
       const testCases = [0, 10, 20, 30, 38];
       
       testCases.forEach(cardCount => {
-        const cards: DeckCard[] = cardCount > 0 ? [{ cardId: 'dummy', quantity: cardCount }] : [];
-        const result = validator.validate(cards, 'hero_id');
+        const cards: DeckCard[] = cardCount > 0 ? [{ cardId: REAL_CARDS.AX_CHAR_COMMON, quantity: cardCount }] : [];
+        const result = validator.validate(cards, REAL_CARDS.HERO_AXIOM);
         
         expect(result.isValid).toBe(false);
         expect(result.errors.some(e => e.includes('at least 39 non-Hero cards'))).toBe(true);
@@ -127,8 +146,8 @@ describe('DeckValidator - Direct Logic Tests', () => {
       const testCases = [0, 10, 20, 28];
       
       testCases.forEach(cardCount => {
-        const cards: DeckCard[] = cardCount > 0 ? [{ cardId: 'dummy', quantity: cardCount }] : [];
-        const result = validator.validate(cards, 'hero_id');
+        const cards: DeckCard[] = cardCount > 0 ? [{ cardId: REAL_CARDS.AX_CHAR_COMMON, quantity: cardCount }] : [];
+        const result = validator.validate(cards, REAL_CARDS.HERO_AXIOM);
         
         expect(result.isValid).toBe(false);
         expect(result.errors.some(e => e.includes('at least 29 non-Hero cards'))).toBe(true);
@@ -138,16 +157,16 @@ describe('DeckValidator - Direct Logic Tests', () => {
     it('should accept minimum valid deck sizes', () => {
       // Constructed: 39 cards + hero = 40 total
       validator.setFormat('constructed');
-      const constructedCards: DeckCard[] = [{ cardId: 'dummy', quantity: 39 }];
-      const constructedResult = validator.validate(constructedCards, 'hero_id');
+      const constructedCards: DeckCard[] = [{ cardId: REAL_CARDS.AX_CHAR_COMMON, quantity: 39 }];
+      const constructedResult = validator.validate(constructedCards, REAL_CARDS.HERO_AXIOM);
       
       expect(constructedResult.stats.totalCards).toBe(40);
       expect(constructedResult.errors.filter(e => e.includes('39 non-Hero cards')).length).toBe(0);
       
       // Limited: 29 cards + hero = 30 total
       validator.setFormat('limited');
-      const limitedCards: DeckCard[] = [{ cardId: 'dummy', quantity: 29 }];
-      const limitedResult = validator.validate(limitedCards, 'hero_id');
+      const limitedCards: DeckCard[] = [{ cardId: REAL_CARDS.AX_CHAR_COMMON, quantity: 29 }];
+      const limitedResult = validator.validate(limitedCards, REAL_CARDS.HERO_AXIOM);
       
       expect(limitedResult.stats.totalCards).toBe(30);
       expect(limitedResult.errors.filter(e => e.includes('29 non-Hero cards')).length).toBe(0);
@@ -157,7 +176,7 @@ describe('DeckValidator - Direct Logic Tests', () => {
   describe('canAddCard Method', () => {
     it('should return proper structure', () => {
       const cards: DeckCard[] = [];
-      const result = validator.canAddCard(cards, 'test_card');
+      const result = validator.canAddCard(cards, REAL_CARDS.AX_CHAR_COMMON);
       
       expect(result).toHaveProperty('canAdd');
       expect(typeof result.canAdd).toBe('boolean');
@@ -170,7 +189,7 @@ describe('DeckValidator - Direct Logic Tests', () => {
 
     it('should handle non-existent cards', () => {
       const cards: DeckCard[] = [];
-      const result = validator.canAddCard(cards, '');
+      const result = validator.canAddCard(cards, REAL_CARDS.UNKNOWN_CARD);
       
       expect(result.canAdd).toBe(false);
       expect(result.reason).toBeDefined();

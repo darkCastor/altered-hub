@@ -136,8 +136,18 @@ export class DeckValidator {
 			errors.push(`Maximum 3 factions allowed in limited format (currently ${factionCount}: ${factions.join(', ')})`);
 		}
 
-		// No copy or rarity restrictions in limited format
-		if (stats.copyViolations.length > 0) {
+		// No copy or rarity restrictions in limited format, but warn about multiple copies
+		// Check for multiple copies (in limited format, check manually since copyViolations only tracks constructed violations)
+		const cardNameCounts: { [name: string]: number } = {};
+		cards.forEach(deckCard => {
+			const card = getCardById(deckCard.cardId);
+			if (card) {
+				cardNameCounts[card.name] = (cardNameCounts[card.name] || 0) + deckCard.quantity;
+			}
+		});
+
+		const hasMultipleCopies = Object.values(cardNameCounts).some(count => count > 3);
+		if (hasMultipleCopies) {
 			warnings.push('Multiple copies of the same card - consider deck diversity');
 		}
 	}
@@ -218,14 +228,6 @@ export class DeckValidator {
 			return { canAdd: false, reason: 'Card not found' };
 		}
 
-		// Check if adding this card would violate copy restrictions
-		const existingCard = cards.find(c => c.cardId === cardId);
-		const currentQuantity = existingCard ? existingCard.quantity : 0;
-
-		if (this.format === 'constructed' && currentQuantity >= 3) {
-			return { canAdd: false, reason: 'Maximum 3 copies per card in constructed format' };
-		}
-
 		// Check faction restrictions for constructed
 		if (this.format === 'constructed' && heroId) {
 			const hero = getCardById(heroId);
@@ -234,8 +236,25 @@ export class DeckValidator {
 			}
 		}
 
+		// Check if adding this card would violate copy restrictions (same name)
+		if (this.format === 'constructed') {
+			// Count all cards with the same name as the card we're trying to add
+			let sameNameCount = 0;
+			cards.forEach(deckCard => {
+				const existingCard = getCardById(deckCard.cardId);
+				if (existingCard && existingCard.name === card.name) {
+					sameNameCount += deckCard.quantity;
+				}
+			});
+
+			if (sameNameCount >= 3) {
+				return { canAdd: false, reason: `Maximum 3 copies of "${card.name}" allowed` };
+			}
+		}
+
 		// Check rarity restrictions for constructed
 		if (this.format === 'constructed') {
+			const existingCard = cards.find(c => c.cardId === cardId);
 			const tempCards = existingCard 
 				? cards.map(c => c.cardId === cardId ? { ...c, quantity: c.quantity + 1 } : c)
 				: [...cards, { cardId, quantity: 1 }];

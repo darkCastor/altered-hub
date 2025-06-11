@@ -12,11 +12,18 @@ describe('DeckValidator - Real Card Tests', () => {
     HERO_LYRA: 'ALT_ALIZE_B_LY_02_C',       // Lyra Hero
     HERO_MUNA: 'ALT_ALIZE_B_MU_02_C',       // Muna Hero
     
-    // Axiom cards (same faction as HERO_AXIOM)
+    // Axiom cards (same faction as HERO_AXIOM) - different cards for building decks
     AX_CHAR_COMMON: 'ALT_ALIZE_A_AX_35_C',      // Vaike, l'Énergéticienne (Common)
     AX_CHAR_RARE: 'ALT_ALIZE_A_AX_35_R1',       // Vaike, l'Énergéticienne (Rare transformation)
     AX_LANDMARK_COMMON: 'ALT_ALIZE_A_AX_46_C',  // Galeries Saisies par les Glaces (Common)
     AX_LANDMARK_RARE: 'ALT_ALIZE_A_AX_46_R1',   // Galeries Saisies par les Glaces (Rare)
+    AX_CHAR2_COMMON: 'ALT_ALIZE_B_AX_32_C',     // La Machine dans la Glace (Common)
+    AX_CHAR2_RARE: 'ALT_ALIZE_B_AX_32_R1',      // La Machine dans la Glace (Rare)
+    AX_CHAR3_COMMON: 'ALT_ALIZE_B_AX_33_C',     // Macareux à Roquettes (Common)
+    AX_CHAR4_COMMON: 'ALT_ALIZE_B_AX_34_C',     // La Petite Fille aux Allumettes (Common)
+    AX_CHAR5_COMMON: 'ALT_ALIZE_B_AX_36_C',     // Éclaireur Morse (Common)
+    AX_CHAR6_COMMON: 'ALT_ALIZE_B_AX_37_C',     // Porteuse Intrépide (Common)
+    AX_CHAR7_COMMON: 'ALT_ALIZE_B_AX_38_C',     // Prototype Défectueux (Common)
     
     // Bravos cards (different faction)
     BR_CHAR_COMMON: 'ALT_ALIZE_A_BR_37_C',      // Gericht, Bretteur Honoré (Common)
@@ -154,7 +161,17 @@ describe('DeckValidator - Real Card Tests', () => {
         const cards: DeckCard[] = [
           { cardId: REAL_CARDS.VAIKE_AX_COMMON, quantity: 2 }, // 2 common Vaike
           { cardId: REAL_CARDS.VAIKE_AX_RARE, quantity: 1 },   // 1 rare Vaike = 3 total
-          { cardId: REAL_CARDS.AX_LANDMARK_COMMON, quantity: 36 }
+          { cardId: 'ALT_ALIZE_A_BR_46_R2', quantity: 3 },     // 3 Pic Saisi par les Glaces (unique name)
+          { cardId: 'ALT_ALIZE_A_YZ_46_R2', quantity: 3 },     // 3 Col Saisi par les Glaces (unique name)
+          { cardId: REAL_CARDS.AX_CHAR2_COMMON, quantity: 3 }, // 3 Machine dans la Glace 
+          { cardId: REAL_CARDS.AX_CHAR3_COMMON, quantity: 3 }, // 3 Macareux
+          { cardId: REAL_CARDS.AX_CHAR4_COMMON, quantity: 3 }, // 3 Petite Fille
+          { cardId: REAL_CARDS.AX_CHAR5_COMMON, quantity: 3 }, // 3 Éclaireur
+          { cardId: REAL_CARDS.AX_CHAR6_COMMON, quantity: 3 }, // 3 Porteuse
+          { cardId: REAL_CARDS.AX_CHAR7_COMMON, quantity: 3 }, // 3 Prototype
+          { cardId: 'ALT_ALIZE_B_AX_39_C', quantity: 3 },      // 3 Vishvakarma (unique)
+          { cardId: 'ALT_ALIZE_B_AX_40_C', quantity: 3 },      // 3 Gibil (unique)
+          { cardId: 'ALT_ALIZE_B_AX_41_C', quantity: 3 }       // 3 Livraison Gelée (unique) = 36 total
         ];
         const heroId = REAL_CARDS.HERO_AXIOM;
 
@@ -165,33 +182,30 @@ describe('DeckValidator - Real Card Tests', () => {
 
     describe('Complete Valid Constructed Deck', () => {
       it('should validate a perfectly legal constructed deck with real cards', () => {
-        const cards: DeckCard[] = [
-          { cardId: REAL_CARDS.AX_CHAR_COMMON, quantity: 3 },    // 3 Vaike common
-          { cardId: REAL_CARDS.AX_CHAR_RARE, quantity: 3 },      // 3 Vaike rare (different rarity, same faction)
-          { cardId: REAL_CARDS.AX_LANDMARK_COMMON, quantity: 3 }, // 3 Landmark common
-          { cardId: REAL_CARDS.AX_LANDMARK_RARE, quantity: 3 },   // 3 Landmark rare
-          { cardId: REAL_CARDS.AX_CHAR_COMMON, quantity: 27 }     // Fill remaining (different card)
-        ];
-        
-        // Adjust to avoid copy violations
+        // Create a valid 40-card deck with max 3 copies per card name
         const validCards: DeckCard[] = [
-          { cardId: REAL_CARDS.AX_CHAR_COMMON, quantity: 3 },     // 3 Vaike
-          { cardId: REAL_CARDS.AX_LANDMARK_COMMON, quantity: 3 }, // 3 Landmark  
-          { cardId: REAL_CARDS.AX_LANDMARK_RARE, quantity: 3 },   // 3 Landmark rare (need different card)
-        ];
-        
-        // Actually, let's create a simpler valid deck
-        const simpleValidCards: DeckCard[] = [
           { cardId: REAL_CARDS.AX_CHAR_COMMON, quantity: 3 },     // 3 Vaike common
-          { cardId: REAL_CARDS.AX_LANDMARK_COMMON, quantity: 36 } // 36 Landmark common
+          { cardId: 'ALT_ALIZE_A_BR_46_R2', quantity: 3 },        // 3 Pic Saisi par les Glaces (unique name)
+          { cardId: 'ALT_ALIZE_A_YZ_46_R2', quantity: 3 },        // 3 Col Saisi par les Glaces (unique name)
+          { cardId: REAL_CARDS.AX_CHAR2_COMMON, quantity: 3 },    // 3 Machine dans la Glace
+          { cardId: REAL_CARDS.AX_CHAR3_COMMON, quantity: 3 },    // 3 Macareux
+          { cardId: REAL_CARDS.AX_CHAR4_COMMON, quantity: 3 },    // 3 Petite Fille
+          { cardId: REAL_CARDS.AX_CHAR5_COMMON, quantity: 3 },    // 3 Éclaireur
+          { cardId: REAL_CARDS.AX_CHAR6_COMMON, quantity: 3 },    // 3 Porteuse
+          { cardId: REAL_CARDS.AX_CHAR7_COMMON, quantity: 3 },    // 3 Prototype
+          { cardId: 'ALT_ALIZE_B_AX_31_C', quantity: 3 },         // 3 Scarabot (unique)
+          { cardId: 'ALT_ALIZE_B_AX_39_C', quantity: 3 },         // 3 Vishvakarma (unique)
+          { cardId: 'ALT_ALIZE_B_AX_40_C', quantity: 3 },         // 3 Gibil (unique)
+          { cardId: 'ALT_ALIZE_B_AX_41_C', quantity: 3 }          // 3 Livraison Gelée (unique) = 39 total
         ];
         const heroId = REAL_CARDS.HERO_AXIOM;
 
-        const result = validator.validate(simpleValidCards, heroId);
+        const result = validator.validate(validCards, heroId);
         expect(result.isValid).toBe(true);
         expect(result.errors.length).toBe(0);
         expect(result.stats.totalCards).toBe(40); // 39 + 1 hero
         expect(result.stats.heroCount).toBe(1);
+        expect(result.stats.copyViolations.length).toBe(0);
       });
     });
   });

@@ -16,6 +16,12 @@ describe('Deck State Machine - Real Cards Tests', () => {
     AX_CHAR_RARE: 'ALT_ALIZE_A_AX_35_R1',       // Vaike, l'Énergéticienne (Rare)
     AX_LANDMARK_COMMON: 'ALT_ALIZE_A_AX_46_C',  // Galeries Saisies par les Glaces (Common)
     AX_LANDMARK_RARE: 'ALT_ALIZE_A_AX_46_R1',   // Galeries Saisies par les Glaces (Rare)
+    AX_CHAR2_COMMON: 'ALT_ALIZE_B_AX_32_C',     // La Machine dans la Glace (Common)
+    AX_CHAR3_COMMON: 'ALT_ALIZE_B_AX_33_C',     // Macareux à Roquettes (Common)
+    AX_CHAR4_COMMON: 'ALT_ALIZE_B_AX_34_C',     // La Petite Fille aux Allumettes (Common)
+    AX_CHAR5_COMMON: 'ALT_ALIZE_B_AX_36_C',     // Éclaireur Morse (Common)
+    AX_CHAR6_COMMON: 'ALT_ALIZE_B_AX_37_C',     // Porteuse Intrépide (Common)
+    AX_CHAR7_COMMON: 'ALT_ALIZE_B_AX_38_C',     // Prototype Défectueux (Common)
     
     // Bravos cards
     BR_CHAR_COMMON: 'ALT_ALIZE_A_BR_37_C',      // Gericht, Bretteur Honoré (Common)
@@ -23,7 +29,6 @@ describe('Deck State Machine - Real Cards Tests', () => {
     // Same name, different transformations
     VAIKE_AX_COMMON: 'ALT_ALIZE_A_AX_35_C',     // Vaike (Axiom Common)
     VAIKE_AX_RARE: 'ALT_ALIZE_A_AX_35_R1',      // Vaike (Axiom Rare)
-    VAIKE_YZ_RARE: 'ALT_ALIZE_A_AX_35_R2',      // Vaike (Yzmir Rare)
     
     // Unknown cards
     UNKNOWN_CARD: 'INVALID_CARD_12345',
@@ -275,33 +280,39 @@ describe('Deck State Machine - Real Cards Tests', () => {
         cardId: REAL_CARDS.HERO_AXIOM
       });
 
-      // Add exactly 39 cards to meet minimum
-      for (let i = 0; i < 13; i++) {
-        actor.send({ 
-          type: 'ADD_CARD', 
-          cardId: REAL_CARDS.AX_CHAR_COMMON
-        });
-      }
-      
-      // Add different cards to reach 39 total
-      for (let i = 0; i < 13; i++) {
-        actor.send({ 
-          type: 'ADD_CARD', 
-          cardId: REAL_CARDS.AX_LANDMARK_COMMON
-        });
-      }
+      // Add exactly 39 cards to meet minimum (using cards with unique names, max 3 each)
+      const uniqueCards = [
+        REAL_CARDS.AX_CHAR_COMMON,        // Vaike (3 max)
+        REAL_CARDS.AX_CHAR2_COMMON,       // Machine dans la Glace (3 max)
+        REAL_CARDS.AX_CHAR3_COMMON,       // Macareux (3 max)
+        REAL_CARDS.AX_CHAR4_COMMON,       // Petite Fille (3 max)
+        REAL_CARDS.AX_CHAR5_COMMON,       // Éclaireur (3 max)
+        REAL_CARDS.AX_CHAR6_COMMON,       // Porteuse (3 max)
+        REAL_CARDS.AX_CHAR7_COMMON,       // Prototype (3 max)
+        REAL_CARDS.AX_LANDMARK_COMMON,    // Galeries Saisies par les Glaces (3 max)
+        'ALT_ALIZE_B_AX_31_C',             // Scarabot (3 max)
+        'ALT_ALIZE_B_AX_39_C',             // Vishvakarma (3 max)
+        'ALT_ALIZE_B_AX_40_C',             // Gibil (3 max)
+        'ALT_ALIZE_B_AX_41_C',             // Livraison Gelée (3 max)
+        'ALT_ALIZE_B_AX_42_C'              // Avalanche (3 max) - 39 total
+      ];
 
-      for (let i = 0; i < 13; i++) {
-        actor.send({ 
-          type: 'ADD_CARD', 
-          cardId: REAL_CARDS.AX_LANDMARK_RARE
-        });
-      }
+      // Add 3 copies of each unique card = 39 total
+      uniqueCards.forEach(cardId => {
+        for (let i = 0; i < 3; i++) {
+          actor.send({ 
+            type: 'ADD_CARD', 
+            cardId
+          });
+        }
+      });
 
       // Validate deck
       actor.send({ type: 'VALIDATE_DECK' });
 
       const snapshot = actor.getSnapshot();
+      
+      
       expect(snapshot.context.currentDeck?.isValid).toBe(true);
       expect(snapshot.context.validationResult?.isValid).toBe(true);
       expect(snapshot.context.validationResult?.stats.totalCards).toBe(40);

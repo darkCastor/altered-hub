@@ -136,6 +136,7 @@ export const deckMachine = setup({
 			if (event.type !== 'ADD_CARD' || !context.currentDeck) return context;
 			
 			// Check if card can be added according to deck building rules
+			deckValidator.setFormat(context.currentDeck.format);
 			const canAddResult = deckValidator.canAddCard(
 				context.currentDeck.cards, 
 				event.cardId, 
@@ -173,6 +174,7 @@ export const deckMachine = setup({
 			};
 
 			// Auto-validate after adding card
+			deckValidator.setFormat(updatedDeck.format);
 			const validationResult = deckValidator.validate(updatedDeck.cards, updatedDeck.heroId || undefined);
 
 			return {
@@ -189,13 +191,23 @@ export const deckMachine = setup({
 		removeCard: assign(({ context, event }) => {
 			if (event.type !== 'REMOVE_CARD' || !context.currentDeck) return context;
 			
+			const updatedDeck = {
+				...context.currentDeck,
+				cards: context.currentDeck.cards.filter(c => c.cardId !== event.cardId),
+				updatedAt: new Date()
+			};
+
+			// Auto-validate after removing card
+			deckValidator.setFormat(updatedDeck.format);
+			const validationResult = deckValidator.validate(updatedDeck.cards, updatedDeck.heroId || undefined);
+			
 			return {
 				...context,
 				currentDeck: {
-					...context.currentDeck,
-					cards: context.currentDeck.cards.filter(c => c.cardId !== event.cardId),
-					updatedAt: new Date()
+					...updatedDeck,
+					isValid: validationResult.isValid
 				},
+				validationResult,
 				error: null
 			};
 		}),
@@ -209,13 +221,23 @@ export const deckMachine = setup({
 					: c
 			).filter(c => c.quantity > 0);
 
+			const updatedDeck = {
+				...context.currentDeck,
+				cards: updatedCards,
+				updatedAt: new Date()
+			};
+
+			// Auto-validate after updating card quantity
+			deckValidator.setFormat(updatedDeck.format);
+			const validationResult = deckValidator.validate(updatedDeck.cards, updatedDeck.heroId || undefined);
+
 			return {
 				...context,
 				currentDeck: {
-					...context.currentDeck,
-					cards: updatedCards,
-					updatedAt: new Date()
+					...updatedDeck,
+					isValid: validationResult.isValid
 				},
+				validationResult,
 				error: null
 			};
 		}),
@@ -230,6 +252,7 @@ export const deckMachine = setup({
 			};
 
 			// Auto-validate after setting hero
+			deckValidator.setFormat(updatedDeck.format);
 			const validationResult = deckValidator.validate(updatedDeck.cards, updatedDeck.heroId || undefined);
 			
 			return {
@@ -255,6 +278,7 @@ export const deckMachine = setup({
 			};
 
 			// Auto-validate after changing format
+			deckValidator.setFormat(updatedDeck.format);
 			const validationResult = deckValidator.validate(updatedDeck.cards, updatedDeck.heroId || undefined);
 			
 			return {
@@ -352,6 +376,7 @@ export const deckMachine = setup({
 		canAddCard: ({ context, event }) => {
 			if (event.type !== 'ADD_CARD' || !context.currentDeck) return false;
 			
+			deckValidator.setFormat(context.currentDeck.format);
 			const result = deckValidator.canAddCard(
 				context.currentDeck.cards, 
 				event.cardId, 
@@ -432,8 +457,7 @@ export const deckMachine = setup({
 			on: {
 				ADD_CARD: {
 					target: 'editing',
-					actions: 'addCard',
-					guard: 'canAddCard'
+					actions: 'addCard'
 				},
 				REMOVE_CARD: {
 					target: 'editing',
