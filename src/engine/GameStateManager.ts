@@ -200,18 +200,34 @@ export class GameStateManager {
     
 private initializeGameState(playerIds: string[]): IGameState {
     const players = new Map<string, IPlayer>();
+    
+    // Create shared zones first
+    const sharedZones = {
+        adventure: new GenericZone("shared-adventure", ZoneIdentifier.Adventure, 'visible'),
+        expedition: new GenericZone("shared-expedition-deprecated", ZoneIdentifier.Expedition, 'visible'), 
+        limbo: new LimboZone(),
+    };
+    
     playerIds.forEach(pid => {
+        const handZone = new HandZone(`${pid}-hand`, pid);
+        const reserveZone = new GenericZone(`${pid}-reserve`, ZoneIdentifier.Reserve, 'visible', pid);
+        const expeditionZone = new GenericZone(`${pid}-expedition`, ZoneIdentifier.Expedition, 'visible', pid);
+        
         players.set(pid, {
             id: pid,
             zones: {
                 deckZone: new DeckZone(`${pid}-deck`, pid),
-                handZone: new HandZone(`${pid}-hand`, pid),
+                handZone: handZone,
                 discardPileZone: new DiscardPileZone(`${pid}-discard`, pid),
                 manaZone: new GenericZone(`${pid}-mana`, ZoneIdentifier.Mana, 'visible', pid),
-                reserveZone: new GenericZone(`${pid}-reserve`, ZoneIdentifier.Reserve, 'visible', pid),
+                reserveZone: reserveZone,
                 landmarkZone: new GenericZone(`${pid}-landmark`, ZoneIdentifier.Landmark, 'visible', pid),
                 heroZone: new GenericZone(`${pid}-hero`, ZoneIdentifier.Hero, 'visible', pid),
-                expeditionZone: new GenericZone(`${pid}-expedition`, ZoneIdentifier.Expedition, 'visible', pid), 
+                expeditionZone: expeditionZone,
+                limboZone: sharedZones.limbo, // Reference to shared limbo zone
+                hand: handZone, // Alias for test compatibility
+                reserve: reserveZone, // Alias for test compatibility  
+                expedition: expeditionZone, // Alias for test compatibility
             },
             heroExpedition: { position: 0, canMove: true, hasMoved: false },
             companionExpedition: { position: 0, canMove: true, hasMoved: false },
@@ -222,11 +238,7 @@ private initializeGameState(playerIds: string[]): IGameState {
 
     return {
         players,
-        sharedZones: {
-            adventure: new GenericZone("shared-adventure", ZoneIdentifier.Adventure, 'visible'),
-            expedition: new GenericZone("shared-expedition-deprecated", ZoneIdentifier.Expedition, 'visible'), 
-            limbo: new LimboZone(),
-        },
+        sharedZones,
         currentPhase: GamePhase.Setup,
         currentPlayerId: playerIds[0],
         firstPlayerId: playerIds[0],

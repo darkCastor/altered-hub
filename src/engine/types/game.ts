@@ -52,6 +52,10 @@ export interface IPlayer {
         landmarkZone: IZone;
         heroZone: IZone;
         expeditionZone: IZone;
+        limboZone: IZone; // Shared reference to game's limbo zone for convenience
+        hand: IZone; // Alias for handZone for test compatibility
+        reserve: IZone; // Alias for reserveZone for test compatibility  
+        expedition: IZone; // Alias for expeditionZone for test compatibility
     };
     heroExpedition: IExpeditionState;
     companionExpedition: IExpeditionState;

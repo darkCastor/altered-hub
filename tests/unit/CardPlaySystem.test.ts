@@ -157,7 +157,8 @@ describe('CardPlaySystem - Card Playing Rules', () => {
       
       const costCheck = cardPlaySystem.getPlayingCost('player1', card.id, 'hand');
       
-      expect(costCheck.cost).toEqual(card.handCost);
+      const expectedCost = gameStateManager.getCardDefinition('character-001')!.handCost;
+      expect(costCheck.cost).toEqual(expectedCost);
       expect(costCheck.source).toBe('hand');
     });
 
@@ -168,7 +169,8 @@ describe('CardPlaySystem - Card Playing Rules', () => {
       
       const costCheck = cardPlaySystem.getPlayingCost('player1', card.id, 'reserve');
       
-      expect(costCheck.cost).toEqual(card.reserveCost);
+      const expectedCost = gameStateManager.getCardDefinition('character-001')!.reserveCost;
+      expect(costCheck.cost).toEqual(expectedCost);
       expect(costCheck.source).toBe('reserve');
     });
 
