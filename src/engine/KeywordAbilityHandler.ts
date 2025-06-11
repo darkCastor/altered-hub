@@ -121,15 +121,24 @@ export class KeywordAbilityHandler {
             e => isGameObject(e) && e.type === CardType.Character
         ) as IGameObject[];
 
-        const hasDefender = expeditionChars.some(char =>
-            char.abilities.some(ability => 
-                ability.isKeyword && ability.keyword === KeywordAbility.Defender
-            )
-        );
+        let defenderPresent = false;
+        for (const char of expeditionChars) {
+            if (char.currentCharacteristics.hasDefender === true) {
+                defenderPresent = true;
+                break;
+            }
+            // Fallback: check base abilities if characteristic not set
+            // (e.g., if RuleAdjudicator hasn't run or missed it for some reason,
+            // or for systems that might query this before full adjudication)
+            if (char.abilities.some(ability => ability.keyword === KeywordAbility.Defender)) {
+                defenderPresent = true;
+                break;
+            }
+        }
 
         return {
-            hero: !hasDefender,
-            companion: !hasDefender
+            hero: !defenderPresent,      // If defender is present, hero movement is restricted (false)
+            companion: !defenderPresent // Same for companion
         };
     }
 
@@ -155,8 +164,15 @@ export class KeywordAbilityHandler {
      * Rule 7.4.3 - Eternal characters are not sent to Reserve during Rest
      */
     public isEternal(object: IGameObject): boolean {
+        // First, check the characteristics applied by RuleAdjudicator
+        if (object.currentCharacteristics.isEternal === true) {
+            return true;
+        }
+        // Fallback: check the base abilities array if the characteristic isn't set
+        // (e.g., if RuleAdjudicator hasn't run or missed it for some reason,
+        // or for systems that might query this before full adjudication)
         return object.abilities.some(ability => 
-            ability.isKeyword && ability.keyword === KeywordAbility.Eternal
+            ability.keyword === KeywordAbility.Eternal // Removed isKeyword check for broader compatibility
         );
     }
 }
