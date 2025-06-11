@@ -26,9 +26,11 @@ export class AdvancedTriggerHandler {
                 // Check if trigger condition is met
                 const triggerPayload = { object, zone };
                 if (ability.trigger.condition(triggerPayload, object, this.gsm)) {
-                    console.log(`[TriggerHandler] Triggering enter play ability: ${ability.text}`);
-                    // TODO: Queue the effect for resolution
-                    // this.gsm.effectResolver.queueEffect(ability.effect, object);
+                    console.log(`[TriggerHandler] Triggering enter play ability on ${object.name}: ${ability.text}`);
+                    const emblem = this.gsm.objectFactory.createReactionEmblem(ability, object, triggerPayload);
+                    const limboZone = this.gsm.state.sharedZones.limbo;
+                    limboZone.add(emblem);
+                    console.log(`[TriggerHandler] Created reaction emblem ${emblem.name} (${emblem.id}) for ${object.name} and added to Limbo.`);
                 }
             }
         }
@@ -50,8 +52,11 @@ export class AdvancedTriggerHandler {
                 
                 const triggerPayload = { object, fromZone, toZone };
                 if (ability.trigger.condition(triggerPayload, object, this.gsm)) {
-                    console.log(`[TriggerHandler] Triggering leave play ability: ${ability.text}`);
-                    // TODO: Queue the effect for resolution
+                    console.log(`[TriggerHandler] Triggering leave play ability on ${object.name}: ${ability.text}`);
+                    const emblem = this.gsm.objectFactory.createReactionEmblem(ability, object, triggerPayload);
+                    const limboZone = this.gsm.state.sharedZones.limbo;
+                    limboZone.add(emblem);
+                    console.log(`[TriggerHandler] Created reaction emblem ${emblem.name} (${emblem.id}) for ${object.name} and added to Limbo.`);
                 }
             }
         }
@@ -70,8 +75,11 @@ export class AdvancedTriggerHandler {
                 
                 const triggerPayload = { object, fromZone };
                 if (ability.trigger.condition(triggerPayload, object, this.gsm)) {
-                    console.log(`[TriggerHandler] Triggering go to reserve ability: ${ability.text}`);
-                    // TODO: Queue the effect for resolution
+                    console.log(`[TriggerHandler] Triggering go to reserve ability on ${object.name}: ${ability.text}`);
+                    const emblem = this.gsm.objectFactory.createReactionEmblem(ability, object, triggerPayload);
+                    const limboZone = this.gsm.state.sharedZones.limbo;
+                    limboZone.add(emblem);
+                    console.log(`[TriggerHandler] Created reaction emblem ${emblem.name} (${emblem.id}) for ${object.name} and added to Limbo.`);
                 }
             }
         }
@@ -105,7 +113,10 @@ export class AdvancedTriggerHandler {
                 const triggerPayload = { phase: phaseName, object };
                 if (ability.trigger.condition(triggerPayload, object, this.gsm)) {
                     console.log(`[TriggerHandler] Triggering 'At ${phaseName}' ability from ${object.name}: ${ability.text}`);
-                    // TODO: Queue the effect for resolution
+                    const emblem = this.gsm.objectFactory.createReactionEmblem(ability, object, triggerPayload);
+                    const limboZone = this.gsm.state.sharedZones.limbo;
+                    limboZone.add(emblem);
+                    console.log(`[TriggerHandler] Created reaction emblem ${emblem.name} (${emblem.id}) for ${object.name} (At ${phaseName}) and added to Limbo.`);
                 }
             }
         }
