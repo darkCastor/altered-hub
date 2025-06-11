@@ -30,7 +30,7 @@ export class CardPlaySystem {
         if (!player) throw new Error(`Player ${playerId} not found`);
 
         // Get source zone and card
-        const sourceZone = fromZone === 'hand' ? player.zones.hand : player.zones.reserve;
+        const sourceZone = fromZone === 'hand' ? player.zones.handZone : player.zones.reserveZone;
         const card = sourceZone.findById(cardId);
         if (!card) throw new Error(`Card ${cardId} not found in ${fromZone}`);
 
@@ -154,8 +154,8 @@ export class CardPlaySystem {
         const player = this.gsm.getPlayer(playerId);
         if (!player) throw new Error(`Player ${playerId} not found`);
 
-        const sourceZone = fromZone === 'hand' ? player.zones.hand : player.zones.reserve;
-        const destinationZone = player.zones.expedition;
+        const sourceZone = fromZone === 'hand' ? player.zones.handZone : player.zones.reserveZone;
+        const destinationZone = player.zones.expeditionZone;
 
         // Move character to expedition
         const playedCharacter = this.gsm.moveEntity(
@@ -189,14 +189,14 @@ export class CardPlaySystem {
         const player = this.gsm.getPlayer(playerId);
         if (!player) throw new Error(`Player ${playerId} not found`);
 
-        const sourceZone = fromZone === 'hand' ? player.zones.hand : player.zones.reserve;
+        const sourceZone = fromZone === 'hand' ? player.zones.handZone : player.zones.reserveZone;
         
         // Determine destination based on permanent type
         let destinationZone;
         if (definition.permanentZoneType === PermanentZoneType.Landmark) {
             destinationZone = player.zones.landmarkZone;
         } else {
-            destinationZone = player.zones.expedition;
+            destinationZone = player.zones.expeditionZone;
         }
 
         // Move permanent to appropriate zone
@@ -241,7 +241,7 @@ export class CardPlaySystem {
         }
 
         // Determine where spell goes after resolution
-        const sourceZone = fromZone === 'hand' ? player.zones.hand : player.zones.reserve;
+        const sourceZone = fromZone === 'hand' ? player.zones.handZone : player.zones.reserveZone;
         let destinationZone;
 
         // Check for Cooldown keyword
@@ -251,10 +251,10 @@ export class CardPlaySystem {
 
         if (hasCooldown) {
             // Cooldown spells go to Reserve and become exhausted
-            destinationZone = player.zones.reserve;
+            destinationZone = player.zones.reserveZone;
         } else {
             // Normal spells go to discard
-            destinationZone = player.zones.discardPile;
+            destinationZone = player.zones.discardPileZone;
         }
 
         const resolvedSpell = this.gsm.moveEntity(
@@ -265,7 +265,7 @@ export class CardPlaySystem {
         ) as IGameObject;
 
         // Apply Cooldown exhaustion if needed
-        if (hasCooldown && destinationZone === player.zones.reserve) {
+        if (hasCooldown && destinationZone === player.zones.reserveZone) {
             this.gsm.statusHandler.applyStatusEffect(resolvedSpell, StatusType.Exhausted);
         }
 
@@ -282,7 +282,7 @@ export class CardPlaySystem {
         const playableCards: PlayableCard[] = [];
 
         // Check hand cards
-        for (const card of player.zones.hand.getAll()) {
+        for (const card of player.zones.handZone.getAll()) {
             const definition = this.gsm.getCardDefinition(card.definitionId);
             if (definition && this.canPlayCard(playerId, card, 'hand', definition)) {
                 playableCards.push({
@@ -399,8 +399,12 @@ export class CardPlaySystem {
             }
 
             // Move to limbo
-            sourceZone.remove(card);
-            player.zones.limboZone.add(card);
+            const removedCard = sourceZone.remove(card.id); // Use card.id for removal
+            if (!removedCard) {
+                // This case should ideally not be hit if card was found, but good for robustness
+                return { success: false, error: 'Failed to remove card from source zone during moveToLimbo' };
+            }
+            player.zones.limboZone.add(card); // Add the original card object found
 
             // Apply Fleeting if from Reserve (Rule 5.2.1.b)
             if (fromZone === 'reserve' && isGameObject(card)) {
@@ -475,7 +479,13 @@ export class CardPlaySystem {
             }
 
             // Move to final zone based on card type
-            player.zones.limboZone.remove(card);
+            const removedFromLimbo = player.zones.limboZone.remove(card.id);
+            if (!removedFromLimbo) {
+                // This indicates a problem if the card was expected to be in limbo
+                // For the simplified test method, we might not make it an error for now
+                // but in real gameplay, this would be an issue.
+                console.warn(`[CardPlaySystem.resolveCard] Card ${cardId} not found in limbo for removal.`);
+            }
             
             switch (definition.type) {
                 case CardType.Character:
@@ -501,28 +511,33 @@ export class CardPlaySystem {
      * Get playing cost for a card from a specific zone
      */
     public getPlayingCost(playerId: string, cardId: string, fromZone: 'hand' | 'reserve'): GetPlayingCostResult {
-        try {
-            const player = this.gsm.getPlayer(playerId);
-            if (!player) {
-                return { cost: { total: 0, forest: 0, mountain: 0, water: 0 }, source: fromZone };
-            }
-
-            const sourceZone = fromZone === 'hand' ? player.zones.handZone : player.zones.reserveZone;
-            const card = sourceZone.findById(cardId);
-            if (!card) {
-                return { cost: { total: 0, forest: 0, mountain: 0, water: 0 }, source: fromZone };
-            }
-
-            const definition = this.gsm.getCardDefinition(card.definitionId);
-            if (!definition) {
-                return { cost: { total: 0, forest: 0, mountain: 0, water: 0 }, source: fromZone };
-            }
-
-            const cost = fromZone === 'hand' ? definition.handCost : definition.reserveCost;
-            return { cost, source: fromZone };
-        } catch (error) {
-            return { cost: { total: 0, forest: 0, mountain: 0, water: 0 }, source: fromZone };
+        console.log(`getPlayingCost called with playerId: ${playerId}, cardId: ${cardId}, fromZone: ${fromZone}`); // DEBUG LINE
+        const player = this.gsm.getPlayer(playerId);
+        if (!player) {
+            // console.error(`getPlayingCost: Player not found - ${playerId}`);
+            throw new Error(`Player not found: ${playerId}`);
         }
+
+        const sourceZone = fromZone === 'hand' ? player.zones.handZone : player.zones.reserveZone;
+        const card = sourceZone.findById(cardId);
+        if (!card) {
+            // console.error(`getPlayingCost: Card not found - ${cardId} in ${fromZone}`);
+            throw new Error(`Card not found: ${cardId} in ${fromZone} for player ${playerId}`);
+        }
+
+        const definition = this.gsm.getCardDefinition(card.definitionId);
+        if (!definition) {
+            // console.error(`getPlayingCost: Definition not found for card ID - ${card.definitionId}`);
+            throw new Error(`Definition not found for card ID: ${card.definitionId}`);
+        }
+
+        const cost = fromZone === 'hand' ? definition.handCost : definition.reserveCost;
+        if (!cost) {
+            // console.error(`getPlayingCost: Cost not found on definition ${definition.id} for ${fromZone}`);
+            throw new Error(`Cost not found on definition ${definition.id} for ${fromZone}`);
+        }
+        return { cost, source: fromZone };
+        // Removed try-catch to let errors propagate naturally
     }
 
     /**
@@ -674,8 +689,15 @@ export class CardPlaySystem {
                     
         if (card && isGameObject(card)) {
             // Remove from current zone
-            player.zones.expeditionZone.remove(card);
-            player.zones.landmarkZone.remove(card);
+            let removed = false;
+            if (player.zones.expeditionZone.contains(card.id)) {
+                player.zones.expeditionZone.remove(card.id);
+                removed = true;
+            }
+            if (!removed && player.zones.landmarkZone.contains(card.id)) {
+                player.zones.landmarkZone.remove(card.id);
+                removed = true;
+            }
 
             // Check if it has Fleeting status
             if (card.statuses.has(StatusType.Fleeting)) {
@@ -687,9 +709,9 @@ export class CardPlaySystem {
     }
 
     /**
-     * Updated playCard method with proper return type for tests
+     * Renamed to avoid conflict with the main async playCard. This is used by specific test steps.
      */
-    public playCard(playerId: string, cardId: string, options: PlayIntentOptions): PlayCardResult {
+    public _playCardForTestSteps(playerId: string, cardId: string, options: PlayIntentOptions): PlayCardResult {
         try {
             // Declare intent
             const intentResult = this.declarePlayIntent(playerId, cardId, options);

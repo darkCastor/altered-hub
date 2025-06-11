@@ -318,8 +318,11 @@ public resetExpandFlags(): void {
 
 
 public moveEntity(entityId: string, fromZone: IZone, toZone: IZone, controllerId: string): IGameObject | ICardInstance | null {
+        console.log(`[GameStateManager.moveEntity] Attempting to move entityId: ${entityId} from zone: ${fromZone.id}`);
+        console.log(`[GameStateManager.moveEntity] Keys in fromZone ${fromZone.id}:`, Array.from(fromZone.entities.keys()));
     const sourceEntity = fromZone.remove(entityId);
     if (!sourceEntity) {
+            console.error(`[GameStateManager.moveEntity] Entity ${entityId} really not found in zone ${fromZone.id}.`);
         throw new Error(`Entity ${entityId} not found in zone ${fromZone.id}.`);
     }
 
