@@ -66,121 +66,157 @@
 </svelte:head>
 
 {#if isLoading}
-	<div class="flex flex-col items-center justify-center h-screen bg-background text-foreground">
-		<Loader2 class="h-16 w-16 animate-spin text-primary mb-4" />
+	<div class="flex h-screen flex-col items-center justify-center bg-background text-foreground">
+		<Loader2 class="mb-4 h-16 w-16 animate-spin text-primary" />
 		<p class="text-xl">Loading Game...</p>
 	</div>
 {:else if error || gameError}
-	<div class="flex flex-col items-center justify-center h-screen bg-background text-foreground p-4">
-		<Card class="w-full max-w-md shadow-lg bg-card text-card-foreground p-6">
-			<h2 class="text-destructive text-2xl font-bold mb-2">Game Error</h2>
-			<p class="text-muted-foreground mb-4">{error || gameError}</p>
+	<div class="flex h-screen flex-col items-center justify-center bg-background p-4 text-foreground">
+		<Card class="w-full max-w-md bg-card p-6 text-card-foreground shadow-lg">
+			<h2 class="mb-2 text-2xl font-bold text-destructive">Game Error</h2>
+			<p class="mb-4 text-muted-foreground">{error || gameError}</p>
 			<Button variant="outline" on:click={() => goto('/decks')}>
 				<ArrowLeft class="mr-2 h-4 w-4" /> Back to Decks
 			</Button>
 		</Card>
 	</div>
 {:else}
-	<div class="flex flex-col h-screen bg-zinc-800 text-foreground overflow-hidden">
+	<div class="flex h-screen flex-col overflow-hidden bg-zinc-800 text-foreground">
 		<!-- Game Status Bar -->
-		<div class="h-10 bg-zinc-900 text-xs flex items-center justify-between px-4 border-b border-zinc-700 shrink-0">
+		<div
+			class="flex h-10 shrink-0 items-center justify-between border-b border-zinc-700 bg-zinc-900 px-4 text-xs"
+		>
 			<div>Day: {currentDay} | Phase: {currentPhase}</div>
-			<div class="font-bold {isMyTurn ? 'text-green-400 animate-pulse' : 'text-red-400'}">
+			<div class="font-bold {isMyTurn ? 'animate-pulse text-green-400' : 'text-red-400'}">
 				{isMyTurn ? 'YOUR TURN' : "OPPONENT'S TURN"}
 			</div>
-			<div class="text-right w-1/3 truncate">
+			<div class="w-1/3 truncate text-right">
 				{#if gameError}
-					<span class="text-destructive text-xs">{gameError}</span>
+					<span class="text-xs text-destructive">{gameError}</span>
 				{/if}
 			</div>
 		</div>
 
 		<!-- Game Board -->
-		<div class="flex-1 flex flex-col p-1 space-y-1 min-h-0">
+		<div class="flex min-h-0 flex-1 flex-col space-y-1 p-1">
 			<!-- Opponent Area -->
-			<div class="flex-1 flex flex-col bg-zinc-900/50 p-1 rounded border border-zinc-700 space-y-1 min-h-0">
-				<div class="flex items-center justify-center h-24 shrink-0">
+			<div
+				class="flex min-h-0 flex-1 flex-col space-y-1 rounded border border-zinc-700 bg-zinc-900/50 p-1"
+			>
+				<div class="flex h-24 shrink-0 items-center justify-center">
 					<!-- Opponent Hero Spot -->
-					<div class="w-16 h-20 bg-zinc-800 border border-zinc-600 rounded flex items-center justify-center">
+					<div
+						class="flex h-20 w-16 items-center justify-center rounded border border-zinc-600 bg-zinc-800"
+					>
 						<span class="text-xs text-muted-foreground">Hero</span>
 					</div>
 				</div>
-				<div class="flex-1 flex items-stretch p-1 space-x-1">
+				<div class="flex flex-1 items-stretch space-x-1 p-1">
 					<!-- Opponent Board Zones -->
-					<div class="flex-1 bg-zinc-800/50 border border-zinc-600 rounded p-2 flex flex-col items-center justify-center">
+					<div
+						class="flex flex-1 flex-col items-center justify-center rounded border border-zinc-600 bg-zinc-800/50 p-2"
+					>
 						<span class="text-xs text-muted-foreground">Reserve</span>
 					</div>
-					<div class="flex-1 bg-zinc-800/50 border border-zinc-600 rounded p-2 flex flex-col items-center justify-center">
+					<div
+						class="flex flex-1 flex-col items-center justify-center rounded border border-zinc-600 bg-zinc-800/50 p-2"
+					>
 						<span class="text-xs text-muted-foreground">Expedition</span>
 					</div>
-					<div class="flex-1 bg-zinc-800/50 border border-zinc-600 rounded p-2 flex flex-col items-center justify-center">
+					<div
+						class="flex flex-1 flex-col items-center justify-center rounded border border-zinc-600 bg-zinc-800/50 p-2"
+					>
 						<span class="text-xs text-muted-foreground">Landmarks</span>
 					</div>
 				</div>
-				<div class="flex items-center justify-between p-1 space-x-2 h-28 shrink-0">
+				<div class="flex h-28 shrink-0 items-center justify-between space-x-2 p-1">
 					<!-- Opponent Stats -->
-					<div class="flex-1 p-1 bg-black/30 rounded h-full flex flex-col items-center justify-center text-center">
+					<div
+						class="flex h-full flex-1 flex-col items-center justify-center rounded bg-black/30 p-1 text-center"
+					>
 						<Zap class="h-4 w-4 text-yellow-400" />
-						<p class="text-sm font-semibold mt-1">0/0</p>
+						<p class="mt-1 text-sm font-semibold">0/0</p>
 					</div>
 					<!-- Opponent Hand -->
-					<div class="flex-[2_2_0%] h-full flex items-center justify-center rounded overflow-hidden bg-zinc-800/50 border border-zinc-600">
+					<div
+						class="flex h-full flex-[2_2_0%] items-center justify-center overflow-hidden rounded border border-zinc-600 bg-zinc-800/50"
+					>
 						<span class="text-xs text-muted-foreground">Opponent Hand</span>
 					</div>
 					<!-- Opponent Deck Info -->
-					<div class="flex-1 p-1 bg-black/30 rounded h-full flex flex-col items-center justify-center text-center text-xs">
+					<div
+						class="flex h-full flex-1 flex-col items-center justify-center rounded bg-black/30 p-1 text-center text-xs"
+					>
 						<div class="flex items-center">
-							<BookOpen class="h-4 w-4 text-blue-400 mr-1" />Deck: 30
+							<BookOpen class="mr-1 h-4 w-4 text-blue-400" />Deck: 30
 						</div>
-						<div class="flex items-center mt-1">
-							<Box class="h-4 w-4 text-gray-500 mr-1" />Discard: 0
+						<div class="mt-1 flex items-center">
+							<Box class="mr-1 h-4 w-4 text-gray-500" />Discard: 0
 						</div>
 					</div>
 				</div>
 			</div>
 
 			<!-- Adventure Zone -->
-			<div class="h-12 bg-zinc-700/30 rounded border border-zinc-600 p-1 flex items-center justify-center shrink-0">
+			<div
+				class="flex h-12 shrink-0 items-center justify-center rounded border border-zinc-600 bg-zinc-700/30 p-1"
+			>
 				<p class="text-xs text-muted-foreground">Adventure Zone</p>
 			</div>
 
 			<!-- Player Area (reversed layout) -->
-			<div class="flex-1 flex flex-col-reverse bg-zinc-900/50 p-1 rounded border border-zinc-700 space-y-1 space-y-reverse min-h-0">
-				<div class="flex items-center justify-center h-24 shrink-0">
+			<div
+				class="flex min-h-0 flex-1 flex-col-reverse space-y-1 space-y-reverse rounded border border-zinc-700 bg-zinc-900/50 p-1"
+			>
+				<div class="flex h-24 shrink-0 items-center justify-center">
 					<!-- Player Hero Spot -->
-					<div class="w-16 h-20 bg-zinc-800 border border-zinc-600 rounded flex items-center justify-center">
+					<div
+						class="flex h-20 w-16 items-center justify-center rounded border border-zinc-600 bg-zinc-800"
+					>
 						<span class="text-xs text-muted-foreground">Hero</span>
 					</div>
 				</div>
-				<div class="flex-1 flex items-stretch p-1 space-x-1">
+				<div class="flex flex-1 items-stretch space-x-1 p-1">
 					<!-- Player Board Zones -->
-					<div class="flex-1 bg-zinc-800/50 border border-zinc-600 rounded p-2 flex flex-col items-center justify-center">
+					<div
+						class="flex flex-1 flex-col items-center justify-center rounded border border-zinc-600 bg-zinc-800/50 p-2"
+					>
 						<span class="text-xs text-muted-foreground">Reserve</span>
 					</div>
-					<div class="flex-1 bg-zinc-800/50 border border-zinc-600 rounded p-2 flex flex-col items-center justify-center cursor-pointer hover:bg-zinc-700/50">
+					<div
+						class="flex flex-1 cursor-pointer flex-col items-center justify-center rounded border border-zinc-600 bg-zinc-800/50 p-2 hover:bg-zinc-700/50"
+					>
 						<span class="text-xs text-muted-foreground">Expedition</span>
 					</div>
-					<div class="flex-1 bg-zinc-800/50 border border-zinc-600 rounded p-2 flex flex-col items-center justify-center cursor-pointer hover:bg-zinc-700/50">
+					<div
+						class="flex flex-1 cursor-pointer flex-col items-center justify-center rounded border border-zinc-600 bg-zinc-800/50 p-2 hover:bg-zinc-700/50"
+					>
 						<span class="text-xs text-muted-foreground">Landmarks</span>
 					</div>
 				</div>
-				<div class="flex items-center justify-between p-1 space-x-2 h-28 shrink-0">
+				<div class="flex h-28 shrink-0 items-center justify-between space-x-2 p-1">
 					<!-- Player Stats -->
-					<div class="flex-1 p-1 bg-black/30 rounded h-full flex flex-col items-center justify-center text-center">
+					<div
+						class="flex h-full flex-1 flex-col items-center justify-center rounded bg-black/30 p-1 text-center"
+					>
 						<Zap class="h-4 w-4 text-yellow-400" />
-						<p class="text-sm font-semibold mt-1">3/3</p>
+						<p class="mt-1 text-sm font-semibold">3/3</p>
 					</div>
 					<!-- Player Hand -->
-					<div class="flex-[2_2_0%] h-full flex items-center justify-center rounded overflow-hidden bg-zinc-800/50 border border-zinc-600">
+					<div
+						class="flex h-full flex-[2_2_0%] items-center justify-center overflow-hidden rounded border border-zinc-600 bg-zinc-800/50"
+					>
 						<span class="text-xs text-muted-foreground">Your Hand (6 cards)</span>
 					</div>
 					<!-- Player Deck Info -->
-					<div class="flex-1 p-1 bg-black/30 rounded h-full flex flex-col items-center justify-center text-center text-xs">
+					<div
+						class="flex h-full flex-1 flex-col items-center justify-center rounded bg-black/30 p-1 text-center text-xs"
+					>
 						<div class="flex items-center">
-							<BookOpen class="h-4 w-4 text-blue-400 mr-1" />Deck: 24
+							<BookOpen class="mr-1 h-4 w-4 text-blue-400" />Deck: 24
 						</div>
-						<div class="flex items-center mt-1">
-							<Box class="h-4 w-4 text-gray-500 mr-1" />Discard: 0
+						<div class="mt-1 flex items-center">
+							<Box class="mr-1 h-4 w-4 text-gray-500" />Discard: 0
 						</div>
 					</div>
 				</div>
@@ -188,27 +224,14 @@
 		</div>
 
 		<!-- Action Bar -->
-		<div class="h-12 flex items-center justify-center space-x-4 p-1 bg-zinc-900 border-t border-zinc-700 shrink-0">
-			<Button 
-				on:click={handlePassTurn} 
-				disabled={!isMyTurn} 
-				variant="destructive" 
-				size="sm"
-			>
+		<div
+			class="flex h-12 shrink-0 items-center justify-center space-x-4 border-t border-zinc-700 bg-zinc-900 p-1"
+		>
+			<Button on:click={handlePassTurn} disabled={!isMyTurn} variant="destructive" size="sm">
 				Pass Turn
 			</Button>
-			<Button 
-				on:click={handleAdvancePhase} 
-				variant="secondary" 
-				size="sm"
-			>
-				Advance Phase
-			</Button>
-			<Button 
-				on:click={handleSurrender} 
-				variant="outline" 
-				size="sm"
-			>
+			<Button on:click={handleAdvancePhase} variant="secondary" size="sm">Advance Phase</Button>
+			<Button on:click={handleSurrender} variant="outline" size="sm">
 				<ArrowLeft class="mr-2 h-4 w-4" /> Surrender
 			</Button>
 		</div>

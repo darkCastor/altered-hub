@@ -39,7 +39,7 @@
 
 	// Computed deck list items
 	$: deckListItems = $snapshot.context.decks
-		.map(deck => ({
+		.map((deck) => ({
 			id: deck.id,
 			name: deck.name,
 			cardCount: deck.cards.reduce((sum, card) => sum + card.quantity, 0),
@@ -55,17 +55,17 @@
 </svelte:head>
 
 <div class="space-y-8">
-	<section class="flex flex-col sm:flex-row justify-between items-center gap-4">
+	<section class="flex flex-col items-center justify-between gap-4 sm:flex-row">
 		<div>
-			<h1 class="font-headline text-4xl font-bold tracking-tight sm:text-5xl text-primary">
+			<h1 class="font-headline text-4xl font-bold tracking-tight text-primary sm:text-5xl">
 				Deck Builder
 			</h1>
 			<p class="mt-2 text-lg text-muted-foreground">
 				Create, manage, and refine your Altered TCG decks.
 			</p>
 		</div>
-		<Button 
-			on:click={handleCreateNewDeck} 
+		<Button
+			on:click={handleCreateNewDeck}
 			class="bg-accent text-accent-foreground hover:bg-accent/90"
 		>
 			<PlusCircle class="mr-2 h-5 w-5" /> Create New Deck
@@ -73,17 +73,17 @@
 	</section>
 
 	{#if !isMounted || $snapshot.context.isLoading}
-		<div class="text-center p-10">Loading decks...</div>
+		<div class="p-10 text-center">Loading decks...</div>
 	{:else if deckListItems.length === 0}
-		<Card class="text-center py-12 shadow-lg">
+		<Card class="py-12 text-center shadow-lg">
 			<CardHeader>
 				<CardTitle class="text-2xl text-muted-foreground">No Decks Yet</CardTitle>
 			</CardHeader>
 			<CardContent>
 				<p>Start building your first deck to see it here.</p>
-				<Button 
-					on:click={handleCreateNewDeck} 
-					variant="outline" 
+				<Button
+					on:click={handleCreateNewDeck}
+					variant="outline"
 					class="mt-6 border-primary text-primary hover:bg-primary/10"
 				>
 					Create Your First Deck
@@ -91,11 +91,13 @@
 			</CardContent>
 		</Card>
 	{:else}
-		<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+		<div class="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
 			{#each deckListItems as deck (deck.id)}
-				<Card class="flex flex-col shadow-lg hover:shadow-primary/30 transition-shadow duration-300">
+				<Card
+					class="flex flex-col shadow-lg transition-shadow duration-300 hover:shadow-primary/30"
+				>
 					<CardHeader>
-						<div class="flex justify-between items-start">
+						<div class="flex items-start justify-between">
 							<div>
 								<CardTitle class="font-headline text-xl">{deck.name}</CardTitle>
 								<CardDescription>{deck.cardCount} cards - Format: {deck.format}</CardDescription>
@@ -108,10 +110,10 @@
 						</p>
 					</CardContent>
 					<CardFooter class="flex justify-end gap-2">
-						<Button 
-							on:click={() => handlePlayGame(deck.id)} 
-							variant="default" 
-							size="sm" 
+						<Button
+							on:click={() => handlePlayGame(deck.id)}
+							variant="default"
+							size="sm"
 							class="bg-primary text-primary-foreground hover:bg-primary/90"
 						>
 							<Play class="mr-1 h-4 w-4" /> Play
@@ -119,13 +121,17 @@
 						<Button on:click={() => handleEditDeck(deck.id)} variant="outline" size="sm">
 							<Edit3 class="mr-1 h-4 w-4" /> Edit
 						</Button>
-						<Button 
+						<Button
 							on:click={() => {
-								if (confirm(`Are you sure you want to delete "${deck.name}"? This action cannot be undone.`)) {
+								if (
+									confirm(
+										`Are you sure you want to delete "${deck.name}"? This action cannot be undone.`
+									)
+								) {
 									handleDeleteDeck(deck.id);
 								}
-							}} 
-							variant="destructive" 
+							}}
+							variant="destructive"
 							size="sm"
 						>
 							<Trash2 class="mr-1 h-4 w-4" /> Delete
@@ -138,7 +144,7 @@
 
 	<!-- Error State -->
 	{#if $snapshot.context.error}
-		<div class="bg-destructive/10 border border-destructive/20 rounded-lg p-4 text-destructive">
+		<div class="rounded-lg border border-destructive/20 bg-destructive/10 p-4 text-destructive">
 			{$snapshot.context.error}
 		</div>
 	{/if}

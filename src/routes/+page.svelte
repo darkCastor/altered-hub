@@ -31,24 +31,25 @@
 
 <svelte:head>
 	<title>AlterDeck - Your Ultimate Altered TCG Companion</title>
-	<meta name="description" content="Explore cards, build powerful decks, and get AI-driven advice for Altered TCG." />
+	<meta
+		name="description"
+		content="Explore cards, build powerful decks, and get AI-driven advice for Altered TCG."
+	/>
 </svelte:head>
 
 <div class="min-h-screen bg-background text-foreground">
-	<div class="flex flex-col items-center justify-center text-center space-y-12 p-8">
+	<div class="flex flex-col items-center justify-center space-y-12 p-8 text-center">
 		<section class="w-full py-12">
 			<div class="container px-4 md:px-6">
 				<div class="flex flex-col items-center space-y-6 text-center">
-					<h1 class="text-4xl font-bold text-primary">
-						Welcome to AlterDeck
-					</h1>
-					<p class="max-w-[700px] text-muted-foreground text-lg">
+					<h1 class="text-4xl font-bold text-primary">Welcome to AlterDeck</h1>
+					<p class="max-w-[700px] text-lg text-muted-foreground">
 						Your ultimate companion for Altered TCG. Explore cards, build powerful decks, and get
 						AI-driven advice.
 					</p>
 					<div>
 						<button
-							class="inline-flex items-center justify-center rounded-md text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 h-11 px-8"
+							class="inline-flex h-11 items-center justify-center rounded-md bg-primary px-8 text-sm font-medium text-primary-foreground hover:bg-primary/90"
 							on:click={() => (window.location.href = '/cards')}
 						>
 							Explore Cards
@@ -61,18 +62,16 @@
 
 		<section class="w-full py-12">
 			<div class="container px-4 md:px-6">
-				<h2 class="text-3xl font-bold text-center mb-12">
-					Features
-				</h2>
+				<h2 class="mb-12 text-center text-3xl font-bold">Features</h2>
 				<div class="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
 					{#each features as feature}
-						<div class="bg-card text-card-foreground rounded-lg border shadow-lg p-6">
-							<div class="flex flex-col items-center text-center space-y-4">
+						<div class="rounded-lg border bg-card p-6 text-card-foreground shadow-lg">
+							<div class="flex flex-col items-center space-y-4 text-center">
 								<svelte:component this={feature.icon} class="h-8 w-8 text-primary" />
 								<h3 class="text-2xl font-bold">{feature.title}</h3>
 								<p class="text-muted-foreground">{feature.description}</p>
 								<button
-									class="w-full inline-flex items-center justify-center rounded-md text-sm font-medium border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2"
+									class="inline-flex h-10 w-full items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground"
 									on:click={() => (window.location.href = feature.href)}
 								>
 									Go to {feature.title}

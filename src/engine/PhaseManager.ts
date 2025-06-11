@@ -63,7 +63,9 @@ export class PhaseManager {
 	}
 
 	private handleFirstMorning(): void {
-		console.log("PhaseManager: Skipping first Morning phase as per rules, advancing directly to Noon.");
+		console.log(
+			'PhaseManager: Skipping first Morning phase as per rules, advancing directly to Noon.'
+		);
 		// Set phase to Noon, then call its handler. Day remains 1.
 		this.gameStateManager.state.currentPhase = GamePhase.Noon;
 		this.gameStateManager.setCurrentPhase(GamePhase.Noon);
@@ -76,42 +78,49 @@ export class PhaseManager {
 		if (this.gameStateManager.turnManager) {
 			this.gameStateManager.turnManager.succeedPhase(); // Rule 4.2.1.b
 		} else {
-			console.error("PhaseManager: TurnManager not found on GameStateManager during handleMorning.");
+			console.error(
+				'PhaseManager: TurnManager not found on GameStateManager during handleMorning.'
+			);
 		}
 		this.gameStateManager.preparePhase(); // Reset per-phase states, untap units, etc.
 
-		this.gameStateManager.state.players.forEach(playerId => {
+		this.gameStateManager.state.players.forEach((playerId) => {
 			this.gameStateManager.drawCards(playerId, 2); // Draw 2 cards
 			const player = this.gameStateManager.playerManager.getPlayer(playerId);
-			if (player && player.playerExpand) { // Check for Expand mechanic
+			if (player && player.playerExpand) {
+				// Check for Expand mechanic
 				this.gameStateManager.manaSystem.expandMana(playerId);
 			}
 		});
-		console.log(`PhaseManager: Morning logic executed for Day ${this.gameStateManager.state.currentDay}.`);
+		console.log(
+			`PhaseManager: Morning logic executed for Day ${this.gameStateManager.state.currentDay}.`
+		);
 	}
 
 	private handleNoon(): void {
 		// "At Noon" effects are triggered by setCurrentPhase(GamePhase.Noon).
-		console.log("PhaseManager: Noon logic executed.");
+		console.log('PhaseManager: Noon logic executed.');
 	}
 
 	private handleAfternoon(): void {
 		// "At Afternoon" effects are triggered by setCurrentPhase(GamePhase.Afternoon).
 		// Actual turn management and exiting Afternoon is handled by TurnManager.
 		// Game machine will call turnManager.startAfternoon() when phase becomes Afternoon.
-		console.log("PhaseManager: Afternoon. TurnManager is responsible for player turns and exiting the phase.");
+		console.log(
+			'PhaseManager: Afternoon. TurnManager is responsible for player turns and exiting the phase.'
+		);
 	}
 
 	private handleDusk(): void {
 		this.gameStateManager.progressPhase(); // Resolve end-of-turn effects, etc.
-		console.log("PhaseManager: Dusk logic executed.");
+		console.log('PhaseManager: Dusk logic executed.');
 	}
 
 	private handleNight(): void {
 		this.gameStateManager.restPhase(); // Resources, cooldowns.
 		this.gameStateManager.cleanupPhase(); // Discard excess cards, cleanup board.
 		this.gameStateManager.checkVictoryConditions(); // Check if game ends.
-		console.log("PhaseManager: Night logic executed.");
+		console.log('PhaseManager: Night logic executed.');
 		// After Night, if no victory, advancePhase will go to Morning and increment day.
 	}
 }

@@ -81,10 +81,10 @@ export const deckMachine = setup({
 
 		createDeck: assign(({ context, event }) => {
 			if (event.type !== 'CREATE_DECK') return context;
-			
+
 			const format = event.format || 'constructed';
 			deckValidator.setFormat(format);
-			
+
 			const newDeck: Deck = {
 				id: `deck-${Date.now()}`,
 				name: event.name,
@@ -107,12 +107,12 @@ export const deckMachine = setup({
 
 		editDeck: assign(({ context, event }) => {
 			if (event.type !== 'EDIT_DECK') return context;
-			
-			const deck = context.decks.find(d => d.id === event.deckId);
+
+			const deck = context.decks.find((d) => d.id === event.deckId);
 			if (deck) {
 				deckValidator.setFormat(deck.format);
 			}
-			
+
 			return {
 				...context,
 				currentDeck: deck || null,
@@ -123,10 +123,10 @@ export const deckMachine = setup({
 
 		deleteDeck: assign(({ context, event }) => {
 			if (event.type !== 'DELETE_DECK') return context;
-			
+
 			return {
 				...context,
-				decks: context.decks.filter(d => d.id !== event.deckId),
+				decks: context.decks.filter((d) => d.id !== event.deckId),
 				currentDeck: context.currentDeck?.id === event.deckId ? null : context.currentDeck,
 				error: null
 			};
@@ -134,37 +134,41 @@ export const deckMachine = setup({
 
 		addCard: assign(({ context, event }) => {
 			if (event.type !== 'ADD_CARD' || !context.currentDeck) return context;
-			
+
 			// Check if card can be added according to deck building rules
 			deckValidator.setFormat(context.currentDeck.format);
 			const canAddResult = deckValidator.canAddCard(
-				context.currentDeck.cards, 
-				event.cardId, 
+				context.currentDeck.cards,
+				event.cardId,
 				context.currentDeck.heroId || undefined
 			);
-			
+
 			if (!canAddResult.canAdd) {
 				return {
 					...context,
 					error: canAddResult.reason || 'Cannot add card'
 				};
 			}
-			
-			const existingCard = context.currentDeck.cards.find(c => c.cardId === event.cardId);
+
+			const existingCard = context.currentDeck.cards.find((c) => c.cardId === event.cardId);
 			let updatedCards;
-			
+
 			if (existingCard) {
-				const maxCopies = context.currentDeck.format === 'constructed' ? 3 : Number.MAX_SAFE_INTEGER;
-				updatedCards = context.currentDeck.cards.map(c =>
+				const maxCopies =
+					context.currentDeck.format === 'constructed' ? 3 : Number.MAX_SAFE_INTEGER;
+				updatedCards = context.currentDeck.cards.map((c) =>
 					c.cardId === event.cardId
 						? { ...c, quantity: Math.min(maxCopies, c.quantity + (event.quantity || 1)) }
 						: c
 				);
 			} else {
-				updatedCards = [...context.currentDeck.cards, {
-					cardId: event.cardId,
-					quantity: event.quantity || 1
-				}];
+				updatedCards = [
+					...context.currentDeck.cards,
+					{
+						cardId: event.cardId,
+						quantity: event.quantity || 1
+					}
+				];
 			}
 
 			const updatedDeck = {
@@ -175,7 +179,10 @@ export const deckMachine = setup({
 
 			// Auto-validate after adding card
 			deckValidator.setFormat(updatedDeck.format);
-			const validationResult = deckValidator.validate(updatedDeck.cards, updatedDeck.heroId || undefined);
+			const validationResult = deckValidator.validate(
+				updatedDeck.cards,
+				updatedDeck.heroId || undefined
+			);
 
 			return {
 				...context,
@@ -190,17 +197,20 @@ export const deckMachine = setup({
 
 		removeCard: assign(({ context, event }) => {
 			if (event.type !== 'REMOVE_CARD' || !context.currentDeck) return context;
-			
+
 			const updatedDeck = {
 				...context.currentDeck,
-				cards: context.currentDeck.cards.filter(c => c.cardId !== event.cardId),
+				cards: context.currentDeck.cards.filter((c) => c.cardId !== event.cardId),
 				updatedAt: new Date()
 			};
 
 			// Auto-validate after removing card
 			deckValidator.setFormat(updatedDeck.format);
-			const validationResult = deckValidator.validate(updatedDeck.cards, updatedDeck.heroId || undefined);
-			
+			const validationResult = deckValidator.validate(
+				updatedDeck.cards,
+				updatedDeck.heroId || undefined
+			);
+
 			return {
 				...context,
 				currentDeck: {
@@ -214,12 +224,14 @@ export const deckMachine = setup({
 
 		updateCardQuantity: assign(({ context, event }) => {
 			if (event.type !== 'UPDATE_CARD_QUANTITY' || !context.currentDeck) return context;
-			
-			const updatedCards = context.currentDeck.cards.map(c =>
-				c.cardId === event.cardId
-					? { ...c, quantity: Math.max(0, Math.min(3, event.quantity)) }
-					: c
-			).filter(c => c.quantity > 0);
+
+			const updatedCards = context.currentDeck.cards
+				.map((c) =>
+					c.cardId === event.cardId
+						? { ...c, quantity: Math.max(0, Math.min(3, event.quantity)) }
+						: c
+				)
+				.filter((c) => c.quantity > 0);
 
 			const updatedDeck = {
 				...context.currentDeck,
@@ -229,7 +241,10 @@ export const deckMachine = setup({
 
 			// Auto-validate after updating card quantity
 			deckValidator.setFormat(updatedDeck.format);
-			const validationResult = deckValidator.validate(updatedDeck.cards, updatedDeck.heroId || undefined);
+			const validationResult = deckValidator.validate(
+				updatedDeck.cards,
+				updatedDeck.heroId || undefined
+			);
 
 			return {
 				...context,
@@ -244,7 +259,7 @@ export const deckMachine = setup({
 
 		setHero: assign(({ context, event }) => {
 			if (event.type !== 'SET_HERO' || !context.currentDeck) return context;
-			
+
 			const updatedDeck = {
 				...context.currentDeck,
 				heroId: event.cardId,
@@ -253,8 +268,11 @@ export const deckMachine = setup({
 
 			// Auto-validate after setting hero
 			deckValidator.setFormat(updatedDeck.format);
-			const validationResult = deckValidator.validate(updatedDeck.cards, updatedDeck.heroId || undefined);
-			
+			const validationResult = deckValidator.validate(
+				updatedDeck.cards,
+				updatedDeck.heroId || undefined
+			);
+
 			return {
 				...context,
 				currentDeck: {
@@ -268,9 +286,9 @@ export const deckMachine = setup({
 
 		setFormat: assign(({ context, event }) => {
 			if (event.type !== 'SET_FORMAT' || !context.currentDeck) return context;
-			
+
 			deckValidator.setFormat(event.format);
-			
+
 			const updatedDeck = {
 				...context.currentDeck,
 				format: event.format,
@@ -279,8 +297,11 @@ export const deckMachine = setup({
 
 			// Auto-validate after changing format
 			deckValidator.setFormat(updatedDeck.format);
-			const validationResult = deckValidator.validate(updatedDeck.cards, updatedDeck.heroId || undefined);
-			
+			const validationResult = deckValidator.validate(
+				updatedDeck.cards,
+				updatedDeck.heroId || undefined
+			);
+
 			return {
 				...context,
 				currentDeck: {
@@ -294,13 +315,13 @@ export const deckMachine = setup({
 
 		validateDeck: assign(({ context }) => {
 			if (!context.currentDeck) return context;
-			
+
 			deckValidator.setFormat(context.currentDeck.format);
 			const validationResult = deckValidator.validate(
-				context.currentDeck.cards, 
+				context.currentDeck.cards,
 				context.currentDeck.heroId || undefined
 			);
-			
+
 			return {
 				...context,
 				currentDeck: {
@@ -314,9 +335,9 @@ export const deckMachine = setup({
 
 		saveDeck: assign(({ context, event }) => {
 			if (event.type !== 'DECK_SAVED' || !context.currentDeck) return context;
-			
-			const updatedDecks = context.decks.some(d => d.id === event.deck.id)
-				? context.decks.map(d => d.id === event.deck.id ? event.deck : d)
+
+			const updatedDecks = context.decks.some((d) => d.id === event.deck.id)
+				? context.decks.map((d) => (d.id === event.deck.id ? event.deck : d))
 				: [...context.decks, event.deck];
 
 			return {
@@ -329,7 +350,7 @@ export const deckMachine = setup({
 
 		searchCards: assign(({ context, event }) => {
 			if (event.type !== 'SEARCH_CARDS') return context;
-			
+
 			return {
 				...context,
 				searchQuery: event.query,
@@ -339,7 +360,7 @@ export const deckMachine = setup({
 
 		applyFilters: assign(({ context, event }) => {
 			if (event.type !== 'APPLY_FILTERS') return context;
-			
+
 			return {
 				...context,
 				filters: { ...context.filters, ...event.filters },
@@ -356,7 +377,7 @@ export const deckMachine = setup({
 
 		setError: assign(({ context, event }) => {
 			if (event.type !== 'ERROR') return context;
-			
+
 			return {
 				...context,
 				error: event.message,
@@ -375,11 +396,11 @@ export const deckMachine = setup({
 		isDeckValid: ({ context }) => context.currentDeck?.isValid === true,
 		canAddCard: ({ context, event }) => {
 			if (event.type !== 'ADD_CARD' || !context.currentDeck) return false;
-			
+
 			deckValidator.setFormat(context.currentDeck.format);
 			const result = deckValidator.canAddCard(
-				context.currentDeck.cards, 
-				event.cardId, 
+				context.currentDeck.cards,
+				event.cardId,
 				context.currentDeck.heroId || undefined
 			);
 			return result.canAdd;

@@ -1,36 +1,30 @@
 {
-  "extends": "./.svelte-kit/tsconfig.json",
-  "compilerOptions": {
-    "target": "ES2022",
-    "lib": ["dom", "dom.iterable", "esnext"],
-    "allowJs": true,
-    "skipLibCheck": true,
-    "strict": true,
-    "esModuleInterop": true,
-    "module": "ESNext",
-    "moduleResolution": "bundler",
-    "resolveJsonModule": true,
-    "isolatedModules": true,
-    "incremental": true,
-    "forceConsistentCasingInFileNames": true,
-    "allowSyntheticDefaultImports": true,
-    "types": ["vitest/globals", "@sveltejs/kit"]
-  },
-  "include": [
-    "ambient.d.ts",
-    "**/*.ts", 
-    "**/*.svelte", 
-    ".svelte-kit/ambient.d.ts",
-    "tests/**/*.ts",
-    "vitest.config.ts",
-    "vite.config.ts",
-    "svelte.config.js"
-  ],
-  "exclude": [
-    "node_modules",
-    ".svelte-kit",
-    "build",
-    "dist",
-    "coverage"
-  ]
+	"extends": "./.svelte-kit/tsconfig.json",
+	"compilerOptions": {
+		"target": "ES2022",
+		"lib": ["dom", "dom.iterable", "esnext"],
+		"allowJs": true,
+		"skipLibCheck": true,
+		"strict": true,
+		"esModuleInterop": true,
+		"module": "ESNext",
+		"moduleResolution": "bundler",
+		"resolveJsonModule": true,
+		"isolatedModules": true,
+		"incremental": true,
+		"forceConsistentCasingInFileNames": true,
+		"allowSyntheticDefaultImports": true,
+		"types": ["bun-types", "@sveltejs/kit"]
+	},
+	"include": [
+		"ambient.d.ts",
+		"**/*.ts",
+		"**/*.svelte",
+		".svelte-kit/ambient.d.ts",
+		"tests/**/*.ts",
+		"vitest.config.ts",
+		"vite.config.ts",
+		"svelte.config.js"
+	],
+	"exclude": ["node_modules", ".svelte-kit", "build", "dist", "coverage"]
 }

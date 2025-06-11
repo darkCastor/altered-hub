@@ -2,31 +2,33 @@
 	import { Github, Heart } from 'lucide-svelte';
 </script>
 
-<footer class="bg-muted/30 border-t border-border">
-	<div class="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
-		<div class="flex flex-col md:flex-row justify-between items-center">
-			<div class="flex flex-col md:flex-row items-center space-y-2 md:space-y-0 md:space-x-4">
+<footer class="border-t border-border bg-muted/30">
+	<div class="container mx-auto px-4 py-8 sm:px-6 lg:px-8">
+		<div class="flex flex-col items-center justify-between md:flex-row">
+			<div class="flex flex-col items-center space-y-2 md:flex-row md:space-x-4 md:space-y-0">
 				<p class="text-sm text-muted-foreground">
-					© 2024 AlterDeck. Built with <Heart class="inline h-4 w-4 text-red-500" /> for Altered TCG fans.
+					© 2024 AlterDeck. Built with <Heart class="inline h-4 w-4 text-red-500" /> for Altered TCG
+					fans.
 				</p>
 			</div>
-			
-			<div class="flex items-center space-x-4 mt-4 md:mt-0">
+
+			<div class="mt-4 flex items-center space-x-4 md:mt-0">
 				<a
 					href="https://github.com"
 					target="_blank"
 					rel="noopener noreferrer"
-					class="text-muted-foreground hover:text-foreground transition-colors"
+					class="text-muted-foreground transition-colors hover:text-foreground"
 					aria-label="GitHub"
 				>
 					<Github class="h-5 w-5" />
 				</a>
 			</div>
 		</div>
-		
-		<div class="mt-6 pt-6 border-t border-border">
-			<p class="text-xs text-muted-foreground text-center">
-				This is a fan-made tool for Altered TCG. All card images and game content are property of their respective owners.
+
+		<div class="mt-6 border-t border-border pt-6">
+			<p class="text-center text-xs text-muted-foreground">
+				This is a fan-made tool for Altered TCG. All card images and game content are property of
+				their respective owners.
 			</p>
 		</div>
 	</div>

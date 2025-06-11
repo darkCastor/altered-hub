@@ -10,123 +10,126 @@ import { isGameObject } from './types/objects';
  * Rule 1.4.4, 2.1.d
  */
 export class ObjectFactory {
-    private static nextId = 0;
-    private static nextTimestamp = 0;
-    
-    private cardDefinitions: Map<string, ICardDefinition>;
+	private static nextId = 0;
+	private static nextTimestamp = 0;
 
-    constructor(definitions: Map<string, ICardDefinition>) {
-        this.cardDefinitions = definitions;
-    }
-    
-    public static createUniqueId(): string {
-        return `instance-${this.nextId++}`;
-    }
+	private cardDefinitions: Map<string, ICardDefinition>;
 
-    public static getNewTimestamp(): number {
-        return this.nextTimestamp++;
-    }
+	constructor(definitions: Map<string, ICardDefinition>) {
+		this.cardDefinitions = definitions;
+	}
 
-    public createCardInstance(definitionId: string, ownerId: string): ICardInstance {
-        if (!this.cardDefinitions.has(definitionId)) {
-            throw new Error(`Card definition not found: ${definitionId}`);
-        }
-        return {
-            instanceId: ObjectFactory.createUniqueId(),
-            definitionId,
-            ownerId,
-        };
-    }
+	public static createUniqueId(): string {
+		return `instance-${this.nextId++}`;
+	}
 
-    /**
-     * Creates a game object directly from a card definition
-     * Convenience method for testing and game initialization
-     */
-    public createCard(definitionId: string, ownerId: string): IGameObject {
-        const cardInstance = this.createCardInstance(definitionId, ownerId);
-        return this.createGameObject(cardInstance, ownerId);
-    }
+	public static getNewTimestamp(): number {
+		return this.nextTimestamp++;
+	}
 
-    public createGameObject(
-        source: ICardInstance | IGameObject, 
-        controllerId: string,
-        initialCounters?: Map<CounterType, number> // Allow specifying initial counters
-    ): IGameObject {
-        const definition = this.cardDefinitions.get(source.definitionId);
-        if (!definition) {
-            throw new Error(`Card definition not found: ${source.definitionId}`);
-        }
+	public createCardInstance(definitionId: string, ownerId: string): ICardInstance {
+		if (!this.cardDefinitions.has(definitionId)) {
+			throw new Error(`Card definition not found: ${definitionId}`);
+		}
+		return {
+			instanceId: ObjectFactory.createUniqueId(),
+			definitionId,
+			ownerId
+		};
+	}
 
-        const baseCharacteristics = { ...definition };
-        
-        const instantiatedAbilities = definition.abilities.map(ability => ({ ...ability }));
+	/**
+	 * Creates a game object directly from a card definition
+	 * Convenience method for testing and game initialization
+	 */
+	public createCard(definitionId: string, ownerId: string): IGameObject {
+		const cardInstance = this.createCardInstance(definitionId, ownerId);
+		return this.createGameObject(cardInstance, ownerId);
+	}
 
-        const newObject: IGameObject = {
-            id: (source as ICardInstance).instanceId || ObjectFactory.createUniqueId(), // Ensure 'id' is populated
-            objectId: ObjectFactory.createUniqueId(),
-            definitionId: source.definitionId,
-            name: definition.name,
-            type: definition.type,
-            subTypes: definition.subTypes,
-            baseCharacteristics,
-            currentCharacteristics: { ...baseCharacteristics },
-            ownerId: source.ownerId,
-            controllerId: controllerId,
-            timestamp: ObjectFactory.getNewTimestamp(),
-            statuses: new Set<StatusType>(),
-            counters: new Map<CounterType, number>(), // Default to empty map
-            abilities: [],
-        };
-        
-        // Apply initial counters if provided by the GameStateManager.
-        if (initialCounters) {
-            newObject.counters = new Map(initialCounters);
-        }
+	public createGameObject(
+		source: ICardInstance | IGameObject,
+		controllerId: string,
+		initialCounters?: Map<CounterType, number> // Allow specifying initial counters
+	): IGameObject {
+		const definition = this.cardDefinitions.get(source.definitionId);
+		if (!definition) {
+			throw new Error(`Card definition not found: ${source.definitionId}`);
+		}
 
-        // Correctly copy statuses from the source if it was an object (e.g., in Limbo/Reserve).
-        if (isGameObject(source)) {
-            newObject.statuses = new Set(source.statuses);
-        }
+		const baseCharacteristics = { ...definition };
 
-        newObject.abilities = instantiatedAbilities.map(ability => ({
-            ...ability,
-            sourceObjectId: newObject.objectId,
-            effect: { ...ability.effect, sourceObjectId: newObject.objectId }
-        }));
+		const instantiatedAbilities = definition.abilities.map((ability) => ({ ...ability }));
 
+		const newObject: IGameObject = {
+			id: (source as ICardInstance).instanceId || ObjectFactory.createUniqueId(), // Ensure 'id' is populated
+			objectId: ObjectFactory.createUniqueId(),
+			definitionId: source.definitionId,
+			name: definition.name,
+			type: definition.type,
+			subTypes: definition.subTypes,
+			baseCharacteristics,
+			currentCharacteristics: { ...baseCharacteristics },
+			ownerId: source.ownerId,
+			controllerId: controllerId,
+			timestamp: ObjectFactory.getNewTimestamp(),
+			statuses: new Set<StatusType>(),
+			counters: new Map<CounterType, number>(), // Default to empty map
+			abilities: []
+		};
 
-        return newObject;
-    }
+		// Apply initial counters if provided by the GameStateManager.
+		if (initialCounters) {
+			newObject.counters = new Map(initialCounters);
+		}
 
-    public createReactionEmblem(sourceAbility: IAbility, sourceObject: IGameObject, triggerPayload: any): IEmblemObject {
-        if (!sourceAbility.sourceObjectId) {
-            throw new Error("Cannot create emblem from an ability not bound to an object.");
-        }
-    
-        // Bind the trigger payload and original source to the effect for later resolution
-        const boundEffect: IEffect = {
-            ...sourceAbility.effect,
-            sourceObjectId: sourceObject.objectId, 
-            _triggerPayload: triggerPayload 
-        };
-    
-        const emblem: IEmblemObject = {
-            objectId: ObjectFactory.createUniqueId(),
-            definitionId: `emblem-reaction-${sourceAbility.abilityId}`,
-            name: `Reaction: ${sourceAbility.text}`,
-            type: CardType.Emblem,
-            emblemSubType: 'Reaction', // Rule 2.2.2.m
-            baseCharacteristics: {},
-            currentCharacteristics: {},
-            ownerId: sourceObject.ownerId,
-            controllerId: sourceObject.controllerId,
-            timestamp: ObjectFactory.getNewTimestamp(),
-            statuses: new Set(),
-            counters: new Map(),
-            abilities: [],
-            boundEffect: boundEffect,
-        };
-    
-        return emblem;
-    }
+		// Correctly copy statuses from the source if it was an object (e.g., in Limbo/Reserve).
+		if (isGameObject(source)) {
+			newObject.statuses = new Set(source.statuses);
+		}
+
+		newObject.abilities = instantiatedAbilities.map((ability) => ({
+			...ability,
+			sourceObjectId: newObject.objectId,
+			effect: { ...ability.effect, sourceObjectId: newObject.objectId }
+		}));
+
+		return newObject;
+	}
+
+	public createReactionEmblem(
+		sourceAbility: IAbility,
+		sourceObject: IGameObject,
+		triggerPayload: any
+	): IEmblemObject {
+		if (!sourceAbility.sourceObjectId) {
+			throw new Error('Cannot create emblem from an ability not bound to an object.');
+		}
+
+		// Bind the trigger payload and original source to the effect for later resolution
+		const boundEffect: IEffect = {
+			...sourceAbility.effect,
+			sourceObjectId: sourceObject.objectId,
+			_triggerPayload: triggerPayload
+		};
+
+		const emblem: IEmblemObject = {
+			objectId: ObjectFactory.createUniqueId(),
+			definitionId: `emblem-reaction-${sourceAbility.abilityId}`,
+			name: `Reaction: ${sourceAbility.text}`,
+			type: CardType.Emblem,
+			emblemSubType: 'Reaction', // Rule 2.2.2.m
+			baseCharacteristics: {},
+			currentCharacteristics: {},
+			ownerId: sourceObject.ownerId,
+			controllerId: sourceObject.controllerId,
+			timestamp: ObjectFactory.getNewTimestamp(),
+			statuses: new Set(),
+			counters: new Map(),
+			abilities: [],
+			boundEffect: boundEffect
+		};
+
+		return emblem;
+	}
 }
