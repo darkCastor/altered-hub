@@ -62,6 +62,7 @@ export class ObjectFactory {
         const instantiatedAbilities = definition.abilities.map(ability => ({ ...ability }));
 
         const newObject: IGameObject = {
+            id: (source as ICardInstance).instanceId || ObjectFactory.createUniqueId(), // Ensure 'id' is populated
             objectId: ObjectFactory.createUniqueId(),
             definitionId: source.definitionId,
             name: definition.name,

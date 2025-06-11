@@ -20,7 +20,12 @@ export abstract class BaseZone implements IZone {
     }
 
     add(entity: ZoneEntity): void {
-        const key = isGameObject(entity) ? entity.objectId : entity.instanceId;
+        // Use 'id' for IGameObject (which is the instanceId), and 'instanceId' for ICardInstance
+        const key = isGameObject(entity) ? entity.id : entity.instanceId;
+        if (!key) {
+            console.error("Attempted to add entity to zone with no key:", entity);
+            throw new Error("Entity has no valid key (id or instanceId) to be added to a zone.");
+        }
         this.entities.set(key, entity);
     }
 

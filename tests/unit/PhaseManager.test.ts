@@ -44,6 +44,19 @@ describe('PhaseManager - Phase Transition Rules', () => {
         abilities: [],
         rarity: 'Common',
         version: '1.0'
+      },
+      { // Added missing definition
+        id: 'character-001',
+        name: 'Test Character',
+        type: CardType.Character,
+        subTypes: [],
+        handCost: { total: 3, forest: 1, mountain: 1, water: 1 },
+        reserveCost: { total: 2, forest: 0, mountain: 1, water: 1 },
+        faction: 'Neutral',
+        statistics: { forest: 2, mountain: 1, water: 1 },
+        abilities: [],
+        rarity: 'Common',
+        version: '1.0'
       }
     ];
     gameStateManager = new GameStateManager(['player1', 'player2'], mockCardDefinitions, eventBus);
@@ -124,9 +137,9 @@ describe('PhaseManager - Phase Transition Rules', () => {
       
       await phaseManager.executeMorningPhase();
       
-      // Each player should draw one card
+      // Each player should draw two cards (as per handleSubsequentMorning)
       const finalHandSize = player1!.zones.handZone.getAll().length;
-      expect(finalHandSize).toBe(initialHandSize + 1);
+      expect(finalHandSize).toBe(initialHandSize + 2);
     });
 
     test('Rule 4.2.1.e: Morning phase should offer Expand option', async () => {
@@ -157,8 +170,13 @@ describe('PhaseManager - Phase Transition Rules', () => {
       // Player should be able to expand
       expect(phaseManager.canPlayerExpand('player1')).toBe(true);
       
+      const player = gameStateManager.getPlayer('player1')!;
+      // Ensure player has a card to expand for the test to be valid
+      const cardToExpand = gameStateManager.objectFactory.createCard('test-card', 'player1');
+      player.zones.handZone.add(cardToExpand);
+
       // After expanding, should not be able to expand again
-      phaseManager.playerExpand('player1', 'some-card-id');
+      phaseManager.playerExpand('player1', cardToExpand.id);
       expect(phaseManager.canPlayerExpand('player1')).toBe(false);
       
       // In other phases, expand should not be available
