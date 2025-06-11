@@ -1,0 +1,26 @@
+[test]
+# Test configuration for Bun
+coverage = true
+bail = 0
+timeout = 10000
+
+# Preloads
+preload = ["./tests/unit/setup.ts"]
+
+# Test patterns
+include = [
+  "tests/unit/**/*.test.ts",
+  "tests/unit/**/*.spec.ts",
+  "src/engine/**/*.test.ts",
+  "src/engine/**/*.spec.ts"
+]
+
+exclude = [
+  "node_modules/**",
+  ".next/**",
+  "dist/**",
+  "tests/*.spec.ts",
+  "**/*.vitest.*",
+  "**/*playwright*",
+  "**/*e2e*"
+]

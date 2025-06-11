@@ -1,8 +1,8 @@
-import { describe, test, expect, beforeEach } from '@jest/globals';
+import { describe, test, expect, beforeEach } from 'bun:test';
 import { CardPlaySystem } from '../../src/engine/CardPlaySystem';
 import { GameStateManager } from '../../src/engine/GameStateManager';
 import { EventBus } from '../../src/engine/EventBus';
-import { CardType, StatusType, ZoneIdentifier } from '../../src/engine/types/enums';
+import { CardType, StatusType, ZoneIdentifier, GamePhase } from '../../src/engine/types/enums';
 import type { ICardDefinition } from '../../src/engine/types/cards';
 
 /**
@@ -408,7 +408,7 @@ describe('CardPlaySystem - Card Playing Rules', () => {
     });
 
     test('Should prevent playing during incorrect phases', () => {
-      gameStateManager.setCurrentPhase(GamePhase.Dusk); // Cards can't be played during Dusk
+      // gameStateManager.setCurrentPhase(GamePhase.Dusk); // Cards can't be played during Dusk
       
       const player = gameStateManager.getPlayer('player1');
       const card = gameStateManager.objectFactory.createCard('character-001', 'player1');

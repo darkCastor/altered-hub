@@ -1,4 +1,4 @@
-import { describe, test, expect, beforeEach } from 'vitest';
+import { describe, test, expect, beforeEach } from 'bun:test';
 import { ManaSystem } from '../../src/engine/ManaSystem';
 import { GameStateManager } from '../../src/engine/GameStateManager';
 import { EventBus } from '../../src/engine/EventBus';

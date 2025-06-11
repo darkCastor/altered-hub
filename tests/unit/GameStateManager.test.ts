@@ -1,4 +1,4 @@
-import { describe, test, expect, beforeEach } from '@jest/globals';
+import { describe, test, expect, beforeEach } from 'bun:test';
 import { GameStateManager } from '../../src/engine/GameStateManager';
 import { EventBus } from '../../src/engine/EventBus';
 import { GamePhase, ZoneIdentifier, CardType, StatusType } from '../../src/engine/types/enums';
@@ -277,9 +277,7 @@ describe('GameStateManager - Rule Compliance Tests', () => {
       const emptyDefinitions: ICardDefinition[] = [];
       const emptyGameState = new GameStateManager(['player1'], emptyDefinitions, eventBus);
       
-      await expect(async () => {
-        await emptyGameState.initializeGame();
-      }).rejects.toThrow('No card definitions available');
+      await expect(emptyGameState.initializeGame()).rejects.toThrow('No card definitions available');
     });
   });
 });
