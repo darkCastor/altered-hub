@@ -19,7 +19,7 @@ import { StatusEffectHandler } from './StatusEffectHandler';
 import { ManaSystem } from './ManaSystem';
 import { CardPlaySystem } from './CardPlaySystem';
 import { TiebreakerSystem } from './TiebreakerSystem';
-import { PassiveAbilityManager } from './PassiveAbilityManager';
+// import { PassiveAbilityManager } from './PassiveAbilityManager'; // Removed
 import { RuleAdjudicator } from './RuleAdjudicator';
 
 
@@ -36,9 +36,10 @@ export class GameStateManager {
     public manaSystem: ManaSystem;
     public cardPlaySystem: CardPlaySystem;
     public tiebreakerSystem: TiebreakerSystem;
-    public passiveManager: PassiveAbilityManager;
+    // public passiveManager: PassiveAbilityManager; // Removed
     private ruleAdjudicator: RuleAdjudicator;
     public turnManager?: any; // Will be set by TurnManager
+    public phaseManager?: any; // Will be set by PhaseManager
     private cardDefinitions: Map<string, ICardDefinition>;
 
     constructor(playerIds: string[], cardDefinitions: ICardDefinition[], eventBus: EventBus) {
@@ -52,9 +53,9 @@ export class GameStateManager {
         this.effectProcessor = new EffectProcessor(this);
         this.statusHandler = new StatusEffectHandler(this);
         this.manaSystem = new ManaSystem(this);
-        this.cardPlaySystem = new CardPlaySystem(this);
+        this.cardPlaySystem = new CardPlaySystem(this); // Assuming CardPlaySystem constructor takes (gsm, eventBus)
         this.tiebreakerSystem = new TiebreakerSystem(this);
-        this.passiveManager = new PassiveAbilityManager(this);
+        // this.passiveManager = new PassiveAbilityManager(this); // Removed
         this.ruleAdjudicator = new RuleAdjudicator(this);
         this.state = this.initializeGameState(playerIds);
     }
