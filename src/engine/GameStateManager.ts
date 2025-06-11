@@ -20,6 +20,7 @@ import { ManaSystem } from './ManaSystem';
 import { CardPlaySystem } from './CardPlaySystem';
 import { TiebreakerSystem } from './TiebreakerSystem';
 import { PassiveAbilityManager } from './PassiveAbilityManager';
+import { RuleAdjudicator } from './RuleAdjudicator';
 
 
 export class GameStateManager {
@@ -36,6 +37,7 @@ export class GameStateManager {
     public cardPlaySystem: CardPlaySystem;
     public tiebreakerSystem: TiebreakerSystem;
     public passiveManager: PassiveAbilityManager;
+    private ruleAdjudicator: RuleAdjudicator;
     public turnManager?: any; // Will be set by TurnManager
     private cardDefinitions: Map<string, ICardDefinition>;
 
@@ -53,6 +55,7 @@ export class GameStateManager {
         this.cardPlaySystem = new CardPlaySystem(this);
         this.tiebreakerSystem = new TiebreakerSystem(this);
         this.passiveManager = new PassiveAbilityManager(this);
+        this.ruleAdjudicator = new RuleAdjudicator(this);
         this.state = this.initializeGameState(playerIds);
     }
 
@@ -378,6 +381,8 @@ public moveEntity(entityId: string, fromZone: IZone, toZone: IZone, controllerId
     if (isGameObject(newEntity)) {
         this.keywordHandler.processKeywordOnLeavePlay(newEntity, fromZone, finalDestinationZone);
         this.triggerHandler.processMovementTriggers(newEntity, fromZone, finalDestinationZone);
+        // After existing handlers, apply passive abilities
+        this.ruleAdjudicator.applyAllPassiveAbilities();
     }
     
     this.eventBus.publish('entityMoved', { entity: newEntity, from: fromZone, to: finalDestinationZone });

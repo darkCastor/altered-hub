@@ -22,6 +22,11 @@ export interface ICardDefinition {
     landmarkLimit?: number; // For Heroes (Rule 2.2.13)
     permanentZoneType?: PermanentZoneType; // For Permanents (Rule 2.2.3)
     startingCounters?: Map<CounterType, number>; // Rule 2.5.e - For heroes that start with counters
+
+    // Fields for passive ability effects
+    isGigantic?: boolean; // Rule 7.4.4
+    hasDefender?: boolean; // Rule 7.4.2
+    isEternal?: boolean; // Rule 7.4.3
 }
 
 /**
