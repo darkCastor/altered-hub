@@ -48,7 +48,7 @@
 
 			<!-- Mobile menu button -->
 			<div class="md:hidden">
-				<Button variant="ghost" size="sm" on:click={toggleMobileMenu}>
+				<Button variant="ghost" size="sm" onclick={toggleMobileMenu}>
 					{#if mobileMenuOpen}
 						<X class="h-6 w-6" />
 					{:else}

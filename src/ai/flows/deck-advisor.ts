@@ -8,7 +8,7 @@
  * - DeckAdviceOutput - The return type for the getDeckAdvice function.
  */
 
-import {ai} from '@/ai/genkit';
+import {ai} from '../genkit.js';
 import {z} from 'genkit';
 
 const DeckAdviceInputSchema = z.object({

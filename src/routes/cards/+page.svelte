@@ -95,7 +95,7 @@
 				</p>
 			</div>
 			{#if selectedAction === 'create'}
-				<Button variant="outline" on:click={() => goto('/decks')}>
+				<Button variant="outline" onclick={() => goto('/decks')}>
 					Back to Decks
 				</Button>
 			{/if}
@@ -117,7 +117,7 @@
 				<Filter class="h-4 w-4" />
 			</Button>
 			{#if selectedAction === 'create'}
-				<Button on:click={handleCreateDeck}>
+				<Button onclick={handleCreateDeck}>
 					<Plus class="h-4 w-4 mr-2" />
 					Create Deck
 				</Button>
@@ -195,7 +195,7 @@
 									<Button
 										size="sm"
 										variant="outline"
-										on:click={() => send({ type: 'ADD_CARD', cardId: card.id })}
+										onclick={() => send({ type: 'ADD_CARD', cardId: card.id })}
 									>
 										Add
 									</Button>

@@ -1,5 +1,5 @@
 
-import type { AlteredCard } from '@/types';
+import type { AlteredCard } from '$types';
 import rawCardData from './altered_optimized.json';
 
 interface RawPower {

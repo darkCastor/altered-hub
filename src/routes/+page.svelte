@@ -34,64 +34,54 @@
 	<meta name="description" content="Explore cards, build powerful decks, and get AI-driven advice for Altered TCG." />
 </svelte:head>
 
-<div class="flex flex-col items-center justify-center text-center space-y-12">
-	<section class="w-full py-12 md:py-24 lg:py-32">
-		<div class="container px-4 md:px-6">
-			<div class="flex flex-col items-center space-y-6 text-center">
-				<h1
-					class="font-headline text-4xl font-bold tracking-tighter sm:text-5xl md:text-6xl lg:text-7xl/none text-transparent bg-clip-text bg-gradient-to-r from-primary to-accent"
-				>
-					Welcome to AlterDeck
-				</h1>
-				<p class="mx-auto max-w-[700px] text-muted-foreground md:text-xl">
-					Your ultimate companion for Altered TCG. Explore cards, build powerful decks, and get
-					AI-driven advice.
-				</p>
-				<div>
-					<Button
-						size="lg"
-						class="bg-primary hover:bg-primary/90 text-primary-foreground"
-						onclick={() => (window.location.href = '/cards')}
-					>
-						Explore Cards
-						<Zap class="ml-2 h-5 w-5" />
-					</Button>
+<div class="min-h-screen bg-background text-foreground">
+	<div class="flex flex-col items-center justify-center text-center space-y-12 p-8">
+		<section class="w-full py-12">
+			<div class="container px-4 md:px-6">
+				<div class="flex flex-col items-center space-y-6 text-center">
+					<h1 class="text-4xl font-bold text-primary">
+						Welcome to AlterDeck
+					</h1>
+					<p class="max-w-[700px] text-muted-foreground text-lg">
+						Your ultimate companion for Altered TCG. Explore cards, build powerful decks, and get
+						AI-driven advice.
+					</p>
+					<div>
+						<button
+							class="inline-flex items-center justify-center rounded-md text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 h-11 px-8"
+							on:click={() => (window.location.href = '/cards')}
+						>
+							Explore Cards
+							<Zap class="ml-2 h-5 w-5" />
+						</button>
+					</div>
 				</div>
 			</div>
-		</div>
-	</section>
+		</section>
 
-	<section class="w-full py-12 md:py-24">
-		<div class="container px-4 md:px-6">
-			<h2
-				class="font-headline text-3xl font-bold tracking-tighter sm:text-4xl md:text-5xl text-center mb-12"
-			>
-				Features
-			</h2>
-			<div class="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-				{#each features as feature}
-					<Card
-						class="flex flex-col shadow-lg hover:shadow-primary/30 transition-shadow duration-300"
-					>
-						<CardHeader class="items-center">
-							<svelte:component this={feature.icon} class="h-8 w-8 text-primary" />
-							<CardTitle class="font-headline mt-4 text-2xl">{feature.title}</CardTitle>
-						</CardHeader>
-						<CardContent class="flex-grow">
-							<CardDescription class="text-center">{feature.description}</CardDescription>
-						</CardContent>
-						<CardContent class="mt-auto">
-							<Button
-								variant="outline"
-								class="w-full border-primary text-primary hover:bg-primary/10"
-								onclick={() => (window.location.href = feature.href)}
-							>
-								Go to {feature.title}
-							</Button>
-						</CardContent>
-					</Card>
-				{/each}
+		<section class="w-full py-12">
+			<div class="container px-4 md:px-6">
+				<h2 class="text-3xl font-bold text-center mb-12">
+					Features
+				</h2>
+				<div class="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+					{#each features as feature}
+						<div class="bg-card text-card-foreground rounded-lg border shadow-lg p-6">
+							<div class="flex flex-col items-center text-center space-y-4">
+								<svelte:component this={feature.icon} class="h-8 w-8 text-primary" />
+								<h3 class="text-2xl font-bold">{feature.title}</h3>
+								<p class="text-muted-foreground">{feature.description}</p>
+								<button
+									class="w-full inline-flex items-center justify-center rounded-md text-sm font-medium border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2"
+									on:click={() => (window.location.href = feature.href)}
+								>
+									Go to {feature.title}
+								</button>
+							</div>
+						</div>
+					{/each}
+				</div>
 			</div>
-		</div>
-	</section>
+		</section>
+	</div>
 </div>

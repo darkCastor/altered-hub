@@ -1,8 +1,17 @@
 <script lang="ts">
-	import { createForm } from 'felte';
-	import { validator } from '@felte/validator-zod';
 	import { z } from 'zod';
-	import { getDeckAdvice, type DeckAdviceInput, type DeckAdviceOutput } from '$ai/flows/deck-advisor';
+	// Temporarily disabled AI functionality for build
+	// import { getDeckAdvice, type DeckAdviceInput, type DeckAdviceOutput } from '$ai/flows/deck-advisor';
+	
+	interface DeckAdviceInput {
+		theme: string;
+		archetype: string;
+		cardSelection: string;
+	}
+	
+	interface DeckAdviceOutput {
+		advice: string;
+	}
 	import Button from '$components/ui/button/Button.svelte';
 	import Card from '$components/ui/card/Card.svelte';
 	import CardContent from '$components/ui/card/CardContent.svelte';
@@ -11,7 +20,6 @@
 	import CardHeader from '$components/ui/card/CardHeader.svelte';
 	import CardTitle from '$components/ui/card/CardTitle.svelte';
 	import { Loader2, Lightbulb } from 'lucide-svelte';
-	import { toast } from 'svelte-sonner';
 
 	const DeckAdviceInputSchema = z.object({
 		theme: z.string().min(3, "Theme must be at least 3 characters long."),
@@ -22,32 +30,52 @@
 	let adviceOutput: DeckAdviceOutput | null = null;
 	let isLoading = false;
 
-	const { form, errors, isValid } = createForm<DeckAdviceInput>({
-		extend: validator({ schema: DeckAdviceInputSchema }),
-		initialValues: {
-			theme: '',
-			archetype: '',
-			cardSelection: '',
-		},
-		onSubmit: async (values) => {
-			isLoading = true;
-			adviceOutput = null;
-			try {
-				const result = await getDeckAdvice(values);
-				adviceOutput = result;
-				toast.success("Advice Received!", {
-					description: "AI has provided suggestions for your deck."
-				});
-			} catch (error) {
-				console.error("Error getting deck advice:", error);
-				toast.error("Error", {
-					description: "Failed to get deck advice. Please try again."
-				});
-			} finally {
-				isLoading = false;
-			}
+	let formData = {
+		theme: '',
+		archetype: '',
+		cardSelection: ''
+	};
+	
+	let errors: Record<string, string[]> = {};
+	
+	function validateForm() {
+		errors = {};
+		if (formData.theme.length < 3) {
+			errors.theme = ["Theme must be at least 3 characters long."];
 		}
-	});
+		if (formData.archetype.length < 3) {
+			errors.archetype = ["Archetype must be at least 3 characters long."];
+		}
+		if (formData.cardSelection.length < 10) {
+			errors.cardSelection = ["Card selection description must be at least 10 characters long."];
+		}
+		return Object.keys(errors).length === 0;
+	}
+	
+	async function handleSubmit() {
+		if (!validateForm()) return;
+		
+		isLoading = true;
+		adviceOutput = null;
+		try {
+			// Simulate AI response for now
+			await new Promise(resolve => setTimeout(resolve, 2000));
+			adviceOutput = {
+				advice: `Based on your ${formData.theme} theme and ${formData.archetype} archetype:\n\n` +
+					`• Consider adding cards that synergize with your core strategy\n` +
+					`• Balance your mana curve for consistent gameplay\n` +
+					`• Include versatile cards that work in multiple situations\n` +
+					`• Don't forget defensive options to protect your strategy\n\n` +
+					`Note: AI advisor is temporarily disabled during development.`
+			};
+			alert("Advice Received! AI has provided suggestions for your deck.");
+		} catch (error) {
+			console.error("Error getting deck advice:", error);
+			alert("Failed to get deck advice. Please try again.");
+		} finally {
+			isLoading = false;
+		}
+	}
 </script>
 
 <div class="grid md:grid-cols-2 gap-8">
@@ -61,19 +89,20 @@
 				Provide details about your deck idea, and our AI will help you complete it.
 			</CardDescription>
 		</CardHeader>
-		<form use:form>
+		<form on:submit|preventDefault={handleSubmit}>
 			<CardContent class="space-y-6">
 				<div class="space-y-2">
 					<label for="theme" class="text-sm font-medium">Deck Theme</label>
 					<input 
 						id="theme" 
-						name="theme"
+						bind:value={formData.theme}
+						on:input={validateForm}
 						placeholder="e.g., Aggro, Control, Forest Control" 
 						class="w-full px-3 py-2 border border-input bg-background rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
 					/>
 					<p class="text-sm text-muted-foreground">What is the central theme or strategy of your deck?</p>
-					{#if $errors.theme}
-						<p class="text-sm text-destructive">{$errors.theme[0]}</p>
+					{#if errors.theme}
+						<p class="text-sm text-destructive">{errors.theme[0]}</p>
 					{/if}
 				</div>
 				
@@ -81,13 +110,14 @@
 					<label for="archetype" class="text-sm font-medium">Deck Archetype</label>
 					<input 
 						id="archetype" 
-						name="archetype"
+						bind:value={formData.archetype}
+						on:input={validateForm}
 						placeholder="e.g., Axiom Tempo, Bravos Aggro" 
 						class="w-full px-3 py-2 border border-input bg-background rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
 					/>
 					<p class="text-sm text-muted-foreground">What is the general playstyle or archetype?</p>
-					{#if $errors.archetype}
-						<p class="text-sm text-destructive">{$errors.archetype[0]}</p>
+					{#if errors.archetype}
+						<p class="text-sm text-destructive">{errors.archetype[0]}</p>
 					{/if}
 				</div>
 				
@@ -95,21 +125,22 @@
 					<label for="cardSelection" class="text-sm font-medium">Current Cards / Core Ideas</label>
 					<textarea
 						id="cardSelection"
-						name="cardSelection"
+						bind:value={formData.cardSelection}
+						on:input={validateForm}
 						placeholder="List key cards you want to include, or describe core card interactions..."
 						rows="5"
 						class="w-full px-3 py-2 border border-input bg-background rounded-md focus:outline-none focus:ring-2 focus:ring-ring resize-none"
 					></textarea>
 					<p class="text-sm text-muted-foreground">Describe the cards you've already selected or the core mechanics.</p>
-					{#if $errors.cardSelection}
-						<p class="text-sm text-destructive">{$errors.cardSelection[0]}</p>
+					{#if errors.cardSelection}
+						<p class="text-sm text-destructive">{errors.cardSelection[0]}</p>
 					{/if}
 				</div>
 			</CardContent>
 			<CardFooter>
 				<Button 
 					type="submit" 
-					disabled={isLoading || !$isValid} 
+					disabled={isLoading || Object.keys(errors).length > 0} 
 					class="w-full bg-accent text-accent-foreground hover:bg-accent/90"
 				>
 					{#if isLoading}

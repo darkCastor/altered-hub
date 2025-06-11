@@ -1,17 +1,11 @@
 <script lang="ts">
 	import '../app.css';
 	import { onMount } from 'svelte';
-	import { mode, setMode } from 'mode-watcher';
 	import Header from '$components/layout/Header.svelte';
 	import Footer from '$components/layout/Footer.svelte';
-	import { Toaster } from 'svelte-sonner';
 
 	onMount(() => {
-		// Initialize dark mode based on system preference
-		if (typeof window !== 'undefined') {
-			const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-			setMode(prefersDark ? 'dark' : 'light');
-		}
+		console.log('Layout mounted successfully!');
 	});
 </script>
 
@@ -28,8 +22,6 @@
 	</main>
 	<Footer />
 </div>
-
-<Toaster />
 
 <style>
 	:global(html) {

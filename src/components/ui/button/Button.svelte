@@ -30,10 +30,11 @@
 	type Variant = VariantProps<typeof buttonVariants>['variant'];
 	type Size = VariantProps<typeof buttonVariants>['size'];
 
-	interface ButtonProps extends HTMLButtonAttributes {
+	interface ButtonProps extends Omit<HTMLButtonAttributes, 'onclick'> {
 		variant?: Variant;
 		size?: Size;
 		class?: string;
+		onclick?: (event: MouseEvent) => void;
 	}
 
 	let {
@@ -41,10 +42,11 @@
 		size = 'default',
 		class: className,
 		children,
+		onclick,
 		...restProps
 	}: ButtonProps = $props();
 </script>
 
-<button class={buttonVariants({ variant, size, className })} {...restProps}>
+<button class={buttonVariants({ variant, size, className })} on:click={onclick} {...restProps}>
 	{@render children?.()}
 </button>
