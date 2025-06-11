@@ -13,12 +13,15 @@
 # testing
 /coverage
 
-# next.js
+# SvelteKit
+/.svelte-kit
+/build
+/.turbo
+
+# Legacy Next.js (can be removed after full migration)
 /.next/
 /out/
-
-# production
-/build
+next-env.d.ts
 
 # misc
 .DS_Store
@@ -35,11 +38,27 @@ yarn-error.log*
 
 # typescript
 *.tsbuildinfo
-next-env.d.ts
 
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# genkit
 .genkit/*
-.env*
 
 # firebase
 firebase-debug.log
 firestore-debug.log
+
+# Playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+
+# Vitest
+coverage/
+
+# Bun
+.bun

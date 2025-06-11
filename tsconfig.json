@@ -1,45 +1,35 @@
 {
+  "extends": "./.svelte-kit/tsconfig.json",
   "compilerOptions": {
     "target": "ES2022",
     "lib": ["dom", "dom.iterable", "esnext"],
     "allowJs": true,
     "skipLibCheck": true,
     "strict": true,
-    "noEmit": true,
     "esModuleInterop": true,
-    "module": "esnext",
+    "module": "ESNext",
     "moduleResolution": "bundler",
     "resolveJsonModule": true,
     "isolatedModules": true,
-    "jsx": "preserve",
     "incremental": true,
     "forceConsistentCasingInFileNames": true,
-    "verbatimModuleSyntax": false,
-    "allowImportingTsExtensions": false,
-    "plugins": [
-      {
-        "name": "next"
-      }
-    ],
-    "paths": {
-      "@/*": ["./src/*"],
-      "~/*": ["./*"]
-    },
-    "baseUrl": ".",
-    "types": ["vitest/globals"]
+    "allowSyntheticDefaultImports": true,
+    "types": ["vitest/globals", "@sveltejs/kit"]
   },
   "include": [
-    "next-env.d.ts", 
+    "ambient.d.ts",
     "**/*.ts", 
-    "**/*.tsx", 
-    ".next/types/**/*.ts",
+    "**/*.svelte", 
+    ".svelte-kit/ambient.d.ts",
     "tests/**/*.ts",
-    "vitest.config.ts"
+    "vitest.config.ts",
+    "vite.config.ts",
+    "svelte.config.js"
   ],
   "exclude": [
     "node_modules",
-    ".next",
-    ".turbo",
+    ".svelte-kit",
+    "build",
     "dist",
     "coverage"
   ]
