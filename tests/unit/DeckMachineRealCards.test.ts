@@ -521,8 +521,8 @@ describe('Deck State Machine - Real Cards Tests', () => {
       const snapshot = actor.getSnapshot();
       const stats = snapshot.context.validationResult?.stats;
       
-      expect(stats?.rarityBreakdown['Commun']).toBe(2); // 1 common card + 1 common hero
-      expect(stats?.rarityBreakdown['Rare']).toBe(1);
+      expect(stats?.rarityBreakdown['Commun']).toBe(1); // Only AX_CHAR_COMMON (Common)
+      expect(stats?.rarityBreakdown['Rare']).toBe(1);   // AX_CHAR_RARE (Rare)
     });
   });
 });

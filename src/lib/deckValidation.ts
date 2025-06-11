@@ -170,9 +170,9 @@ export class DeckValidator {
 				if (hero.faction) {
 					stats.factionBreakdown[hero.faction] = (stats.factionBreakdown[hero.faction] || 0) + 1;
 				}
-				if (hero.rarity) {
-					stats.rarityBreakdown[hero.rarity] = (stats.rarityBreakdown[hero.rarity] || 0) + 1;
-				}
+				// if (hero.rarity) {
+				// 	stats.rarityBreakdown[hero.rarity] = (stats.rarityBreakdown[hero.rarity] || 0) + 1;
+				// }
 			}
 		}
 
