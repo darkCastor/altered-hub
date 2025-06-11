@@ -43,6 +43,14 @@ export abstract class BaseZone implements IZone {
     getCount(): number {
         return this.entities.size;
     }
+
+    clear(): void {
+        this.entities.clear();
+    }
+
+    contains(entityId: string): boolean {
+        return this.entities.has(entityId);
+    }
 }
 
 export class DeckZone extends BaseZone {

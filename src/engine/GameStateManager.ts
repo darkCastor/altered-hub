@@ -56,6 +56,147 @@ export class GameStateManager {
         this.state = this.initializeGameState(playerIds);
     }
 
+    /**
+     * Rule 4.1: Game Setup Phase - Initialize game according to Altered rules
+     */
+    public async initializeGame(): Promise<void> {
+        if (this.cardDefinitions.size === 0) {
+            throw new Error('No card definitions available');
+        }
+
+        // Rule 4.1.l: Start on Day 1, skip first Morning phase
+        this.state.currentDay = 1;
+        this.state.currentPhase = GamePhase.Noon;
+        this.state.firstMorningSkipped = true;
+
+        // Rule 4.1.a-c: Initialize adventure zones and regions
+        this.initializeAdventureZones();
+
+        // Initialize each player's game state
+        for (const [playerId, player] of this.state.players) {
+            await this.initializePlayerState(playerId, player);
+        }
+
+        // Rule 4.1: Determine first player (simplified for testing)
+        this.state.firstPlayerId = Array.from(this.state.players.keys())[0];
+        this.state.currentPlayerId = this.state.firstPlayerId;
+
+        // Note: gameInitialized event not in EventPayloads, so skip for now
+        console.log('[GSM] Game initialized with players:', Array.from(this.state.players.keys()));
+    }
+
+    private initializeAdventureZones(): void {
+        const adventureZone = this.state.sharedZones.adventure;
+        
+        // Rule 4.1.b: Create Hero and Companion regions
+        const heroRegion = {
+            id: 'hero-region',
+            instanceId: 'hero-region',
+            type: 'HeroRegion',
+            faceDown: false,
+            terrainType: 'neutral',
+            ownerId: 'shared'
+        };
+        
+        const companionRegion = {
+            id: 'companion-region',
+            instanceId: 'companion-region', 
+            type: 'CompanionRegion',
+            faceDown: false,
+            terrainType: 'neutral',
+            ownerId: 'shared'
+        };
+
+        adventureZone.add(heroRegion as any);
+        adventureZone.add(companionRegion as any);
+
+        // Rule 4.1.c: Place 3 face-down Tumult cards between regions
+        for (let i = 0; i < 3; i++) {
+            const tumultCard = {
+                id: `tumult-${i}`,
+                instanceId: `tumult-${i}`,
+                type: 'TumultCard',
+                faceDown: true,
+                terrainType: 'tumult',
+                ownerId: 'shared'
+            };
+            adventureZone.add(tumultCard as any);
+        }
+    }
+
+    private async initializePlayerState(playerId: string, player: IPlayer): Promise<void> {
+        // Rule 4.1.h: Heroes should be revealed and placed in Hero zones
+        this.placeHeroInZone(playerId);
+
+        // Rule 4.1.i: Shuffle deck
+        this.initializePlayerDeck(playerId);
+
+        // Rule 4.1.j: Draw 6 cards
+        await this.drawCards(playerId, 6);
+
+        // Rule 4.1.k: Start with 3 Mana Orbs face-down and ready
+        this.initializeManaOrbs(playerId);
+
+        // Rule 4.1: Initialize expedition state
+        player.expeditionState = {
+            heroPosition: 0,
+            companionPosition: 0,
+            heroActive: true,
+            companionActive: true,
+            heroMovedThisTurn: false,
+            companionMovedThisTurn: false,
+            heroStats: { forest: 0, mountain: 0, water: 0 },
+            companionStats: { forest: 0, mountain: 0, water: 0 }
+        };
+    }
+
+    private placeHeroInZone(playerId: string): void {
+        const player = this.getPlayer(playerId);
+        if (!player) return;
+
+        // Find a hero card definition
+        const heroDefinition = Array.from(this.cardDefinitions.values())
+            .find(def => def.type === CardType.Hero);
+        
+        if (heroDefinition) {
+            const hero = this.objectFactory.createCard(heroDefinition.id, playerId);
+            hero.faceDown = false; // Heroes are revealed
+            player.zones.heroZone.add(hero);
+        }
+    }
+
+    private initializePlayerDeck(playerId: string): void {
+        const player = this.getPlayer(playerId);
+        if (!player) return;
+
+        // Add some cards to deck for testing
+        const cardDefinitions = Array.from(this.cardDefinitions.values())
+            .filter(def => def.type !== CardType.Hero)
+            .slice(0, 30); // Take first 30 non-hero cards
+
+        cardDefinitions.forEach(def => {
+            const cardInstance = this.objectFactory.createCardInstance(def.id, playerId);
+            player.zones.deckZone.add(cardInstance);
+        });
+    }
+
+    private initializeManaOrbs(playerId: string): void {
+        const player = this.getPlayer(playerId);
+        if (!player) return;
+
+        // Rule 4.1.k: 3 Mana Orbs face-down and ready
+        for (let i = 0; i < 3; i++) {
+            const basicCard = Array.from(this.cardDefinitions.values())[0];
+            if (basicCard) {
+                const manaOrb = this.objectFactory.createCard(basicCard.id, playerId);
+                manaOrb.faceDown = true;
+                manaOrb.type = CardType.ManaOrb; // Rule 3.2.9.c
+                manaOrb.statuses.delete(StatusType.Exhausted); // Ready
+                player.zones.manaZone.add(manaOrb);
+            }
+        }
+    }
+
     
 private initializeGameState(playerIds: string[]): IGameState {
     const players = new Map<string, IPlayer>();
@@ -63,14 +204,14 @@ private initializeGameState(playerIds: string[]): IGameState {
         players.set(pid, {
             id: pid,
             zones: {
-                deck: new DeckZone(`${pid}-deck`, pid),
-                hand: new HandZone(`${pid}-hand`, pid),
-                discardPile: new DiscardPileZone(`${pid}-discard`, pid),
+                deckZone: new DeckZone(`${pid}-deck`, pid),
+                handZone: new HandZone(`${pid}-hand`, pid),
+                discardPileZone: new DiscardPileZone(`${pid}-discard`, pid),
                 manaZone: new GenericZone(`${pid}-mana`, ZoneIdentifier.Mana, 'visible', pid),
-                reserve: new GenericZone(`${pid}-reserve`, ZoneIdentifier.Reserve, 'visible', pid),
+                reserveZone: new GenericZone(`${pid}-reserve`, ZoneIdentifier.Reserve, 'visible', pid),
                 landmarkZone: new GenericZone(`${pid}-landmark`, ZoneIdentifier.Landmark, 'visible', pid),
                 heroZone: new GenericZone(`${pid}-hero`, ZoneIdentifier.Hero, 'visible', pid),
-                expedition: new GenericZone(`${pid}-expedition`, ZoneIdentifier.Expedition, 'visible', pid), 
+                expeditionZone: new GenericZone(`${pid}-expedition`, ZoneIdentifier.Expedition, 'visible', pid), 
             },
             heroExpedition: { position: 0, canMove: true, hasMoved: false },
             companionExpedition: { position: 0, canMove: true, hasMoved: false },
@@ -89,7 +230,11 @@ private initializeGameState(playerIds: string[]): IGameState {
         currentPhase: GamePhase.Setup,
         currentPlayerId: playerIds[0],
         firstPlayerId: playerIds[0],
+        currentDay: 1,
         dayNumber: 1,
+        firstMorningSkipped: false,
+        gameEnded: false,
+        tiebreakerMode: false,
         actionHistory: [],
     };
 }
@@ -281,6 +426,83 @@ public setCurrentPhase(phase: GamePhase) {
 }
 
 /**
+ * Sets the game winner and ends the game
+ */
+public setGameWinner(playerId: string): void {
+    this.state.gameEnded = true;
+    this.state.winner = playerId;
+    console.log('[GSM] Game ended, winner:', playerId);
+}
+
+/**
+ * Enters tiebreaker mode according to Rule 4.3
+ */
+public enterTiebreakerMode(): void {
+    this.state.tiebreakerMode = true;
+    
+    // Rule 4.3.e: Replace adventure with Arena containing all terrain types
+    const adventureZone = this.state.sharedZones.adventure;
+    adventureZone.clear();
+    
+    // Arena has V, M, O terrain regions
+    const arenaRegions = [
+        { id: 'arena-forest', instanceId: 'arena-forest', type: 'ArenaRegion', terrainType: 'forest', ownerId: 'shared' },
+        { id: 'arena-mountain', instanceId: 'arena-mountain', type: 'ArenaRegion', terrainType: 'mountain', ownerId: 'shared' },
+        { id: 'arena-water', instanceId: 'arena-water', type: 'ArenaRegion', terrainType: 'water', ownerId: 'shared' }
+    ];
+    
+    arenaRegions.forEach(region => {
+        adventureZone.add(region as any);
+    });
+    
+    console.log('[GSM] Tiebreaker mode started');
+}
+
+/**
+ * Moves a card between zones with validation
+ */
+public moveCard(cardId: string, fromZone: ZoneIdentifier, toZone: ZoneIdentifier, playerId: string): void {
+    const player = this.getPlayer(playerId);
+    if (!player) {
+        throw new Error(`Player ${playerId} not found`);
+    }
+    
+    const fromZoneObj = this.getZoneByIdentifier(fromZone, playerId);
+    const toZoneObj = this.getZoneByIdentifier(toZone, playerId);
+    
+    if (!fromZoneObj || !toZoneObj) {
+        throw new Error('Invalid zone identifier');
+    }
+    
+    const card = fromZoneObj.getAll().find(c => c.id === cardId);
+    if (!card) {
+        throw new Error(`Card ${cardId} not found in ${fromZone}`);
+    }
+    
+    this.moveEntity(cardId, fromZoneObj, toZoneObj, playerId);
+}
+
+private getZoneByIdentifier(zoneId: ZoneIdentifier, playerId: string): IZone | undefined {
+    const player = this.getPlayer(playerId);
+    if (!player) return undefined;
+    
+    switch (zoneId) {
+        case ZoneIdentifier.Hand: return player.zones.handZone;
+        case ZoneIdentifier.Deck: return player.zones.deckZone;
+        case ZoneIdentifier.Discard: return player.zones.discardPileZone;
+        case ZoneIdentifier.Mana: return player.zones.manaZone;
+        case ZoneIdentifier.Reserve: return player.zones.reserveZone;
+        case ZoneIdentifier.Landmark: return player.zones.landmarkZone;
+        case ZoneIdentifier.Hero: return player.zones.heroZone;
+        case ZoneIdentifier.Expedition: return player.zones.expeditionZone;
+        case ZoneIdentifier.Limbo: return this.state.sharedZones.limbo;
+        case ZoneIdentifier.Adventure: return this.state.sharedZones.adventure;
+        default: return undefined;
+    }
+}
+
+
+/**
  * Handles the Prepare daily effect during the Morning phase.
  * Rule 4.2.1.c: Readies all exhausted cards and objects.
  */
@@ -298,7 +520,7 @@ public async restPhase() {
     console.log('[GSM] Beginning Rest phase.');
     
     for (const player of this.state.players.values()) {
-        const expeditionZone = player.zones.expedition;
+        const expeditionZone = player.zones.expeditionZone;
         const charactersToProcess = expeditionZone.getAll().filter(
             e => isGameObject(e) && e.type === CardType.Character
         ) as IGameObject[];
@@ -325,9 +547,9 @@ public async restPhase() {
                 let destinationZone;
                 
                 if (statusResults.fleetingDestination === 'discard') {
-                    destinationZone = player.zones.discardPile;
+                    destinationZone = player.zones.discardPileZone;
                 } else {
-                    destinationZone = player.zones.reserve;
+                    destinationZone = player.zones.reserveZone;
                 }
                 
                 this.moveEntity(char.objectId, expeditionZone, destinationZone, char.controllerId);
@@ -348,13 +570,13 @@ public async cleanupPhase(): Promise<void> {
         const landmarkLimit = hero?.baseCharacteristics.landmarkLimit ?? 2;
 
         // Clean-up Reserve
-        const reserveZone = player.zones.reserve;
+        const reserveZone = player.zones.reserveZone;
         while(reserveZone.getCount() > reserveLimit) {
             // TODO: Add player choice. For now, discard the last card.
             const cardToDiscard = reserveZone.getAll().pop() as IGameObject;
             if(cardToDiscard) {
                 console.log(`[GSM] ${player.id} is over reserve limit, discarding ${cardToDiscard.name}.`);
-                this.moveEntity(cardToDiscard.objectId, reserveZone, player.zones.discardPile, player.id);
+                this.moveEntity(cardToDiscard.objectId, reserveZone, player.zones.discardPileZone, player.id);
             }
         }
 
@@ -365,7 +587,7 @@ public async cleanupPhase(): Promise<void> {
             const cardToSacrifice = landmarkZone.getAll().pop() as IGameObject;
             if(cardToSacrifice) {
                 console.log(`[GSM] ${player.id} is over landmark limit, sacrificing ${cardToSacrifice.name}.`);
-                this.moveEntity(cardToSacrifice.objectId, landmarkZone, player.zones.discardPile, player.id);
+                this.moveEntity(cardToSacrifice.objectId, landmarkZone, player.zones.discardPileZone, player.id);
             }
         }
     }
@@ -380,7 +602,7 @@ public calculateExpeditionStats(playerId: string, expeditionType: 'hero' | 'comp
     const player = this.getPlayer(playerId);
     if (!player) return { forest: 0, mountain: 0, water: 0 };
 
-    const expeditionZone = player.zones.expedition;
+    const expeditionZone = player.zones.expeditionZone;
     const stats: ITerrainStats = { forest: 0, mountain: 0, water: 0 };
 
     for (const entity of expeditionZone.getAll()) {
@@ -481,9 +703,9 @@ public async drawCards(playerId: string, count: number): Promise<void> {
         return;
     }
 
-    const deck = player.zones.deck as DeckZone;
-    const hand = player.zones.hand;
-    const discardPile = player.zones.discardPile;
+    const deck = player.zones.deckZone as DeckZone;
+    const hand = player.zones.handZone;
+    const discardPile = player.zones.discardPileZone;
 
     for (let i = 0; i < count; i++) {
         if (deck.getCount() === 0) {
@@ -511,10 +733,38 @@ public async drawCards(playerId: string, count: number): Promise<void> {
 
         const cardToDraw = deck.removeTop();
         if (cardToDraw) {
-            hand.add(cardToDraw);
-            this.eventBus.publish('entityMoved', { entity: cardToDraw, from: deck, to: hand });
+            // Convert to game object when moving to visible zone (hand)
+            const gameObject = this.objectFactory.createGameObject(cardToDraw, playerId);
+            gameObject.faceDown = false; // Cards in hand are face-up for owner
+            hand.add(gameObject);
+            this.eventBus.publish('entityMoved', { entity: gameObject, from: deck, to: hand });
         }
     }
+}
+
+/**
+ * Get all visible zones across all players and shared zones
+ */
+public getAllVisibleZones(): IZone[] {
+    const zones: IZone[] = [];
+    
+    // Add shared zones
+    Object.values(this.state.sharedZones).forEach(zone => {
+        if (zone && zone.visibility === 'visible' && zone.getAll) {
+            zones.push(zone);
+        }
+    });
+    
+    // Add player zones
+    for (const player of this.state.players.values()) {
+        Object.values(player.zones).forEach(zone => {
+            if (zone && zone.visibility === 'visible' && zone.getAll) {
+                zones.push(zone);
+            }
+        });
+    }
+    
+    return zones;
 }
 
 /**

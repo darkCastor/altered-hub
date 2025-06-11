@@ -1,7 +1,7 @@
 import type { IGameObject } from './types/objects';
 import type { GameStateManager } from './GameStateManager';
 import type { IZone } from './types/zones';
-import { KeywordAbility, StatusType, CounterType } from './types/enums';
+import { KeywordAbility, StatusType, CounterType, CardType } from './types/enums';
 import { isGameObject } from './types/objects';
 
 /**
@@ -117,8 +117,8 @@ export class KeywordAbilityHandler {
         const player = this.gsm.getPlayer(playerId);
         if (!player) return { hero: true, companion: true };
 
-        const expeditionChars = player.zones.expedition.getAll().filter(
-            e => isGameObject(e) && e.type === 'Personnage'
+        const expeditionChars = player.zones.expeditionZone.getAll().filter(
+            e => isGameObject(e) && e.type === CardType.Character
         ) as IGameObject[];
 
         const hasDefender = expeditionChars.some(char =>

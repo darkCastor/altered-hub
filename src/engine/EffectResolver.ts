@@ -104,7 +104,7 @@ private resolveStep(step: IEffectStep, sourceObjectId?: string) {
         if (fromZone && (fromZone.zoneType === ZoneIdentifier.Expedition || fromZone.zoneType === ZoneIdentifier.Landmark)) {
             const owner = this.gsm.getPlayer(target.ownerId);
             if (owner) {
-                this.gsm.moveEntity(target.objectId, fromZone, owner.zones.discardPile, target.controllerId);
+                this.gsm.moveEntity(target.objectId, fromZone, owner.zones.discardPileZone, target.controllerId);
                  console.log(`[EffectResolver] Object ${target.objectId} was sacrificed.`);
             }
         }

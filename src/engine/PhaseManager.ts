@@ -122,7 +122,7 @@ private async handleExpandPhase() {
         
         // TODO: Add player choice mechanism
         // For now, auto-expand if hand has cards
-        const handZone = player.zones.hand;
+        const handZone = player.zones.handZone;
         if (handZone.getCount() > 0) {
             const cardToExpand = handZone.getAll()[0]; // Take first card
             if (cardToExpand) {

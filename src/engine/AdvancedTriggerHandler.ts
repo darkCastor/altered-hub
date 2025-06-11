@@ -85,7 +85,7 @@ export class AdvancedTriggerHandler {
         console.log(`[TriggerHandler] Processing 'At ${phaseName}' triggers`);
         
         // Check all objects in visible zones for phase triggers
-        for (const zone of this.getAllVisibleZones()) {
+        for (const zone of this.gsm.getAllVisibleZones()) {
             for (const entity of zone.getAll()) {
                 if (isGameObject(entity)) {
                     this.processObjectPhaseTriggersForPhase(entity, phaseName);

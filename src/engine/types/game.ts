@@ -23,6 +23,20 @@ export interface IExpeditionState {
 }
 
 /**
+ * Extended expedition state for full game tracking
+ */
+export interface IExtendedExpeditionState {
+    heroPosition: number;
+    companionPosition: number;
+    heroActive: boolean;
+    companionActive: boolean;
+    heroMovedThisTurn: boolean;
+    companionMovedThisTurn: boolean;
+    heroStats: ITerrainStats;
+    companionStats: ITerrainStats;
+}
+
+/**
  * Represents a single player in the game.
  * Rule 1.2.1
  */
@@ -30,17 +44,18 @@ export interface IPlayer {
     id: string;
     hero?: IHeroObject;
     zones: {
-        deck: IZone;
-        hand: IZone;
-        discardPile: IZone;
+        deckZone: IZone;
+        handZone: IZone;
+        discardPileZone: IZone;
         manaZone: IZone;
-        reserve: IZone;
+        reserveZone: IZone;
         landmarkZone: IZone;
         heroZone: IZone;
-        expedition: IZone;
+        expeditionZone: IZone;
     };
     heroExpedition: IExpeditionState;
     companionExpedition: IExpeditionState;
+    expeditionState?: IExtendedExpeditionState;
     hasPassedTurn: boolean;
     hasExpandedThisTurn: boolean;
 }
@@ -58,6 +73,12 @@ export interface IGameState {
     currentPhase: GamePhase;
     currentPlayerId: string;
     firstPlayerId: string; // The player who is first for the current Day
+    currentDay: number;
     dayNumber: number;
+    firstMorningSkipped: boolean;
+    gameEnded: boolean;
+    winner?: string;
+    tiebreakerMode: boolean;
+    playerExpandChoices?: Record<string, boolean>;
     actionHistory: any[]; // Log actions and events for debugging
 }

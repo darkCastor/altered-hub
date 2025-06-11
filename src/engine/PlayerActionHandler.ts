@@ -121,7 +121,7 @@ export class PlayerActionHandler {
 
         const playableCards: IGameObject[] = [];
         
-        for (const entity of player.zones.reserve.getAll()) {
+        for (const entity of player.zones.reserveZone.getAll()) {
             if (isGameObject(entity) && this.canPlayCardFromReserve(playerId, entity)) {
                 playableCards.push(entity);
             }

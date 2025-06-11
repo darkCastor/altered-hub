@@ -132,11 +132,11 @@ export class ReactionManager {
         const objects: IGameObject[] = [];
         this.gsm.state.players.forEach(player => {
             // In-Play zones
-            objects.push(...player.zones.expedition.getAll().filter(isGameObject));
+            objects.push(...player.zones.expeditionZone.getAll().filter(isGameObject));
             objects.push(...player.zones.landmarkZone.getAll().filter(isGameObject));
             objects.push(...player.zones.heroZone.getAll().filter(isGameObject));
             // Reserve zone (for support abilities)
-            objects.push(...player.zones.reserve.getAll().filter(isGameObject));
+            objects.push(...player.zones.reserveZone.getAll().filter(isGameObject));
         });
         return objects;
     }

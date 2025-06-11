@@ -293,7 +293,7 @@ export class CardPlaySystem {
         }
 
         // Check reserve cards
-        for (const entity of player.zones.reserve.getAll()) {
+        for (const entity of player.zones.reserveZone.getAll()) {
             if (isGameObject(entity)) {
                 const definition = this.gsm.getCardDefinition(entity.definitionId);
                 if (definition && this.canPlayCard(playerId, entity, 'reserve', definition)) {

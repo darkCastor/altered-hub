@@ -186,7 +186,7 @@ export class StatusEffectHandler {
      */
     private processStatusEffectsDuringNight(): void {
         for (const player of this.gsm.state.players.values()) {
-            const expeditionZone = player.zones.expedition;
+            const expeditionZone = player.zones.expeditionZone;
             
             for (const entity of expeditionZone.getAll()) {
                 if (isGameObject(entity) && entity.type === CardType.Character) {
@@ -265,12 +265,12 @@ export class StatusEffectHandler {
      */
     private *getAllVisibleZones(): Generator<any> {
         for (const player of this.gsm.state.players.values()) {
-            yield player.zones.discardPile;
+            yield player.zones.discardPileZone;
             yield player.zones.manaZone;
-            yield player.zones.reserve;
+            yield player.zones.reserveZone;
             yield player.zones.landmarkZone;
             yield player.zones.heroZone;
-            yield player.zones.expedition;
+            yield player.zones.expeditionZone;
         }
         yield this.gsm.state.sharedZones.adventure;
         yield this.gsm.state.sharedZones.limbo;

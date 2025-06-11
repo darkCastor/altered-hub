@@ -38,6 +38,15 @@ export class ObjectFactory {
         };
     }
 
+    /**
+     * Creates a game object directly from a card definition
+     * Convenience method for testing and game initialization
+     */
+    public createCard(definitionId: string, ownerId: string): IGameObject {
+        const cardInstance = this.createCardInstance(definitionId, ownerId);
+        return this.createGameObject(cardInstance, ownerId);
+    }
+
     public createGameObject(
         source: ICardInstance | IGameObject, 
         controllerId: string,

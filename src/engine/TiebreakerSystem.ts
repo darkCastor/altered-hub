@@ -190,7 +190,7 @@ export class TiebreakerSystem {
         const stats: ITerrainStats = { forest: 0, mountain: 0, water: 0 };
         
         // Include stats from all Characters in expeditions
-        for (const entity of player.zones.expedition.getAll()) {
+        for (const entity of player.zones.expeditionZone.getAll()) {
             if (isGameObject(entity) && entity.type === CardType.Character) {
                 // Skip Asleep characters (Rule 2.4.3)
                 if (entity.statuses.has(StatusType.Asleep)) continue;
@@ -327,7 +327,7 @@ export class TiebreakerSystem {
             
             // Process character status effects but don't move to Reserve
             // since Arena combat continues
-            const expeditionChars = player.zones.expedition.getAll().filter(
+            const expeditionChars = player.zones.expeditionZone.getAll().filter(
                 e => isGameObject(e) && e.type === CardType.Character
             ) as IGameObject[];
             

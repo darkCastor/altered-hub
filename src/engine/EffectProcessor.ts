@@ -133,7 +133,7 @@ export class EffectProcessor {
                     this.gsm.moveEntity(
                         cardId,
                         player.zones.hand,
-                        player.zones.discardPile,
+                        player.zones.discardPileZone,
                         target
                     );
                 }
@@ -154,11 +154,11 @@ export class EffectProcessor {
                 const player = this.gsm.getPlayer(target);
                 if (!player) continue;
 
-                const discardCards = player.zones.discardPile.getAll().slice(0, count);
+                const discardCards = player.zones.discardPileZone.getAll().slice(0, count);
                 for (const card of discardCards) {
                     this.gsm.moveEntity(
                         isGameObject(card) ? card.objectId : card.instanceId,
-                        player.zones.discardPile,
+                        player.zones.discardPileZone,
                         player.zones.reserve,
                         target
                     );
