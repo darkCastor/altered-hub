@@ -145,7 +145,8 @@
 	{/if}
 
 	<!-- Error State -->
-	{#if $snapshot.context.error && !$snapshot.matches('initializing') /* Don't show general error during initial load if specific error UI exists or handled by errorLoading state */}
+	<!-- Don't show general error during initial load if specific error UI exists or handled by errorLoading state -->
+	{#if $snapshot.context.error && !$snapshot.matches('initializing')}
 		<div class="bg-destructive/10 border border-destructive/20 rounded-lg p-4 text-destructive">
 			Error: {$snapshot.context.error}
 		</div>

@@ -363,9 +363,9 @@
 
 										<!-- Deck Building Overlay -->
 										{#if selectedAction === 'create'}
+											{@const quantity = getCardQuantity(card.id)}
+											{@const canAdd = canAddCard(card.id)}
 											<div class="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 transition-all rounded-lg flex items-center justify-center">
-												{@const quantity = getCardQuantity(card.id)}
-												{@const canAdd = canAddCard(card.id)
 												
 												<div class="opacity-0 group-hover:opacity-100 transition-opacity">
 													{#if quantity > 0}
