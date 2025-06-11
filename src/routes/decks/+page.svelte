@@ -14,11 +14,15 @@
 
 	const { snapshot, send } = useMachine(deckMachine);
 
-	let isMounted = false;
-
+	// No need for isMounted, machine's isLoading and state should suffice.
 	onMount(() => {
-		isMounted = true;
-		send({ type: 'LOAD_DECKS' });
+		// If the machine is in a state where decks are already loaded (e.g. navigating back),
+		// we might not need to send LOAD_DECKS. However, sending it is usually harmless
+		// as the machine can decide if a reload is necessary or if it's already loading.
+		// The machine now auto-loads on initialization. This dispatch might be for a manual refresh.
+		if ($snapshot.matches('idle')) { // Only send if idle, otherwise it's already loading/initialized
+        // send({ type: 'LOAD_DECKS' }); // Machine now loads on init. This could be for a manual refresh button.
+    }
 	});
 
 	function handleCreateNewDeck() {
@@ -44,9 +48,13 @@
 			name: deck.name,
 			cardCount: deck.cards.reduce((sum, card) => sum + card.quantity, 0),
 			updatedAt: deck.updatedAt,
-			format: 'Classic' // Default format for now
+			format: deck.format // Use actual deck format
 		}))
 		.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+
+	$: isLoading = $snapshot.matches('initializing') || $snapshot.matches('deleting') || $snapshot.context.isLoading;
+	$: canDisplayDecks = $snapshot.matches('idle') || $snapshot.matches('editing'); // States where decks are loaded
+
 </script>
 
 <svelte:head>
@@ -72,9 +80,9 @@
 		</Button>
 	</section>
 
-	{#if !isMounted || $snapshot.context.isLoading}
+	{#if isLoading}
 		<div class="text-center p-10">Loading decks...</div>
-	{:else if deckListItems.length === 0}
+	{:else if deckListItems.length === 0 && canDisplayDecks}
 		<Card class="text-center py-12 shadow-lg">
 			<CardHeader>
 				<CardTitle class="text-2xl text-muted-foreground">No Decks Yet</CardTitle>
@@ -137,9 +145,15 @@
 	{/if}
 
 	<!-- Error State -->
-	{#if $snapshot.context.error}
+	{#if $snapshot.context.error && !$snapshot.matches('initializing') /* Don't show general error during initial load if specific error UI exists or handled by errorLoading state */}
 		<div class="bg-destructive/10 border border-destructive/20 rounded-lg p-4 text-destructive">
-			{$snapshot.context.error}
+			Error: {$snapshot.context.error}
+		</div>
+	{/if}
+
+	{#if $snapshot.matches('errorLoading')}
+		<div class="bg-destructive/10 border border-destructive/20 rounded-lg p-4 text-destructive">
+			Failed to load decks. Please try again. Message: {$snapshot.context.error}
 		</div>
 	{/if}
 </div>

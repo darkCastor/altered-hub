@@ -1,9 +1,23 @@
-import { setup, assign } from 'xstate';
+import { setup, assign, sendParent, assertEvent } from 'xstate';
 import { deckValidator, type DeckValidationResult, type DeckFormat } from '$lib/deckValidation';
 import type { AlteredCard } from '$types';
+import { dbPromise, type MyDatabase } from '$lib/rxdb'; // Import RxDB
+
+// RxDB Deck type (dates as strings)
+export interface DeckDoc {
+	id: string;
+	name: string;
+	description: string;
+	cards: DeckCard[];
+	heroId: string | null;
+	format: DeckFormat;
+	isValid: boolean;
+	createdAt: string; // ISO string
+	updatedAt: string; // ISO string
+}
 
 interface DeckContext {
-	decks: Deck[];
+	decks: Deck[]; // This will store Deck with Date objects
 	currentDeck: Deck | null;
 	selectedCards: string[];
 	searchQuery: string;
@@ -13,7 +27,8 @@ interface DeckContext {
 	error: string | null;
 }
 
-interface Deck {
+// This is the Deck type used in the machine's context (dates as Date objects)
+export interface Deck {
 	id: string;
 	name: string;
 	description: string;
@@ -21,8 +36,8 @@ interface Deck {
 	heroId: string | null;
 	format: DeckFormat;
 	isValid: boolean;
-	createdAt: Date;
-	updatedAt: Date;
+	createdAt: Date; // Date object
+	updatedAt: Date; // Date object
 }
 
 interface DeckCard {
@@ -52,88 +67,154 @@ type DeckEvents =
 	| { type: 'SEARCH_CARDS'; query: string }
 	| { type: 'APPLY_FILTERS'; filters: DeckFilters }
 	| { type: 'CLEAR_FILTERS' }
-	| { type: 'DECKS_LOADED'; decks: Deck[] }
-	| { type: 'DECK_SAVED'; deck: Deck }
-	| { type: 'ERROR'; message: string }
+	| { type: 'DECKS_LOADED'; decks: Deck[] } // from loadDecksFromDb
+	| { type: 'DECK_LOAD_FAILED'; error: unknown }
+	| { type: 'DECK_SAVED'; deck: Deck } // from saveDeckToDb
+	| { type: 'DECK_SAVE_FAILED'; error: unknown }
+	| { type: 'DECK_DELETED'; deckId: string } // from deleteDeckFromDb
+	| { type: 'DECK_DELETE_FAILED'; error: unknown }
+	| { type: 'ERROR'; message: string } // General error
 	| { type: 'CLEAR_ERROR' };
+
+// Helper to convert DB doc to Machine's Deck type
+function fromDocToDeck(doc: DeckDoc): Deck {
+	return {
+		...doc,
+		createdAt: new Date(doc.createdAt),
+		updatedAt: new Date(doc.updatedAt)
+	};
+}
+
+// Helper to convert Machine's Deck type to DB doc
+function fromDeckToDoc(deck: Deck): DeckDoc {
+	return {
+		...deck,
+		createdAt: deck.createdAt.toISOString(),
+		updatedAt: deck.updatedAt.toISOString()
+	};
+}
+
 
 export const deckMachine = setup({
 	types: {
 		context: {} as DeckContext,
-		events: {} as DeckEvents
+		events: {} as DeckEvents,
+		actors: {} as {
+			loadDecksFromDb: { data: Deck[] };
+			saveDeckToDb: { data: Deck, input: { deckToSave: Deck } };
+			deleteDeckFromDb: { data: { id: string }, input: { deckId: string } };
+		}
+	},
+	actors: {
+		loadDecksFromDb: async () => {
+			const db = await dbPromise;
+			const deckDocs = await db.decks.find().exec();
+			return deckDocs.map(doc => fromDocToDeck(doc.toJSON()));
+		},
+		saveDeckToDb: async ({ input }: { input: { deckToSave: Deck } }) => {
+			const db = await dbPromise;
+			if (!input.deckToSave) throw new Error("No deck to save");
+			const deckDoc = fromDeckToDoc(input.deckToSave);
+			await db.decks.upsert(deckDoc);
+			return input.deckToSave; // Return the original deck with Date objects
+		},
+		deleteDeckFromDb: async ({ input }: { input: { deckId: string } }) => {
+			const db = await dbPromise;
+			const doc = await db.decks.findOne(input.deckId).exec();
+			if (doc) {
+				await doc.remove();
+				return { id: input.deckId };
+			}
+			throw new Error('Deck not found for deletion');
+		}
 	},
 	actions: {
-		loadDecks: assign(({ context }) => ({
-			...context,
-			isLoading: true,
-			error: null
-		})),
-
-		setDecks: assign(({ context, event }) => {
-			if (event.type !== 'DECKS_LOADED') return context;
+		// loadDecks action is removed, handled by invoke
+		assignDecksToContext: assign(({ event }) => {
+			assertEvent(event, 'DECKS_LOADED');
 			return {
-				...context,
 				decks: event.decks,
 				isLoading: false,
 				error: null
 			};
 		}),
-
+		assignLoadErrorToContext: assign(({ event }) => {
+			assertEvent(event, 'DECK_LOAD_FAILED');
+			return {
+				isLoading: false,
+				error: event.error instanceof Error ? event.error.message : 'Failed to load decks'
+			};
+		}),
 		createDeck: assign(({ context, event }) => {
-			if (event.type !== 'CREATE_DECK') return context;
+			assertEvent(event, 'CREATE_DECK');
 			
 			const format = event.format || 'constructed';
 			deckValidator.setFormat(format);
+			// Removed redundant declaration of 'format'
 			
 			const newDeck: Deck = {
-				id: `deck-${Date.now()}`,
+				id: `deck-${Date.now()}-${Math.random().toString(36).substring(2,9)}`, // Ensure more unique ID
 				name: event.name,
 				description: event.description || '',
 				cards: [],
 				heroId: null,
 				format,
-				isValid: false,
+				isValid: false, // Will be updated by validation
 				createdAt: new Date(),
 				updatedAt: new Date()
 			};
+			// Initial validation for the new deck
+			const validationResult = deckValidator.validate(newDeck.cards, newDeck.heroId || undefined);
+			newDeck.isValid = validationResult.isValid;
 
 			return {
-				...context,
 				currentDeck: newDeck,
-				validationResult: null,
+				validationResult: validationResult, // Store initial validation
 				error: null
 			};
 		}),
 
-		editDeck: assign(({ context, event }) => {
-			if (event.type !== 'EDIT_DECK') return context;
-			
-			const deck = context.decks.find(d => d.id === event.deckId);
-			if (deck) {
-				deckValidator.setFormat(deck.format);
+		assignCurrentDeckFromLoaded: assign(({ context, event }) => {
+			assertEvent(event, 'EDIT_DECK');
+			const deckToEdit = context.decks.find(d => d.id === event.deckId);
+			if (deckToEdit) {
+				deckValidator.setFormat(deckToEdit.format);
+				const validationResult = deckValidator.validate(deckToEdit.cards, deckToEdit.heroId || undefined);
+				return {
+					currentDeck: deckToEdit,
+					validationResult: validationResult,
+					error: null
+				};
 			}
-			
 			return {
-				...context,
-				currentDeck: deck || null,
+				currentDeck: null, // Should not happen if UI is correct
 				validationResult: null,
-				error: null
+				error: 'Deck not found for editing'
 			};
 		}),
 
-		deleteDeck: assign(({ context, event }) => {
-			if (event.type !== 'DELETE_DECK') return context;
-			
+		// deleteDeck action is removed, handled by invoke
+
+		assignDeletedDeckToContext: assign(({ context, event }) => {
+			assertEvent(event, 'DECK_DELETED');
 			return {
-				...context,
 				decks: context.decks.filter(d => d.id !== event.deckId),
 				currentDeck: context.currentDeck?.id === event.deckId ? null : context.currentDeck,
+				isLoading: false,
 				error: null
+			};
+		}),
+		assignDeleteErrorToContext: assign(({ event }) => {
+			assertEvent(event, 'DECK_DELETE_FAILED');
+			return {
+				isLoading: false,
+				error: event.error instanceof Error ? event.error.message : 'Failed to delete deck'
 			};
 		}),
 
 		addCard: assign(({ context, event }) => {
-			if (event.type !== 'ADD_CARD' || !context.currentDeck) return context;
+			assertEvent(event, 'ADD_CARD');
+			if (!context.currentDeck) return {};
 			
 			// Check if card can be added according to deck building rules
 			deckValidator.setFormat(context.currentDeck.format);
@@ -172,48 +253,34 @@ export const deckMachine = setup({
 				cards: updatedCards,
 				updatedAt: new Date()
 			};
-
-			// Auto-validate after adding card
-			deckValidator.setFormat(updatedDeck.format);
 			const validationResult = deckValidator.validate(updatedDeck.cards, updatedDeck.heroId || undefined);
-
 			return {
-				...context,
-				currentDeck: {
-					...updatedDeck,
-					isValid: validationResult.isValid
-				},
+				currentDeck: { ...updatedDeck, isValid: validationResult.isValid },
 				validationResult,
 				error: null
 			};
 		}),
 
 		removeCard: assign(({ context, event }) => {
-			if (event.type !== 'REMOVE_CARD' || !context.currentDeck) return context;
+			assertEvent(event, 'REMOVE_CARD');
+			if (!context.currentDeck) return {};
 			
 			const updatedDeck = {
 				...context.currentDeck,
 				cards: context.currentDeck.cards.filter(c => c.cardId !== event.cardId),
 				updatedAt: new Date()
 			};
-
-			// Auto-validate after removing card
-			deckValidator.setFormat(updatedDeck.format);
 			const validationResult = deckValidator.validate(updatedDeck.cards, updatedDeck.heroId || undefined);
-			
 			return {
-				...context,
-				currentDeck: {
-					...updatedDeck,
-					isValid: validationResult.isValid
-				},
+				currentDeck: { ...updatedDeck, isValid: validationResult.isValid },
 				validationResult,
 				error: null
 			};
 		}),
 
 		updateCardQuantity: assign(({ context, event }) => {
-			if (event.type !== 'UPDATE_CARD_QUANTITY' || !context.currentDeck) return context;
+			assertEvent(event, 'UPDATE_CARD_QUANTITY');
+			if (!context.currentDeck) return {};
 			
 			const updatedCards = context.currentDeck.cards.map(c =>
 				c.cardId === event.cardId
@@ -226,160 +293,118 @@ export const deckMachine = setup({
 				cards: updatedCards,
 				updatedAt: new Date()
 			};
-
-			// Auto-validate after updating card quantity
-			deckValidator.setFormat(updatedDeck.format);
 			const validationResult = deckValidator.validate(updatedDeck.cards, updatedDeck.heroId || undefined);
-
 			return {
-				...context,
-				currentDeck: {
-					...updatedDeck,
-					isValid: validationResult.isValid
-				},
+				currentDeck: { ...updatedDeck, isValid: validationResult.isValid },
 				validationResult,
 				error: null
 			};
 		}),
 
 		setHero: assign(({ context, event }) => {
-			if (event.type !== 'SET_HERO' || !context.currentDeck) return context;
+			assertEvent(event, 'SET_HERO');
+			if (!context.currentDeck) return {};
 			
 			const updatedDeck = {
 				...context.currentDeck,
 				heroId: event.cardId,
 				updatedAt: new Date()
 			};
-
-			// Auto-validate after setting hero
-			deckValidator.setFormat(updatedDeck.format);
 			const validationResult = deckValidator.validate(updatedDeck.cards, updatedDeck.heroId || undefined);
-			
 			return {
-				...context,
-				currentDeck: {
-					...updatedDeck,
-					isValid: validationResult.isValid
-				},
+				currentDeck: { ...updatedDeck, isValid: validationResult.isValid },
 				validationResult,
 				error: null
 			};
 		}),
 
 		setFormat: assign(({ context, event }) => {
-			if (event.type !== 'SET_FORMAT' || !context.currentDeck) return context;
+			assertEvent(event, 'SET_FORMAT');
+			if (!context.currentDeck) return {};
 			
 			deckValidator.setFormat(event.format);
-			
 			const updatedDeck = {
 				...context.currentDeck,
 				format: event.format,
 				updatedAt: new Date()
 			};
-
-			// Auto-validate after changing format
-			deckValidator.setFormat(updatedDeck.format);
 			const validationResult = deckValidator.validate(updatedDeck.cards, updatedDeck.heroId || undefined);
-			
 			return {
-				...context,
-				currentDeck: {
-					...updatedDeck,
-					isValid: validationResult.isValid
-				},
+				currentDeck: { ...updatedDeck, isValid: validationResult.isValid },
 				validationResult,
 				error: null
 			};
 		}),
 
-		validateDeck: assign(({ context }) => {
-			if (!context.currentDeck) return context;
-			
+		validateCurrentDeck: assign(({ context }) => {
+			if (!context.currentDeck) return {};
 			deckValidator.setFormat(context.currentDeck.format);
-			const validationResult = deckValidator.validate(
-				context.currentDeck.cards, 
-				context.currentDeck.heroId || undefined
-			);
-			
+			const validationResult = deckValidator.validate(context.currentDeck.cards, context.currentDeck.heroId || undefined);
 			return {
-				...context,
-				currentDeck: {
-					...context.currentDeck,
-					isValid: validationResult.isValid
-				},
-				validationResult,
-				error: null
+				currentDeck: { ...context.currentDeck, isValid: validationResult.isValid },
+				validationResult
 			};
 		}),
 
-		saveDeck: assign(({ context, event }) => {
-			if (event.type !== 'DECK_SAVED' || !context.currentDeck) return context;
-			
-			const updatedDecks = context.decks.some(d => d.id === event.deck.id)
-				? context.decks.map(d => d.id === event.deck.id ? event.deck : d)
-				: [...context.decks, event.deck];
-
+		assignSavedDeckToContext: assign(({ context, event }) => {
+			assertEvent(event, 'DECK_SAVED');
+			// Update the deck in the list of decks, or add if new
+			const newDecks = context.decks.filter(d => d.id !== event.deck.id);
+			newDecks.push(event.deck);
 			return {
-				...context,
-				decks: updatedDecks,
-				currentDeck: event.deck,
+				decks: newDecks,
+				currentDeck: event.deck, // Update currentDeck to the saved one
+				isLoading: false,
 				error: null
 			};
 		}),
-
-		searchCards: assign(({ context, event }) => {
-			if (event.type !== 'SEARCH_CARDS') return context;
-			
+		assignSaveErrorToContext: assign(({ event }) => {
+			assertEvent(event, 'DECK_SAVE_FAILED');
 			return {
-				...context,
-				searchQuery: event.query,
-				error: null
+				isLoading: false,
+				error: event.error instanceof Error ? event.error.message : 'Failed to save deck'
 			};
 		}),
 
-		applyFilters: assign(({ context, event }) => {
-			if (event.type !== 'APPLY_FILTERS') return context;
-			
-			return {
-				...context,
-				filters: { ...context.filters, ...event.filters },
-				error: null
-			};
+		setSearchQuery: assign(({ event }) => {
+			assertEvent(event, 'SEARCH_CARDS');
+			return { searchQuery: event.query };
 		}),
 
-		clearFilters: assign(({ context }) => ({
-			...context,
+		applyDeckFilters: assign(({ event }) => {
+			assertEvent(event, 'APPLY_FILTERS');
+			return { filters: event.filters };
+		}),
+
+		clearDeckFilters: assign(() => ({
 			filters: {},
-			searchQuery: '',
-			error: null
+			searchQuery: ''
 		})),
 
-		setError: assign(({ context, event }) => {
-			if (event.type !== 'ERROR') return context;
-			
+		assignErrorToContext: assign(({ event }) => {
+			assertEvent(event, 'ERROR');
 			return {
-				...context,
 				error: event.message,
 				isLoading: false
 			};
 		}),
 
-		clearError: assign(({ context }) => ({
-			...context,
+		clearErrorFromContext: assign(() => ({
 			error: null
 		}))
 	},
 
 	guards: {
-		hasDeck: ({ context }) => context.currentDeck !== null,
-		isDeckValid: ({ context }) => context.currentDeck?.isValid === true,
+		hasDeckToSave: ({ context }) => context.currentDeck !== null,
+		isCurrentDeckValid: ({ context }) => context.currentDeck?.isValid === true,
+		// canAddCard guard remains the same
 		canAddCard: ({ context, event }) => {
-			if (event.type !== 'ADD_CARD' || !context.currentDeck) return false;
-			
+			assertEvent(event, 'ADD_CARD');
+			if (!context.currentDeck) return false;
 			deckValidator.setFormat(context.currentDeck.format);
 			const result = deckValidator.canAddCard(
-				context.currentDeck.cards, 
-				event.cardId, 
+				context.currentDeck.cards,
+				event.cardId,
 				context.currentDeck.heroId || undefined
 			);
 			return result.canAdd;
@@ -387,135 +412,129 @@ export const deckMachine = setup({
 	}
 }).createMachine({
 	id: 'deck',
-	initial: 'idle',
+	initial: 'initializing',
 	context: {
 		decks: [],
 		currentDeck: null,
-		selectedCards: [],
+		selectedCards: [], // This might need to be reviewed if it's actively used
 		searchQuery: '',
 		filters: {},
 		validationResult: null,
-		isLoading: false,
+		isLoading: true, // Start with loading true
 		error: null
 	},
 	states: {
+		initializing: {
+			invoke: {
+				id: 'loadDecksFromDb',
+				src: 'loadDecksFromDb',
+				onDone: {
+					target: 'idle',
+					actions: 'assignDecksToContext'
+				},
+				onError: {
+					target: 'errorLoading',
+					actions: 'assignLoadErrorToContext'
+				}
+			}
+		},
 		idle: {
+			entry: assign({ isLoading: false }),
 			on: {
-				LOAD_DECKS: 'loading',
+				LOAD_DECKS: 'initializing', // Re-load
 				CREATE_DECK: {
 					target: 'editing',
 					actions: 'createDeck'
 				},
 				EDIT_DECK: {
 					target: 'editing',
-					actions: 'editDeck'
-				}
-			}
-		},
-		loading: {
-			entry: 'loadDecks',
-			on: {
-				DECKS_LOADED: {
-					target: 'loaded',
-					actions: 'setDecks'
-				},
-				ERROR: {
-					target: 'error',
-					actions: 'setError'
-				}
-			}
-		},
-		loaded: {
-			on: {
-				CREATE_DECK: {
-					target: 'editing',
-					actions: 'createDeck'
-				},
-				EDIT_DECK: {
-					target: 'editing',
-					actions: 'editDeck'
+					actions: 'assignCurrentDeckFromLoaded'
 				},
 				DELETE_DECK: {
-					target: 'loaded',
-					actions: 'deleteDeck'
-				},
-				SEARCH_CARDS: {
-					target: 'loaded',
-					actions: 'searchCards'
-				},
-				APPLY_FILTERS: {
-					target: 'loaded',
-					actions: 'applyFilters'
-				},
-				CLEAR_FILTERS: {
-					target: 'loaded',
-					actions: 'clearFilters'
+					target: 'deleting',
+					// Guard: check if deckId is valid or exists?
 				}
 			}
 		},
+		// loading state is effectively 'initializing' now
+		// loaded state is effectively 'idle' now
+
 		editing: {
+			entry: assign({ isLoading: false }),
 			on: {
-				ADD_CARD: {
-					target: 'editing',
-					actions: 'addCard'
-				},
-				REMOVE_CARD: {
-					target: 'editing',
-					actions: 'removeCard'
-				},
-				UPDATE_CARD_QUANTITY: {
-					target: 'editing',
-					actions: 'updateCardQuantity'
-				},
-				SET_HERO: {
-					target: 'editing',
-					actions: 'setHero'
-				},
-				SET_FORMAT: {
-					target: 'editing',
-					actions: 'setFormat'
-				},
-				VALIDATE_DECK: {
-					target: 'editing',
-					actions: 'validateDeck'
-				},
+				ADD_CARD: { actions: 'addCard' },
+				REMOVE_CARD: { actions: 'removeCard' },
+				UPDATE_CARD_QUANTITY: { actions: 'updateCardQuantity' },
+				SET_HERO: { actions: 'setHero' },
+				SET_FORMAT: { actions: 'setFormat' },
+				VALIDATE_DECK: { actions: 'validateCurrentDeck' },
 				SAVE_DECK: {
 					target: 'saving',
-					guard: 'hasDeck'
+					guard: 'hasDeckToSave'
+					// Consider adding guard: 'isCurrentDeckValid' if saving should only happen for valid decks
 				},
-				SEARCH_CARDS: {
+				SEARCH_CARDS: { actions: 'setSearchQuery' },
+				APPLY_FILTERS: { actions: 'applyDeckFilters' },
+				CLEAR_FILTERS: { actions: 'clearDeckFilters' },
+				LOAD_DECKS: 'initializing', // Go back to loading if requested
+				EDIT_DECK: { // If user clicks edit on another deck while already editing
 					target: 'editing',
-					actions: 'searchCards'
+					actions: 'assignCurrentDeckFromLoaded'
 				},
-				APPLY_FILTERS: {
-					target: 'editing',
-					actions: 'applyFilters'
-				},
-				CLEAR_FILTERS: {
-					target: 'editing',
-					actions: 'clearFilters'
-				}
 			}
 		},
 		saving: {
-			on: {
-				DECK_SAVED: {
-					target: 'loaded',
-					actions: 'saveDeck'
+			entry: assign({ isLoading: true }),
+			invoke: {
+				id: 'saveDeckToDb',
+				src: 'saveDeckToDb',
+				input: ({ context }) => ({ deckToSave: context.currentDeck! }), // currentDeck is guarded by hasDeckToSave
+				onDone: {
+					target: 'idle', // Or 'editing' if staying on the page
+					actions: 'assignSavedDeckToContext'
 				},
-				ERROR: {
-					target: 'editing',
-					actions: 'setError'
+				onError: {
+					target: 'editing', // Stay in editing mode on save failure
+					actions: 'assignSaveErrorToContext'
 				}
 			}
 		},
-		error: {
+		deleting: {
+			entry: assign({ isLoading: true }),
+			invoke: {
+				id: 'deleteDeckFromDb',
+				src: 'deleteDeckFromDb',
+				input: ({ event }) => {
+					// Assuming DELETE_DECK event carries the deckId
+					assertEvent(event, 'DELETE_DECK');
+					return { deckId: event.deckId };
+				},
+				onDone: {
+					target: 'idle',
+					actions: 'assignDeletedDeckToContext'
+				},
+				onError: {
+					target: 'idle', // Or a specific error state for deletion
+					actions: 'assignDeleteErrorToContext'
+				}
+			}
+		},
+		errorLoading: { // Specific error state for initial load
 			on: {
+				LOAD_DECKS: 'initializing',
 				CLEAR_ERROR: {
 					target: 'idle',
-					actions: 'clearError'
+					actions: 'clearErrorFromContext'
+				}
+			}
+		},
+		error: { // General error state (can be merged with errorLoading or kept separate)
+			on: {
+				CLEAR_ERROR: {
+					target: 'idle', // Or previous state if known
+					actions: 'clearErrorFromContext'
 				},
-				LOAD_DECKS: 'loading'
+				LOAD_DECKS: 'initializing' // Allow reloading
 			}
 		}
 	}
