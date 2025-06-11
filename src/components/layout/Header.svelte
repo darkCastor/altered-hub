@@ -1,62 +1,77 @@
 <script lang="ts">
 	import { page } from '$app/stores';
-	import { Package2, Menu } from 'lucide-svelte';
+	import { goto } from '$app/navigation';
+	import { Menu, X } from 'lucide-svelte';
 	import Button from '$components/ui/button/Button.svelte';
 
-	const navItems = [
-		{ href: '/cards', label: 'Card Viewer' },
-		{ href: '/decks', label: 'Deck Builder' },
-		{ href: '/ai-advisor', label: 'AI Deck Advisor' }
+	let mobileMenuOpen = false;
+
+	const navigation = [
+		{ name: 'Card Viewer', href: '/cards' },
+		{ name: 'Deck Builder', href: '/decks' },
+		{ name: 'AI Advisor', href: '/ai-advisor' }
 	];
 
-	let mobileMenuOpen = false;
+	function toggleMobileMenu() {
+		mobileMenuOpen = !mobileMenuOpen;
+	}
+
+	function navigateTo(href: string) {
+		goto(href);
+		mobileMenuOpen = false;
+	}
+
+	$: currentPath = $page.url.pathname;
 </script>
 
-<header
-	class="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60"
->
-	<div class="container flex h-16 max-w-screen-2xl items-center justify-between">
-		<a href="/" class="flex items-center gap-2 font-headline text-lg font-semibold">
-			<Package2 class="h-6 w-6 text-primary" />
-			<span class="text-foreground">AlterDeck</span>
-		</a>
+<header class="bg-background border-b border-border">
+	<div class="container mx-auto px-4 sm:px-6 lg:px-8">
+		<div class="flex justify-between items-center h-16">
+			<!-- Logo -->
+			<div class="flex-shrink-0">
+				<button on:click={() => goto('/')} class="text-2xl font-bold text-primary hover:text-primary/80">
+					AlterDeck
+				</button>
+			</div>
 
-		<nav class="hidden md:flex items-center space-x-4 lg:space-x-6">
-			{#each navItems as item}
-				<a
-					href={item.href}
-					class="text-sm font-medium text-muted-foreground transition-colors hover:text-primary"
-					class:text-primary={$page.url.pathname === item.href}
-				>
-					{item.label}
-				</a>
-			{/each}
-		</nav>
-
-		<!-- Mobile Menu Trigger -->
-		<div class="md:hidden">
-			<Button variant="ghost" size="icon" on:click={() => (mobileMenuOpen = !mobileMenuOpen)}>
-				<Menu class="h-4 w-4" />
-				<span class="sr-only">Toggle menu</span>
-			</Button>
-		</div>
-	</div>
-
-	<!-- Mobile Navigation Menu -->
-	{#if mobileMenuOpen}
-		<div class="md:hidden border-t bg-background">
-			<nav class="container flex flex-col space-y-2 py-4">
-				{#each navItems as item}
-					<a
-						href={item.href}
-						class="text-sm font-medium text-muted-foreground transition-colors hover:text-primary px-2 py-1"
-						class:text-primary={$page.url.pathname === item.href}
-						on:click={() => (mobileMenuOpen = false)}
+			<!-- Desktop Navigation -->
+			<nav class="hidden md:flex space-x-8">
+				{#each navigation as item}
+					<button
+						on:click={() => navigateTo(item.href)}
+						class="text-muted-foreground hover:text-foreground px-3 py-2 text-sm font-medium transition-colors {currentPath === item.href ? 'text-foreground border-b-2 border-primary' : ''}"
 					>
-						{item.label}
-					</a>
+						{item.name}
+					</button>
 				{/each}
 			</nav>
+
+			<!-- Mobile menu button -->
+			<div class="md:hidden">
+				<Button variant="ghost" size="sm" on:click={toggleMobileMenu}>
+					{#if mobileMenuOpen}
+						<X class="h-6 w-6" />
+					{:else}
+						<Menu class="h-6 w-6" />
+					{/if}
+				</Button>
+			</div>
 		</div>
-	{/if}
+
+		<!-- Mobile Navigation -->
+		{#if mobileMenuOpen}
+			<div class="md:hidden">
+				<div class="px-2 pt-2 pb-3 space-y-1 sm:px-3 border-t border-border">
+					{#each navigation as item}
+						<button
+							on:click={() => navigateTo(item.href)}
+							class="block text-muted-foreground hover:text-foreground px-3 py-2 text-base font-medium w-full text-left transition-colors {currentPath === item.href ? 'text-foreground bg-muted' : ''}"
+						>
+							{item.name}
+						</button>
+					{/each}
+				</div>
+			</div>
+		{/if}
+	</div>
 </header>
