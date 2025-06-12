@@ -21,9 +21,7 @@ export type MyDatabase = RxDatabase<MyDatabaseCollections>;
 // Add the DevMode plugin
 // In production, you should ensure this plugin is not bundled
 // or only enable it based on an environment variable.
-if (import.meta.env.DEV) {
-	addRxPlugin(RxDBDevModePlugin);
-}
+addRxPlugin(RxDBDevModePlugin);
 
 let dbInstance: MyDatabase | null = null;
 
