@@ -5,8 +5,6 @@
 	import Footer from '$components/layout/Footer.svelte';
 	import { page } from '$app/stores';
 
-	$: user = $page.data.user;
-
 	onMount(() => {
 		console.log('Layout mounted successfully!');
 	});
@@ -19,7 +17,7 @@
 </svelte:head>
 
 <div class="bg-background min-h-screen font-sans antialiased">
-	<Header {user} />
+	<Header />
 	<main class="flex-1">
 		<slot />
 	</main>
