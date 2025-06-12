@@ -23,6 +23,7 @@ import type { PhaseManager } from './PhaseManager';
 import { TiebreakerSystem } from './TiebreakerSystem';
 // import { PassiveAbilityManager } from './PassiveAbilityManager'; // Removed
 import { RuleAdjudicator } from './RuleAdjudicator';
+import { ReactionManager } from './ReactionManager';
 
 export class GameStateManager {
 	public state: IGameState;
@@ -38,6 +39,7 @@ export class GameStateManager {
 	public manaSystem: ManaSystem;
 	public cardPlaySystem: CardPlaySystem;
 	public tiebreakerSystem: TiebreakerSystem;
+	public reactionManager: ReactionManager;
 	// public passiveManager: PassiveAbilityManager; // Removed
 	public ruleAdjudicator: RuleAdjudicator;
 	public turnManager?: TurnManager; // Will be set by TurnManager
@@ -74,6 +76,7 @@ export class GameStateManager {
 		this.cardPlaySystem = new CardPlaySystem(this);
 		this.tiebreakerSystem = new TiebreakerSystem(this);
 		this.ruleAdjudicator = new RuleAdjudicator(this);
+		this.reactionManager = new ReactionManager(this, this.objectFactory, this.effectProcessor);
 
 		const playerIds = Array.from(playerDeckDefinitions.keys());
 		this.state = this.initializeGameState(playerIds); // Pass playerIds derived from the map
@@ -601,82 +604,14 @@ export class GameStateManager {
 	}
 
 	public async resolveReactions(): Promise<void> {
-		console.log('[GSM] Checking reactions...');
-		let reactionsProcessedInLoop = 0; // Safety break for too many reactions in one event chain
-
-		// eslint-disable-next-line no-constant-condition
-		while (true) {
-			if (reactionsProcessedInLoop > 100) { // Rule 1.4.6.c (per ability, but good safety here too)
-				console.warn('[GSM] Exceeded reaction processing limit in a single chain. Breaking loop.');
-				break;
-			}
-
-			const limboZone = this.state.sharedZones.limbo;
-			const allEmblemReactions = limboZone.getAll().filter(
-				(e): e is IEmblemObject =>
-					isGameObject(e) && e.type === CardType.Emblem && e.emblemSubType === 'Reaction'
-			);
-
-			if (allEmblemReactions.length === 0) {
-				console.log('[GSM] No more reactions in Limbo.');
-				break; // No reactions to process
-			}
-
-			// Determine player order based on initiative (Rule 1.4.5, 4.4.b)
-			let initiativePlayerId = this.state.currentPlayerId; // Default to current player (e.g., during Afternoon)
-			if (this.state.currentPhase !== GamePhase.Afternoon) { // Or any other phase where firstPlayerId takes precedence for initiative
-				initiativePlayerId = this.state.firstPlayerId;
-			}
-
-			const playerIdsInInitiativeOrder = this.getPlayerIdsInInitiativeOrder(initiativePlayerId);
-			let reactionPlayedThisIteration = false;
-
-			for (const pId of playerIdsInInitiativeOrder) {
-				const playerEmblems = allEmblemReactions.filter(e => e.controllerId === pId);
-
-				if (playerEmblems.length > 0) {
-					// Player choice needed if multiple reactions.
-					// Delegate choice to PlayerActionHandler.
-					const chosenEmblemId = await this.actionHandler.chooseReaction(pId, playerEmblems);
-
-					if (!chosenEmblemId) {
-						console.log(`[GSM] Player ${pId} chose not to play a reaction or no valid choice was made.`);
-						continue; // Move to the next player or iteration
-					}
-
-					const emblemToPlay = playerEmblems.find(e => e.objectId === chosenEmblemId);
-
-					if (!emblemToPlay) {
-						console.error(`[GSM] Chosen emblem ID ${chosenEmblemId} not found in available player emblems for player ${pId}. This should not happen.`);
-						continue; // Should not occur if chooseReaction returns a valid ID from the list
-					}
-
-					console.log(`[GSM] Player ${pId} (initiative) playing reaction: ${emblemToPlay.name} (ID: ${emblemToPlay.objectId})`);
-
-					let sourceObjectForEffectContext: IGameObject | undefined = undefined;
-					if (emblemToPlay.boundEffect.sourceObjectId) {
-						sourceObjectForEffectContext = this.getObject(emblemToPlay.boundEffect.sourceObjectId);
-						if (!sourceObjectForEffectContext) {
-							console.warn(`[GSM] Source object ${emblemToPlay.boundEffect.sourceObjectId} for reaction emblem ${emblemToPlay.objectId} not found. Using LKI might be needed if effect depends on it.`);
-						}
-					}
-
-					await this.effectProcessor.resolveEffect(emblemToPlay.boundEffect, sourceObjectForEffectContext);
-
-					limboZone.remove(emblemToPlay.objectId);
-					console.log(`[GSM] Reaction emblem ${emblemToPlay.objectId} resolved and removed from Limbo.`);
-
-					reactionsProcessedInLoop++;
-					reactionPlayedThisIteration = true;
-					break; // Process one reaction per overall loop, then re-evaluate all available reactions
-				}
-			}
-
-			if (!reactionPlayedThisIteration) {
-				console.log('[GSM] No reactions played by initiative players this iteration. Exiting loop.');
-				break;
-			}
-		}
+		console.log('[GameStateManager] resolveReactions called. Delegating to ReactionManager.processReactions...');
+		// The ReactionManager.checkForTriggers should be called by the EventBus or specific game event handlers
+		// right before resolveReactions might be needed.
+		// For example, an event like 'afterEffectResolved' or 'cardPlayed' could trigger 'checkForTriggers',
+		// then 'resolveReactions' is called to process them.
+		// PhaseManager and TurnManager will call this method at appropriate times (e.g., end of a step, after an action).
+		await this.reactionManager.processReactions();
+		console.log('[GameStateManager] ReactionManager.processReactions finished.');
 	}
 
 	/**
@@ -1534,5 +1469,34 @@ export class GameStateManager {
 		} else {
 			console.log(`[GSM.removeCounters] No ${type} counters to remove from ${object.name} (ID: ${objectId}).`);
 		}
+	}
+
+	public getNextPlayerId(currentPlayerId: string): string {
+		const playerIds = Array.from(this.state.players.keys());
+		const currentIndex = playerIds.indexOf(currentPlayerId);
+		// Ensure the player is found, though in normal operation it always should be.
+		if (currentIndex === -1) {
+			console.warn(`[GameStateManager.getNextPlayerId] Player ID ${currentPlayerId} not found. Defaulting to the first player.`);
+			return playerIds[0];
+		}
+		const nextIndex = (currentIndex + 1) % playerIds.length;
+		return playerIds[nextIndex];
+	}
+
+	public async playerChoosesReaction(playerId: string, availableReactions: IEmblemObject[]): Promise<IEmblemObject | null> {
+		console.log(`[GameStateManager] Player ${playerId} is choosing a reaction from ${availableReactions.length} available.`);
+		if (availableReactions.length === 0) {
+			console.log(`[GameStateManager] No reactions available for player ${playerId} to choose from.`);
+			return null;
+		}
+		// In a real UI, player would select one. For now, pick the first.
+		// To simulate passing, a UI could return null here (e.g., if player explicitly passes or times out).
+		// For this conceptual implementation, we assume the player always picks one if available.
+		// To test the "pass" path in ReactionManager, this function would need to sometimes return null.
+		// For now, let's make it always pick the first to ensure the main path is tested.
+		// Later, this can be: const choice = await this.actionHandler.playerChoosesReaction(playerId, availableReactions);
+		const choice = availableReactions[0];
+		console.log(`[GameStateManager] Player ${playerId} (conceptually) chose: ${choice.name} (ID: ${choice.objectId})`);
+		return choice;
 	}
 }

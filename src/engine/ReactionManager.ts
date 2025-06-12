@@ -107,36 +107,75 @@ export class ReactionManager {
 			`[ReactionManager] Starting reaction processing loop with ${reactionsInLimbo.length} pending reaction(s).`
 		);
 
-		while (reactionsInLimbo.length > 0) {
-			// In a multi-player game, we would cycle through players in initiative order.
-			// For now, we assume the current player resolves all their reactions first.
-			const initiativePlayerId = this.gsm.state.currentPlayerId;
-			const playerReactions = reactionsInLimbo.filter((r) => r.controllerId === initiativePlayerId);
+		let passesInARow = 0;
+		const numberOfPlayers = this.gsm.state.players.size; // Corrected to use map size
+		let currentReactionPlayerId = this.gsm.state.firstPlayerId; // Start with the first player
 
-			if (playerReactions.length === 0) {
-				// This can happen if the other player has reactions but the current player doesn't.
-				// A full implementation would advance to the next player in initiative order.
-				console.log(
-					`[ReactionManager] Player ${initiativePlayerId} has no reactions to resolve. Breaking loop for now.`
-				);
-				break;
-			}
-
-			// Player chooses one to resolve. For now, we take the first.
-			const reactionToResolve = playerReactions[0];
+		// Rule 4.4.b: The reaction process continues until all players pass in a row or no reactions remain.
+		while (reactionsInLimbo.length > 0 && passesInARow < numberOfPlayers) {
 			console.log(
-				`[ReactionManager] Player ${initiativePlayerId} resolves: "${reactionToResolve.name}"`
+				`[ReactionManager] Next to act: Player ${currentReactionPlayerId}. Passes in a row: ${passesInARow}/${numberOfPlayers}. Reactions in limbo: ${reactionsInLimbo.length}`
 			);
 
-			this.effectResolver.resolve(reactionToResolve.boundEffect);
-			this.gsm.state.sharedZones.limbo.remove(reactionToResolve.objectId); // Reaction ceases to exist (Rule 5.4.d)
+			const playerReactions = reactionsInLimbo.filter(
+				(r) => r.controllerId === currentReactionPlayerId
+			);
 
-			// After one reaction resolves, we must check for new reactions triggered by it.
-			// This is a recursive or iterative process. For simplicity, we just re-fetch the list.
-			reactionsInLimbo = this.getReactionsInLimbo();
+			if (playerReactions.length > 0) {
+				// Player has reactions. Player chooses one to resolve.
+				const reactionToResolve = await this.gsm.playerChoosesReaction(currentReactionPlayerId, playerReactions);
+
+				if (!reactionToResolve) {
+					// Player chose not to play a reaction (passed).
+					console.log(`[ReactionManager] Player ${currentReactionPlayerId} chose to pass.`);
+					passesInARow++;
+					currentReactionPlayerId = this.gsm.getNextPlayerId(currentReactionPlayerId);
+					reactionsInLimbo = this.getReactionsInLimbo(); // Re-fetch before next iteration
+					continue; // Next iteration of the while loop.
+				}
+
+				// Player chose a reaction to resolve.
+				console.log(
+					`[ReactionManager] Player ${currentReactionPlayerId} resolves: "${reactionToResolve.name}" (ID: ${reactionToResolve.objectId})`
+				);
+
+				// Resolve the reaction and remove it from Limbo
+				await this.effectResolver.resolve(reactionToResolve.boundEffect); // Assuming resolve can be async
+				this.gsm.state.sharedZones.limbo.remove(reactionToResolve.objectId); // Reaction ceases to exist (Rule 5.4.d)
+				console.log(`[ReactionManager] Reaction ${reactionToResolve.objectId} resolved and removed from Limbo.`);
+
+				passesInARow = 0; // Reset passes because an action was taken.
+
+				// Re-fetch reactions in Limbo as the resolved reaction might have triggered new ones.
+				reactionsInLimbo = this.getReactionsInLimbo();
+				console.log(`[ReactionManager] Reactions re-fetched. Count: ${reactionsInLimbo.length}`);
+
+				// The same player gets priority again (Rule 4.4.b.ii - "Priority returns to the initiative player")
+				// So, currentReactionPlayerId does not change yet.
+			} else {
+				// Player has no reactions available to choose from.
+				console.log(`[ReactionManager] Player ${currentReactionPlayerId} has no reactions to choose from or passes.`);
+				passesInARow++;
+				currentReactionPlayerId = this.gsm.getNextPlayerId(currentReactionPlayerId);
+				// Re-fetch reactions in case some appeared for other players, or for loop condition check
+				reactionsInLimbo = this.getReactionsInLimbo();
+			}
 		}
 
-		console.log(`[ReactionManager] Reaction processing loop finished.`);
+		if (reactionsInLimbo.length > 0 && passesInARow >= numberOfPlayers) {
+			console.log(
+				`[ReactionManager] Reaction loop ended due to all players passing. ${reactionsInLimbo.length} reaction(s) remain in Limbo unresolved.`
+			);
+			// These reactions would typically cease to exist or be handled by specific game rules for unresolved reactions.
+			// For now, we'll just log. Future: Rule 5.4.d "An Emblem-Reaction that is not played ceases to exist..."
+			// This implies they should be removed if the loop ends due to passes.
+			reactionsInLimbo.forEach(r => this.gsm.state.sharedZones.limbo.remove(r.objectId));
+			console.log('[ReactionManager] Unresolved reactions removed from Limbo due to full pass sequence.');
+		} else if (reactionsInLimbo.length === 0) {
+			console.log('[ReactionManager] Reaction processing loop finished: No more reactions in Limbo.');
+		} else {
+			console.log('[ReactionManager] Reaction processing loop finished for other reasons.'); // Should ideally not happen
+		}
 	}
 
 	private getReactionsInLimbo(): IEmblemObject[] {
