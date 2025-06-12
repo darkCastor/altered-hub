@@ -3,12 +3,6 @@
 	// Temporarily disabled AI functionality for build
 	// import { getDeckAdvice, type DeckAdviceInput, type DeckAdviceOutput } from '$ai/flows/deck-advisor';
 
-	interface DeckAdviceInput {
-		theme: string;
-		archetype: string;
-		cardSelection: string;
-	}
-
 	interface DeckAdviceOutput {
 		advice: string;
 	}
@@ -20,14 +14,6 @@
 	import CardHeader from '$components/ui/card/CardHeader.svelte';
 	import CardTitle from '$components/ui/card/CardTitle.svelte';
 	import { Loader2, Lightbulb } from 'lucide-svelte';
-
-	const DeckAdviceInputSchema = z.object({
-		theme: z.string().min(3, 'Theme must be at least 3 characters long.'),
-		archetype: z.string().min(3, 'Archetype must be at least 3 characters long.'),
-		cardSelection: z
-			.string()
-			.min(10, 'Card selection description must be at least 10 characters long.')
-	});
 
 	let adviceOutput: DeckAdviceOutput | null = null;
 	let isLoading = false;
