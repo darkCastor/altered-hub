@@ -189,28 +189,41 @@ export class TiebreakerSystem {
 		if (!player) return { forest: 0, mountain: 0, water: 0 };
 
 		const stats: ITerrainStats = { forest: 0, mountain: 0, water: 0 };
+		const expeditionZone = this.gsm.state.sharedZones.expedition;
 
-		// Include stats from all Characters in expeditions
-		for (const entity of player.zones.expeditionZone.getAll()) {
-			if (isGameObject(entity) && entity.type === CardType.Character) {
-				// Skip Asleep characters (Rule 2.4.3)
-				if (entity.statuses.has(StatusType.Asleep)) continue;
+		const playerCharactersInExpedition = expeditionZone.getAll().filter(
+			(e): e is IGameObject =>
+				isGameObject(e) &&
+				e.controllerId === playerId &&
+				e.type === CardType.Character
+		);
 
-				const entityStats = entity.currentCharacteristics.statistics;
-				if (entityStats) {
-					stats.forest += entityStats.forest || 0;
-					stats.mountain += entityStats.mountain || 0;
-					stats.water += entityStats.water || 0;
-				}
+		for (const entity of playerCharactersInExpedition) {
+			// Skip Asleep characters (Rule 2.4.3)
+			if (entity.statuses.has(StatusType.Asleep)) continue;
 
-				// Add boost counters
-				const boostCount = entity.counters.get(CounterType.Boost) || 0;
-				stats.forest += boostCount;
-				stats.mountain += boostCount;
-				stats.water += boostCount;
+			const entityStats = entity.currentCharacteristics.statistics;
+			let statMultiplier = 1;
+
+			// Rule 7.4.4.l: A Gigantic Character’s statistics are counted twice in a tiebreaker.
+			if (entity.currentCharacteristics.isGigantic === true) {
+				statMultiplier = 2;
+				console.log(`[TiebreakerSystem] Gigantic character ${entity.name} (Player: ${playerId}) stats counted twice for tiebreaker.`);
 			}
-		}
 
+			if (entityStats) {
+				stats.forest += (entityStats.forest || 0) * statMultiplier;
+				stats.mountain += (entityStats.mountain || 0) * statMultiplier;
+				stats.water += (entityStats.water || 0) * statMultiplier;
+			}
+
+			// Add boost counters (also multiplied if Gigantic)
+			const boostCount = entity.counters.get(CounterType.Boost) || 0;
+			stats.forest += boostCount * statMultiplier;
+			stats.mountain += boostCount * statMultiplier;
+			stats.water += boostCount * statMultiplier;
+		}
+		console.log(`[TiebreakerSystem] Player ${playerId} total Arena Stats: F:${stats.forest}, M:${stats.mountain}, W:${stats.water}`);
 		return stats;
 	}
 
