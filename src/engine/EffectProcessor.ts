@@ -11,6 +11,7 @@ import { isGameObject } from './types/objects';
  */
 export class EffectProcessor {
 	private currentTriggerPayload: unknown | null = null;
+	private pendingEffects: IEffect[] = [];
 
 	constructor(private gsm: GameStateManager) {}
 
@@ -673,5 +674,34 @@ export class EffectProcessor {
 		// TODO: Add player choice mechanism for optional effects
 		// For now, always execute optional effects
 		return true;
+	}
+
+	/**
+	 * Reset pending effects queue - for test compatibility
+	 */
+	public resetPendingEffects(): void {
+		this.pendingEffects = [];
+		console.log('[EffectProcessor] Reset pending effects queue');
+	}
+
+	/**
+	 * Resolve all pending effects - for test compatibility
+	 */
+	public async resolvePendingEffects(): Promise<void> {
+		console.log(`[EffectProcessor] Resolving ${this.pendingEffects.length} pending effects`);
+		const effectsToResolve = [...this.pendingEffects];
+		this.pendingEffects = [];
+		
+		for (const effect of effectsToResolve) {
+			await this.resolveEffect(effect);
+		}
+	}
+
+	/**
+	 * Add effect to pending queue
+	 */
+	public addPendingEffect(effect: IEffect): void {
+		this.pendingEffects.push(effect);
+		console.log(`[EffectProcessor] Added pending effect, queue size: ${this.pendingEffects.length}`);
 	}
 }

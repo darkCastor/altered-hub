@@ -239,17 +239,70 @@ export class RuleAdjudicator {
 	}
 
 	private _grantKeyword(target: IGameObject, keyword: string, value?: unknown): void {
-		// Assuming keyword is string for now
-		if (!target.currentCharacteristics.keywords) target.currentCharacteristics.keywords = {};
-		target.currentCharacteristics.keywords[keyword] = value !== undefined ? value : true;
+		// Set specific keyword properties based on the rulebook
+		switch (keyword.toLowerCase()) {
+			case 'eternal':
+				(target.currentCharacteristics as any).isEternal = true;
+				break;
+			case 'defender':
+				(target.currentCharacteristics as any).hasDefender = true;
+				break;
+			case 'gigantic':
+				(target.currentCharacteristics as any).isGigantic = true;
+				break;
+			case 'seasoned':
+				(target.currentCharacteristics as any).isSeasoned = true;
+				break;
+			case 'tough':
+				(target.currentCharacteristics as any).isTough = value !== undefined ? value : 1;
+				break;
+			case 'scout':
+				(target.currentCharacteristics as any).scoutValue = value !== undefined ? value : 1;
+				break;
+			case 'fleeting':
+				(target.currentCharacteristics as any).isFleeting = true;
+				break;
+			default:
+				// For unknown keywords, store in keywords object as fallback
+				if (!target.currentCharacteristics.keywords) target.currentCharacteristics.keywords = {};
+				target.currentCharacteristics.keywords[keyword] = value !== undefined ? value : true;
+				break;
+		}
 		console.log(`[RuleAdjudicator] Granted keyword ${keyword} to ${target.name}`);
 	}
 
 	private _loseKeyword(target: IGameObject, keyword: string): void {
-		if (target.currentCharacteristics.keywords) {
-			delete target.currentCharacteristics.keywords[keyword];
-			console.log(`[RuleAdjudicator] Lost keyword ${keyword} from ${target.name}`);
+		// Remove specific keyword properties based on the rulebook
+		switch (keyword.toLowerCase()) {
+			case 'eternal':
+				(target.currentCharacteristics as any).isEternal = false;
+				break;
+			case 'defender':
+				(target.currentCharacteristics as any).hasDefender = false;
+				break;
+			case 'gigantic':
+				(target.currentCharacteristics as any).isGigantic = false;
+				break;
+			case 'seasoned':
+				(target.currentCharacteristics as any).isSeasoned = false;
+				break;
+			case 'tough':
+				delete (target.currentCharacteristics as any).isTough;
+				break;
+			case 'scout':
+				delete (target.currentCharacteristics as any).scoutValue;
+				break;
+			case 'fleeting':
+				(target.currentCharacteristics as any).isFleeting = false;
+				break;
+			default:
+				// For unknown keywords, remove from keywords object
+				if (target.currentCharacteristics.keywords) {
+					delete target.currentCharacteristics.keywords[keyword];
+				}
+				break;
 		}
+		console.log(`[RuleAdjudicator] Lost keyword ${keyword} from ${target.name}`);
 	}
 
 	private _setCharacteristic(target: IGameObject, characteristic: string, value: unknown): void {
@@ -300,6 +353,12 @@ export class RuleAdjudicator {
 			`[RuleAdjudicator] Applying passive ability ${ability.abilityId} from ${sourceObject.name} (${sourceObject.objectId})`
 		);
 
+		// Handle keyword abilities directly if they have a keyword property
+		if (ability.keyword && Object.values(KeywordAbility).includes(ability.keyword)) {
+			this._grantKeyword(sourceObject, ability.keyword, ability.value);
+		}
+
+		// Process effect steps if they exist
 		for (const step of ability.effect.steps) {
 			// Determine targets for this step. For many passives, target is 'self' (the sourceObject).
 			// This part needs to be flexible if passives can target others.
