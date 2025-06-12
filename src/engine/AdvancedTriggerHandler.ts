@@ -24,9 +24,22 @@ export class AdvancedTriggerHandler {
 				ability.abilityType === AbilityType.Reaction &&
 				ability.trigger?.eventType === 'enterPlay'
 			) {
+				// Check "Nothing is Forever" limit for reactions (Rule 1.4.6.c)
+				const activationLimit = 100;
+				const currentActivations = object.abilityActivationsToday?.get(ability.abilityId) || 0;
+
+				if (currentActivations >= activationLimit) {
+					console.log(`[TriggerHandler] Reaction limit reached for ability ${ability.abilityId} on ${object.name} (ID: ${object.objectId}). Not activating.`);
+					continue; // Skip this ability
+				}
+
 				// Check if trigger condition is met
 				const triggerPayload = { object, zone };
 				if (ability.trigger.condition(triggerPayload, object, this.gsm)) {
+					// If condition met, increment count *before* creating emblem
+					object.abilityActivationsToday?.set(ability.abilityId, currentActivations + 1);
+					console.log(`[TriggerHandler] Incrementing reaction count for ${ability.abilityId} on ${object.name} to ${currentActivations + 1}`);
+
 					console.log(
 						`[TriggerHandler] Triggering enter play ability on ${object.name}: ${ability.text}`
 					);
@@ -60,8 +73,21 @@ export class AdvancedTriggerHandler {
 				ability.abilityType === AbilityType.Reaction &&
 				ability.trigger?.eventType === 'leavePlay'
 			) {
+				// Check "Nothing is Forever" limit for reactions (Rule 1.4.6.c)
+				const activationLimit = 100;
+				const currentActivations = object.abilityActivationsToday?.get(ability.abilityId) || 0;
+
+				if (currentActivations >= activationLimit) {
+					console.log(`[TriggerHandler] Reaction limit reached for ability ${ability.abilityId} on ${object.name} (ID: ${object.objectId}). Not activating.`);
+					continue; // Skip this ability
+				}
+
 				const triggerPayload = { object, fromZone, toZone };
 				if (ability.trigger.condition(triggerPayload, object, this.gsm)) {
+					// If condition met, increment count *before* creating emblem
+					object.abilityActivationsToday?.set(ability.abilityId, currentActivations + 1);
+					console.log(`[TriggerHandler] Incrementing reaction count for ${ability.abilityId} on ${object.name} to ${currentActivations + 1}`);
+
 					console.log(
 						`[TriggerHandler] Triggering leave play ability on ${object.name}: ${ability.text}`
 					);
@@ -92,8 +118,21 @@ export class AdvancedTriggerHandler {
 				ability.abilityType === AbilityType.Reaction &&
 				ability.trigger?.eventType === 'goToReserve'
 			) {
+				// Check "Nothing is Forever" limit for reactions (Rule 1.4.6.c)
+				const activationLimit = 100;
+				const currentActivations = object.abilityActivationsToday?.get(ability.abilityId) || 0;
+
+				if (currentActivations >= activationLimit) {
+					console.log(`[TriggerHandler] Reaction limit reached for ability ${ability.abilityId} on ${object.name} (ID: ${object.objectId}). Not activating.`);
+					continue; // Skip this ability
+				}
+
 				const triggerPayload = { object, fromZone };
 				if (ability.trigger.condition(triggerPayload, object, this.gsm)) {
+					// If condition met, increment count *before* creating emblem
+					object.abilityActivationsToday?.set(ability.abilityId, currentActivations + 1);
+					console.log(`[TriggerHandler] Incrementing reaction count for ${ability.abilityId} on ${object.name} to ${currentActivations + 1}`);
+
 					console.log(
 						`[TriggerHandler] Triggering go to reserve ability on ${object.name}: ${ability.text}`
 					);
@@ -138,8 +177,21 @@ export class AdvancedTriggerHandler {
 				ability.abilityType === AbilityType.Reaction &&
 				ability.trigger?.eventType === `at${phaseName}`
 			) {
+				// Check "Nothing is Forever" limit for reactions (Rule 1.4.6.c)
+				const activationLimit = 100;
+				const currentActivations = object.abilityActivationsToday?.get(ability.abilityId) || 0;
+
+				if (currentActivations >= activationLimit) {
+					console.log(`[TriggerHandler] Reaction limit reached for ability ${ability.abilityId} on ${object.name} (ID: ${object.objectId}) for phase ${phaseName}. Not activating.`);
+					continue; // Skip this ability
+				}
+
 				const triggerPayload = { phase: phaseName, object };
 				if (ability.trigger.condition(triggerPayload, object, this.gsm)) {
+					// If condition met, increment count *before* creating emblem
+					object.abilityActivationsToday?.set(ability.abilityId, currentActivations + 1);
+					console.log(`[TriggerHandler] Incrementing reaction count for ${ability.abilityId} on ${object.name} (At ${phaseName}) to ${currentActivations + 1}`);
+
 					console.log(
 						`[TriggerHandler] Triggering 'At ${phaseName}' ability from ${object.name}: ${ability.text}`
 					);

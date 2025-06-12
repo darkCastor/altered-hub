@@ -3,7 +3,7 @@ import { ObjectFactory } from './ObjectFactory';
 import { GamePhase, ZoneIdentifier, StatusType, CardType, CounterType, KeywordAbility } from './types/enums';
 import type { EventBus } from './EventBus';
 import { GenericZone, HandZone, DiscardPileZone, LimboZone, DeckZone } from './Zone';
-import type { IGameObject } from './types/objects';
+import type { IGameObject, IEmblemObject } from './types/objects'; // Added IEmblemObject
 import type { ICardInstance } from './types/cards';
 import type { ZoneEntity } from './types/zones';
 import { isGameObject } from './types/objects';
@@ -213,23 +213,19 @@ export class GameStateManager {
 		// Create shared zones first
 		const sharedZones = {
 			adventure: new GenericZone('shared-adventure', ZoneIdentifier.Adventure, 'visible'),
-			expedition: new GenericZone(
-				'shared-expedition-deprecated',
-				ZoneIdentifier.Expedition,
-				'visible'
-			),
+			expedition: new GenericZone('shared-expedition', ZoneIdentifier.Expedition, 'visible'), // Changed ID, removed 'deprecated'
 			limbo: new LimboZone()
 		};
 
 		playerIds.forEach((pid) => {
 			const handZone = new HandZone(`${pid}-hand`, pid);
 			const reserveZone = new GenericZone(`${pid}-reserve`, ZoneIdentifier.Reserve, 'visible', pid);
-			const expeditionZone = new GenericZone(
-				`${pid}-expedition`,
-				ZoneIdentifier.Expedition,
-				'visible',
-				pid
-			);
+			// const expeditionZone = new GenericZone( // Removed: expedition zone is shared
+			// 	`${pid}-expedition`,
+			// 	ZoneIdentifier.Expedition,
+			// 	'visible',
+			// 	pid
+			// );
 			const discardPileZone = new DiscardPileZone(`${pid}-discard`, pid);
 
 			players.set(pid, {
@@ -242,11 +238,11 @@ export class GameStateManager {
 					reserveZone: reserveZone,
 					landmarkZone: new GenericZone(`${pid}-landmark`, ZoneIdentifier.Landmark, 'visible', pid),
 					heroZone: new GenericZone(`${pid}-hero`, ZoneIdentifier.Hero, 'visible', pid),
-					expeditionZone: expeditionZone,
+					// expeditionZone: expeditionZone, // Removed
 					limboZone: sharedZones.limbo, // Reference to shared limbo zone
 					hand: handZone, // Alias for test compatibility
 					reserve: reserveZone, // Alias for test compatibility
-					expedition: expeditionZone, // Alias for test compatibility
+					// expedition: expeditionZone, // Alias removed
 					discardPile: discardPileZone // Alias for test compatibility
 				},
 				heroExpedition: { position: 0, canMove: true, hasMoved: false },
@@ -469,9 +465,10 @@ export class GameStateManager {
 			yield player.zones.reserveZone;    // Corrected: reserve -> reserveZone (using the primary, not alias)
 			yield player.zones.landmarkZone;
 			yield player.zones.heroZone;
-			yield player.zones.expeditionZone; // Corrected: expedition -> expeditionZone (using the primary, not alias)
+			// yield player.zones.expeditionZone; // Removed: expedition zone is shared
 		}
 		yield this.state.sharedZones.adventure;
+		yield this.state.sharedZones.expedition; // Added shared expedition zone
 		yield this.state.sharedZones.limbo;
 	}
 
@@ -489,6 +486,84 @@ export class GameStateManager {
 
 		// Process "At [Phase]" triggers
 		this.triggerHandler.processPhaseTriggersForPhase(phase);
+		await this.resolveReactions();
+	}
+
+	private getPlayerIdsInInitiativeOrder(startingPlayerId: string): string[] {
+		const playerIds = Array.from(this.state.players.keys());
+		const startIndex = playerIds.indexOf(startingPlayerId);
+		if (startIndex === -1) {
+			console.warn(`[GSM] startingPlayerId ${startingPlayerId} not found in playerIds. Defaulting to full list.`);
+			return playerIds; // Should not happen with valid startingPlayerId
+		}
+		return [...playerIds.slice(startIndex), ...playerIds.slice(0, startIndex)];
+	}
+
+	public async resolveReactions(): Promise<void> {
+		console.log('[GSM] Checking reactions...');
+		let reactionsProcessedInLoop = 0; // Safety break for too many reactions in one event chain
+
+		// eslint-disable-next-line no-constant-condition
+		while (true) {
+			if (reactionsProcessedInLoop > 100) { // Rule 1.4.6.c (per ability, but good safety here too)
+				console.warn('[GSM] Exceeded reaction processing limit in a single chain. Breaking loop.');
+				break;
+			}
+
+			const limboZone = this.state.sharedZones.limbo;
+			const allEmblemReactions = limboZone.getAll().filter(
+				(e): e is IEmblemObject =>
+					isGameObject(e) && e.type === CardType.Emblem && e.emblemSubType === 'Reaction'
+			);
+
+			if (allEmblemReactions.length === 0) {
+				console.log('[GSM] No more reactions in Limbo.');
+				break; // No reactions to process
+			}
+
+			// Determine player order based on initiative (Rule 1.4.5, 4.4.b)
+			let initiativePlayerId = this.state.currentPlayerId; // Default to current player (e.g., during Afternoon)
+			if (this.state.currentPhase !== GamePhase.Afternoon) { // Or any other phase where firstPlayerId takes precedence for initiative
+				initiativePlayerId = this.state.firstPlayerId;
+			}
+
+			const playerIdsInInitiativeOrder = this.getPlayerIdsInInitiativeOrder(initiativePlayerId);
+			let reactionPlayedThisIteration = false;
+
+			for (const pId of playerIdsInInitiativeOrder) {
+				const playerEmblems = allEmblemReactions.filter(e => e.controllerId === pId);
+
+				if (playerEmblems.length > 0) {
+					// Player choice needed if multiple reactions. For now, pick the one with the smallest timestamp (oldest).
+					playerEmblems.sort((a, b) => a.timestamp - b.timestamp);
+					const emblemToPlay = playerEmblems[0];
+
+					console.log(`[GSM] Player ${pId} (initiative) playing reaction: ${emblemToPlay.name} (ID: ${emblemToPlay.objectId})`);
+
+					let sourceObjectForEffectContext: IGameObject | undefined = undefined;
+					if (emblemToPlay.boundEffect.sourceObjectId) {
+					   sourceObjectForEffectContext = this.getObject(emblemToPlay.boundEffect.sourceObjectId);
+					   if (!sourceObjectForEffectContext) {
+						   console.warn(`[GSM] Source object ${emblemToPlay.boundEffect.sourceObjectId} for reaction emblem ${emblemToPlay.objectId} not found. Using LKI might be needed if effect depends on it.`);
+					   }
+					}
+
+					await this.effectProcessor.resolveEffect(emblemToPlay.boundEffect, sourceObjectForEffectContext);
+
+					limboZone.remove(emblemToPlay.objectId);
+					console.log(`[GSM] Reaction emblem ${emblemToPlay.objectId} resolved and removed from Limbo.`);
+
+					reactionsProcessedInLoop++;
+					reactionPlayedThisIteration = true;
+					break;
+				}
+			}
+
+			if (!reactionPlayedThisIteration) {
+				console.log('[GSM] No reactions played by initiative players this iteration. Exiting loop.');
+				break;
+			}
+		}
 	}
 
 	/**
@@ -591,7 +666,7 @@ export class GameStateManager {
 			case ZoneIdentifier.Hero:
 				return player.zones.heroZone;
 			case ZoneIdentifier.Expedition:
-				return player.zones.expeditionZone;
+				return this.state.sharedZones.expedition; // Changed to shared expedition zone
 			case ZoneIdentifier.Limbo:
 				return this.state.sharedZones.limbo;
 			case ZoneIdentifier.Adventure:
@@ -606,9 +681,24 @@ export class GameStateManager {
 	 * Rule 4.2.1.c: Readies all exhausted cards and objects.
 	 */
 	public async preparePhase(): Promise<void> {
-		console.log('[GSM] Beginning Prepare phase.');
-		// Use status handler for comprehensive prepare phase processing
-		this.statusHandler.processStatusEffectsDuringPhase('morning');
+		console.log('[GSM] Beginning Prepare phase (daily effects).');
+		this.statusHandler.processStatusEffectsDuringPhase('morning'); // Readies objects etc.
+
+		// Reset ability activation counts for "Nothing is Forever" rule (Rule 1.4.6)
+		console.log('[GSM] Resetting daily ability activation counts.');
+		for (const zone of this.getAllVisibleZones()) {
+			for (const entity of zone.getAll()) {
+				if (isGameObject(entity)) {
+					if (entity.abilityActivationsToday) {
+						entity.abilityActivationsToday.clear();
+					} else {
+						// Initialize if it somehow wasn't during creation
+						entity.abilityActivationsToday = new Map<string, number>();
+					}
+				}
+			}
+		}
+		// Note: The original duplicate preparePhase method at the end of the file should be reviewed/removed if redundant.
 	}
 
 	/**
@@ -617,11 +707,14 @@ export class GameStateManager {
 	 */
 	public async restPhase() {
 		console.log('[GSM] Beginning Rest phase.');
+		const expeditionZone = this.state.sharedZones.expedition; // Use shared expedition zone
 
 		for (const player of this.state.players.values()) {
-			const expeditionZone = player.zones.expeditionZone;
+			// Filter entities for the current player and relevant types
 			const entitiesToProcess = expeditionZone.getAll().filter((e): e is IGameObject => {
 				if (!isGameObject(e)) return false;
+				// Ensure the entity belongs to the player currently being processed in the restPhase loop
+				if (e.controllerId !== player.id) return false;
 				return e.type === CardType.Character || e.type === CardType.Gear;
 			});
 
@@ -771,12 +864,21 @@ export class GameStateManager {
 		const player = this.getPlayer(playerId);
 		if (!player) return { forest: 0, mountain: 0, water: 0 };
 
-		const expeditionZone = player.zones.expeditionZone;
+		const expeditionZone = this.state.sharedZones.expedition; // Use shared expedition zone
 		const stats: ITerrainStats = { forest: 0, mountain: 0, water: 0 };
 
-		for (const entity of expeditionZone.getAll()) {
+		const expeditionEntities = expeditionZone.getAll().filter(entity => {
+			if (!isGameObject(entity)) return false;
+			// Ensure correct typing for _expeditionType if it can be 'Hero' or 'Companion'
+			const typeComparison = _expeditionType === 'hero' ? 'Hero' : 'Companion';
+			return entity.expeditionAssignment?.playerId === playerId &&
+				   entity.expeditionAssignment?.type === typeComparison;
+		});
+
+		for (const entity of expeditionEntities) {
 			if (isGameObject(entity) && entity.type === CardType.Character) {
 				// Skip if Character has Asleep status during Progress (Rule 2.4.3)
+				// This check is still relevant for the filtered entities.
 				if (entity.statuses.has(StatusType.Asleep)) continue;
 
 				// Get base statistics
@@ -983,13 +1085,21 @@ export class GameStateManager {
 		}
 
 		let totalStats = { forest: 0, mountain: 0, water: 0 };
+		const expeditionZone = this.state.sharedZones.expedition; // Use shared expedition zone
 
-		// Get all characters in expedition
-		const expeditionEntities = player.zones.expeditionZone.getAll();
+		// Get all characters in the shared expedition zone, filtered by playerId and expeditionType.
+		const expeditionEntities = expeditionZone.getAll().filter(entity => {
+			if (!isGameObject(entity)) return false;
+			// Ensure correct typing for expeditionType if it can be 'Hero' or 'Companion'
+			const typeComparison = expeditionType === 'hero' ? 'Hero' : 'Companion';
+			return entity.expeditionAssignment?.playerId === playerId &&
+				   entity.expeditionAssignment?.type === typeComparison;
+		});
 		
 		for (const entity of expeditionEntities) {
 			if (isGameObject(entity) && entity.type === CardType.Character) {
 				// Rule 2.4.3.a: Asleep characters' stats are not counted during Progress
+				// This check is still relevant for the filtered entities.
 				if (entity.statuses.has(StatusType.Asleep)) {
 					continue;
 				}
@@ -1063,7 +1173,7 @@ export class GameStateManager {
 			case ZoneIdentifier.Reserve:
 				return player.zones.reserveZone;
 			case ZoneIdentifier.Expedition:
-				return player.zones.expeditionZone;
+				return this.state.sharedZones.expedition; // Changed to shared expedition zone
 			case ZoneIdentifier.DiscardPile:
 				return player.zones.discardPileZone;
 			case ZoneIdentifier.Mana:
@@ -1156,15 +1266,17 @@ export class GameStateManager {
 	 */
 	public async preparePhase(): Promise<void> {
 		console.log('[GSM] Prepare phase - readying exhausted cards');
+		const expeditionZone = this.state.sharedZones.expedition; // Use shared expedition zone
 		
-		for (const player of this.state.players.values()) {
-			// Ready cards in expedition and reserve
-			for (const entity of player.zones.expeditionZone.getAll()) {
-				if (isGameObject(entity) && entity.statuses.has(StatusType.Exhausted)) {
-					entity.statuses.delete(StatusType.Exhausted);
-				}
+		// Ready cards in the shared expedition zone
+		for (const entity of expeditionZone.getAll()) {
+			if (isGameObject(entity) && entity.statuses.has(StatusType.Exhausted)) {
+				entity.statuses.delete(StatusType.Exhausted);
 			}
-			
+		}
+
+		for (const player of this.state.players.values()) {
+			// Ready cards in player-specific reserve
 			for (const entity of player.zones.reserveZone.getAll()) {
 				if (isGameObject(entity) && entity.statuses.has(StatusType.Exhausted)) {
 					entity.statuses.delete(StatusType.Exhausted);

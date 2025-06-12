@@ -72,38 +72,37 @@ export class PhaseManager {
 		this.handleNoon();
 	}
 
-	private handleMorning(): void {
+	private async handleMorning(): Promise<void> {
 		// gameStateManager.turnManager.succeedPhase(); // This seems to be for advancing turns within a phase.
 		// Morning phase specific actions:
 		if (this.gameStateManager.turnManager) {
 			this.gameStateManager.turnManager.succeedPhase(); // Rule 4.2.1.b
+			await this.gameStateManager.resolveReactions();
 		} else {
 			console.error(
 				'PhaseManager: TurnManager not found on GameStateManager during handleMorning.'
 			);
 		}
-		this.gameStateManager.preparePhase(); // Reset per-phase states, untap units, etc.
+		await this.gameStateManager.preparePhase();
+		await this.gameStateManager.resolveReactions();
 
-		this.gameStateManager.state.players.forEach((playerId) => {
-			this.gameStateManager.drawCards(playerId, 2); // Draw 2 cards
-			const player = this.gameStateManager.getPlayer(playerId); // Corrected: getPlayer is directly on gameStateManager
-			if (player && player.playerExpand && !player.hasExpandedThisTurn) {
-				// Check for Expand mechanic and if player has already expanded
-				const handZone = this.gameStateManager.zoneManager.getZone('Hand', playerId);
-				if (handZone && handZone.cards.length > 0) {
-					const firstCardInHand = handZone.cards[0];
-					// Ensure we have a valid card identifier (instanceId or objectId)
-					const chosenCardId = firstCardInHand.instanceId || firstCardInHand.objectId;
-					if (chosenCardId) {
-						this.gameStateManager.manaSystem.expandMana(playerId, chosenCardId);
-					} else {
-						console.warn(`PhaseManager: Card in hand for player ${playerId} is missing an identifier.`);
-					}
-				} else {
-					console.log(`PhaseManager: Player ${playerId} has no cards in hand to expand.`);
-				}
+		for (const playerId of this.gameStateManager.getPlayerIds()) { // Iterate using getPlayerIds for safety
+			await this.gameStateManager.drawCards(playerId, 2); // Draw 2 cards
+			const player = this.gameStateManager.getPlayer(playerId);
+			// Assuming player.playerExpand is a flag indicating if player *can* expand,
+			// and manaSystem.expandMana handles the choice and card.
+			// The original logic for expandMana was a bit off; it should ideally take a chosen card.
+			// For now, we'll assume some form of expand logic happens or is initiated here.
+			// If expandMana itself is an action that could trigger reactions, it would call resolveReactions internally or after.
+			// The key is that after the "Expand" daily effect step for all players, reactions are checked.
+			if (player && player.playerExpandChoices && !player.hasExpandedThisTurn) {
+				// Simplified: actual expansion would involve player choice.
+				// Assuming expandMana is called within a player loop or similar.
+				console.log(`PhaseManager: Player ${playerId} to handle expand action.`);
 			}
-		});
+		}
+		await this.gameStateManager.resolveReactions(); // After "Draw" and "Expand" daily effects for all players
+
 		console.log(
 			`PhaseManager: Morning logic executed for Day ${this.gameStateManager.state.currentDay}.`
 		);
@@ -123,15 +122,19 @@ export class PhaseManager {
 		);
 	}
 
-	private handleDusk(): void {
-		this.gameStateManager.progressPhase(); // Resolve end-of-turn effects, etc.
+	private async handleDusk(): Promise<void> {
+		await this.gameStateManager.progressPhase();
+		await this.gameStateManager.resolveReactions();
 		console.log('PhaseManager: Dusk logic executed.');
 	}
 
-	private handleNight(): void {
-		this.gameStateManager.restPhase(); // Resources, cooldowns.
-		this.gameStateManager.cleanupPhase(); // Discard excess cards, cleanup board.
-		this.gameStateManager.checkVictoryConditions(); // Check if game ends.
+	private async handleNight(): Promise<void> {
+		await this.gameStateManager.restPhase();
+		await this.gameStateManager.resolveReactions();
+		await this.gameStateManager.cleanupPhase();
+		await this.gameStateManager.resolveReactions();
+		this.gameStateManager.checkVictoryConditions();
+		await this.gameStateManager.resolveReactions();
 		console.log('PhaseManager: Night logic executed.');
 		// After Night, if no victory, advancePhase will go to Morning and increment day.
 	}

@@ -1,5 +1,5 @@
 import { describe, test, expect, beforeEach } from 'bun:test';
-import { CardPlaySystem } from '../../src/engine/CardPlaySystem';
+import { CardPlaySystem, CardPlayOptions } from '../../src/engine/CardPlaySystem';
 import { GameStateManager } from '../../src/engine/GameStateManager';
 import { EventBus } from '../../src/engine/EventBus';
 import {
@@ -7,9 +7,11 @@ import {
 	StatusType,
 	ZoneIdentifier,
 	GamePhase,
-	KeywordAbility
-} from '../../src/engine/types/enums'; // Added KeywordAbility
+	KeywordAbility,
+	PermanentZoneType
+} from '../../src/engine/types/enums'; // Added KeywordAbility, PermanentZoneType
 import type { ICardDefinition } from '../../src/engine/types/cards';
+import type { IGameObject } from '../../src/engine/types/objects';
 
 /**
  * Unit tests for CardPlaySystem - Rules 5.1 (Card Playing Process) and 5.2 (Playing from Reserve)
@@ -48,7 +50,7 @@ describe('CardPlaySystem - Card Playing Rules', () => {
 		name: 'Test Expedition Permanent',
 		type: CardType.Permanent,
 		subTypes: ['Gear'], // Example subType
-		permanentZoneType: ZoneIdentifier.ExpeditionZone, // Custom property to guide placement
+		permanentZoneType: PermanentZoneType.Expedition, // Corrected to use PermanentZoneType
 		handCost: { total: 2 },
 		reserveCost: { total: 1 },
 		faction: 'Neutral',
@@ -63,7 +65,7 @@ describe('CardPlaySystem - Card Playing Rules', () => {
 		name: 'Test Landmark Permanent',
 		type: CardType.Permanent,
 		subTypes: ['Structure'], // Example subType
-		permanentZoneType: ZoneIdentifier.LandmarkZone, // Custom property to guide placement
+		permanentZoneType: PermanentZoneType.Landmark, // Corrected to use PermanentZoneType
 		handCost: { total: 2 },
 		reserveCost: { total: 1 },
 		faction: 'Neutral',
@@ -85,6 +87,19 @@ describe('CardPlaySystem - Card Playing Rules', () => {
 				reserveCost: { total: 2, forest: 0, mountain: 1, water: 1 },
 				faction: 'Neutral',
 				statistics: { forest: 2, mountain: 1, water: 1 },
+				abilities: [],
+				rarity: 'Common',
+				version: '1.0'
+			},
+			{
+				id: 'char-exp-test', // Specific for expedition tests
+				name: 'Expedition Test Character',
+				type: CardType.Character,
+				subTypes: [],
+				handCost: { total: 1 },
+				reserveCost: { total: 1 },
+				faction: 'Neutral',
+				statistics: { forest: 1, mountain: 1, water: 1 },
 				abilities: [],
 				rarity: 'Common',
 				version: '1.0'
@@ -681,6 +696,112 @@ describe('CardPlaySystem - Card Playing Rules', () => {
 			expect(playResult.success).toBe(false);
 			expect(playResult.error).toBe('Cannot play cards during current phase');
 			gameStateManager.setCurrentPhase(originalPhase); // Reset phase
+		});
+	});
+
+	describe('Shared Expedition Zone Card Play', () => {
+		beforeEach(() => {
+			// Ensure player1 has mana
+			const player = gameStateManager.getPlayer('player1');
+			if (player) {
+				player.zones.manaZone.getAll().forEach(orb => {
+					if (orb.statuses.has(StatusType.Exhausted)) {
+						orb.statuses.delete(StatusType.Exhausted);
+					}
+				});
+				// Give enough mana orbs if needed, assuming 3 are standard from initializeGame
+				while(player.zones.manaZone.getCount() < 3) {
+					const manaOrbDef = mockCardDefinitions.find(def => def.type === CardType.Spell); // Use any card def for mock orb
+					if(manaOrbDef){
+						const orb = gameStateManager.objectFactory.createCard(manaOrbDef.id, 'player1');
+						orb.type = CardType.ManaOrb;
+						orb.faceDown = true;
+						player.zones.manaZone.add(orb);
+					} else {
+						break; // no def found
+					}
+				}
+			}
+		});
+
+		test('Playing a Character to Hero expedition places it in shared zone with correct assignment', async () => {
+			const player = gameStateManager.getPlayer('player1')!;
+			const cardToPlay = gameStateManager.objectFactory.createCardInstance('char-exp-test', 'player1');
+			player.zones.handZone.add(cardToPlay);
+
+			const options: CardPlayOptions = { fromZone: ZoneIdentifier.Hand, expeditionChoice: 'hero' };
+			await cardPlaySystem.playCard('player1', cardToPlay.instanceId, options);
+
+			const sharedExpeditionZone = gameStateManager.state.sharedZones.expedition;
+			// CardPlaySystem.playCard currently moves to Limbo, then the "resolve" part (which is placeholder) moves to final zone.
+			// The placeholder in playCard was set up to move characters/exp-permanents to shared expedition.
+
+			let foundInExpedition = false;
+			let gameObjectInExpedition: IGameObject | undefined;
+
+			for (const entity of sharedExpeditionZone.getAll()) {
+				if (entity.definitionId === 'char-exp-test') {
+					foundInExpedition = true;
+					gameObjectInExpedition = entity as IGameObject;
+					break;
+				}
+			}
+			expect(foundInExpedition).toBe(true);
+			expect(player.zones.handZone.findById(cardToPlay.instanceId)).toBeUndefined();
+
+			expect(gameObjectInExpedition).toBeDefined();
+			if (gameObjectInExpedition) {
+				expect(gameObjectInExpedition.expeditionAssignment).toEqual({ playerId: 'player1', type: 'Hero' });
+			}
+		});
+
+		test('Playing a Character to Companion expedition places it in shared zone with correct assignment', async () => {
+			const player = gameStateManager.getPlayer('player1')!;
+			const cardToPlay = gameStateManager.objectFactory.createCardInstance('char-exp-test', 'player1');
+			player.zones.handZone.add(cardToPlay);
+
+			const options: CardPlayOptions = { fromZone: ZoneIdentifier.Hand, expeditionChoice: 'companion' };
+			await cardPlaySystem.playCard('player1', cardToPlay.instanceId, options);
+
+			const sharedExpeditionZone = gameStateManager.state.sharedZones.expedition;
+			let gameObjectInExpedition: IGameObject | undefined;
+			for (const entity of sharedExpeditionZone.getAll()) {
+				if (entity.definitionId === 'char-exp-test') {
+					gameObjectInExpedition = entity as IGameObject;
+					break;
+				}
+			}
+			expect(gameObjectInExpedition).toBeDefined();
+			if (gameObjectInExpedition) {
+				expect(gameObjectInExpedition.expeditionAssignment).toEqual({ playerId: 'player1', type: 'Companion' });
+			}
+		});
+
+		test('Playing an Expedition Permanent places it in shared zone with correct assignment', async () => {
+			const player = gameStateManager.getPlayer('player1')!;
+			const cardToPlay = gameStateManager.objectFactory.createCardInstance('exp-permanent-001', 'player1');
+			player.zones.handZone.add(cardToPlay);
+
+			// Ensure player has mana for a card that costs 2
+			player.zones.manaZone.getAll().forEach(orb => orb.statuses.delete(StatusType.Exhausted));
+
+
+			const options: CardPlayOptions = { fromZone: ZoneIdentifier.Hand, expeditionChoice: 'hero' }; // Assuming exp permanents also need a choice
+			await cardPlaySystem.playCard('player1', cardToPlay.instanceId, options);
+
+			const sharedExpeditionZone = gameStateManager.state.sharedZones.expedition;
+			let gameObjectInExpedition: IGameObject | undefined;
+			for (const entity of sharedExpeditionZone.getAll()) {
+				if (entity.definitionId === 'exp-permanent-001') {
+					gameObjectInExpedition = entity as IGameObject;
+					break;
+				}
+			}
+			expect(gameObjectInExpedition).toBeDefined();
+			if (gameObjectInExpedition) {
+				expect(gameObjectInExpedition.expeditionAssignment).toEqual({ playerId: 'player1', type: 'Hero' });
+				expect(gameObjectInExpedition.type).toBe(CardType.Permanent);
+			}
 		});
 	});
 });

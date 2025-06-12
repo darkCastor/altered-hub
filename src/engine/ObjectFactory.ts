@@ -75,7 +75,8 @@ export class ObjectFactory {
 			timestamp: ObjectFactory.getNewTimestamp(),
 			statuses: new Set<StatusType>(),
 			counters: new Map<CounterType, number>(), // Default to empty map
-			abilities: []
+			abilities: [], // This will be populated later
+			abilityActivationsToday: new Map<string, number>() // Initialize here
 		};
 
 		// Apply initial counters if provided by the GameStateManager.
