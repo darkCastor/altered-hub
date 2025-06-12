@@ -1,8 +1,9 @@
 import type { GameStateManager } from './GameStateManager';
 import type { IGameObject } from './types/objects';
-import type { IPlayer, ITerrainStats } from './types/game';
+import type { ITerrainStats } from './types/game'; // Removed IPlayer
 import { GamePhase, CardType, StatusType, CounterType } from './types/enums';
 import { isGameObject } from './types/objects';
+import type { IZone } from './types/zones'; // Added IZone
 
 /**
  * Handles Arena tiebreaker mechanics
@@ -11,7 +12,7 @@ import { isGameObject } from './types/objects';
 export class TiebreakerSystem {
 	private isInTiebreaker: boolean = false;
 	private tiebreakerPlayers: string[] = [];
-	private arenaZone?: any; // Special zone for tiebreaker
+	private arenaZone?: IZone | undefined; // Special zone for tiebreaker
 
 	constructor(private gsm: GameStateManager) {}
 

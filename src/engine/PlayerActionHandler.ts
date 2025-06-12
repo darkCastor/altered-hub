@@ -78,12 +78,18 @@ export class PlayerActionHandler {
 				return true; // Turn ends
 
 			case 'playCard':
-				await this.playCard(playerId, action.cardId!, action.zone!);
+				if (!action.cardId || !action.zone) {
+					throw new Error('Action playCard missing cardId or zone.');
+				}
+				await this.playCard(playerId, action.cardId, action.zone);
 				console.log(`[PlayerAction] ${playerId} played a card`);
 				return true; // Turn ends after playing a card
 
 			case 'quickAction':
-				await this.executeQuickAction(playerId, action.abilityId!, action.sourceObjectId!);
+				if (!action.abilityId || !action.sourceObjectId) {
+					throw new Error('Action quickAction missing abilityId or sourceObjectId.');
+				}
+				await this.executeQuickAction(playerId, action.abilityId, action.sourceObjectId);
 				console.log(`[PlayerAction] ${playerId} used a quick action`);
 				return false; // Turn continues after quick action
 
@@ -275,7 +281,7 @@ export class PlayerActionHandler {
 	 * Executes a quick action
 	 */
 	private async executeQuickAction(
-		playerId: string,
+		_playerId: string, // Now prefixed with _ as it's unused
 		abilityId: string,
 		sourceObjectId: string
 	): Promise<void> {

@@ -30,8 +30,9 @@ export class EventBus {
 
 	publish<T extends EventType>(eventType: T, payload: EventPayloads[T]) {
 		console.log(`[EventBus] Publishing: ${eventType}`, payload);
-		if (this.subscribers.has(eventType)) {
-			this.subscribers.get(eventType)!.forEach((handler) => {
+		const handlers = this.subscribers.get(eventType);
+		if (handlers) {
+			handlers.forEach((handler) => {
 				try {
 					handler(payload);
 				} catch (error) {

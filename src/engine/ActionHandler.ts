@@ -34,12 +34,12 @@ export class ActionHandler {
 	 * Follows the procedure outlined in Rule 5.1.2.
 	 * @param playerId The ID of the player performing the action.
 	 * @param cardInstanceId The ID of the card instance in the player's hand.
-	 * @param expeditionId The target expedition, if the card is a Character or Expedition Permanent.
+	 * @param _expeditionId The target expedition, if the card is a Character or Expedition Permanent. (Currently unused)
 	 */
 	public async tryPlayCardFromHand(
 		playerId: string,
 		cardInstanceId: string,
-		expeditionId?: string
+		_expeditionId?: string
 	): Promise<void> {
 		console.log(
 			`[ActionHandler] Player ${playerId} is attempting to play card ${cardInstanceId} from hand.`
@@ -118,7 +118,7 @@ export class ActionHandler {
 		// --- 4. Resolution (Rule 5.1.2.i) ---
 		let finalDestinationZone: IZone;
 		switch (definition.type) {
-			case CardType.Character:
+			case CardType.Character: {
 				const targetExpedition = player.zones.expedition;
 				if (!targetExpedition) {
 					this.gsm.moveEntity(
@@ -131,8 +131,8 @@ export class ActionHandler {
 				}
 				finalDestinationZone = targetExpedition;
 				break;
-
-			case CardType.Permanent:
+			}
+			case CardType.Permanent: {
 				if (definition.permanentZoneType === PermanentZoneType.Landmark) {
 					finalDestinationZone = player.zones.landmarkZone;
 				} else if (definition.permanentZoneType === PermanentZoneType.Expedition) {
@@ -147,14 +147,14 @@ export class ActionHandler {
 					throw new Error(`Unknown permanent zone type for ${definition.name}.`);
 				}
 				break;
-
-			case CardType.Spell:
+			}
+			case CardType.Spell: {
 				// Rule 2.4.6.e / 5.2.4.b: Fleeting spells are discarded instead of going to Reserve.
 				const isFleeting = objectInLimbo.statuses.has(StatusType.Fleeting);
 				finalDestinationZone = isFleeting ? player.zones.discardPile : player.zones.reserve;
 				break;
-
-			default:
+			}
+			default: {
 				this.gsm.moveEntity(
 					objectInLimbo.objectId,
 					this.gsm.state.sharedZones.limbo,
@@ -162,6 +162,7 @@ export class ActionHandler {
 					playerId
 				);
 				throw new Error(`Unknown card type resolution: ${definition.type}.`);
+			}
 		}
 		const finalMoveResult = this.gsm.moveEntity(
 			objectInLimbo.objectId,

@@ -100,7 +100,7 @@ export class ObjectFactory {
 	public createReactionEmblem(
 		sourceAbility: IAbility,
 		sourceObject: IGameObject,
-		triggerPayload: any
+		triggerPayload: unknown
 	): IEmblemObject {
 		if (!sourceAbility.sourceObjectId) {
 			throw new Error('Cannot create emblem from an ability not bound to an object.');

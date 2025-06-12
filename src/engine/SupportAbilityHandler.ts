@@ -42,7 +42,7 @@ export class SupportAbilityHandler {
 	 * Processes all active support abilities for a given game event
 	 * This would be called by the event system when relevant events occur
 	 */
-	public processSupportAbilities(eventType: string, eventPayload: any): void {
+	public processSupportAbilities(eventType: string, eventPayload: unknown): void {
 		const activeSupportObjects = this.getActiveSupportAbilities();
 
 		for (const supportObject of activeSupportObjects) {
@@ -67,7 +67,7 @@ export class SupportAbilityHandler {
 	 * Applies passive support abilities that modify game rules
 	 * These are checked when relevant calculations are made
 	 */
-	public applySupportModifiers(baseValue: any, context: string): any {
+	public applySupportModifiers(baseValue: unknown, _context: string): unknown {
 		const activeSupportObjects = this.getActiveSupportAbilities();
 		let modifiedValue = baseValue;
 

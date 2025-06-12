@@ -1,8 +1,9 @@
 import type { IGameObject } from './types/objects';
 import type { GameStateManager } from './GameStateManager';
 import type { IZone } from './types/zones';
-import { KeywordAbility, StatusType, CounterType, CardType } from './types/enums';
+import { KeywordAbility, StatusType, CardType } from './types/enums'; // Removed CounterType
 import { isGameObject } from './types/objects';
+import type { ICost } from './types/abilities'; // Added ICost
 
 /**
  * Handles all keyword ability mechanics
@@ -15,7 +16,7 @@ export class KeywordAbilityHandler {
 	 * Processes keyword abilities when an object enters play
 	 * Rule 7.4 - Keywords are passive abilities
 	 */
-	public processKeywordOnEnterPlay(object: IGameObject, zone: IZone): void {
+	public processKeywordOnEnterPlay(object: IGameObject, _zone: IZone): void {
 		for (const ability of object.abilities) {
 			if (!ability.isKeyword || !ability.keyword) continue;
 
@@ -53,7 +54,11 @@ export class KeywordAbilityHandler {
 	 * Checks if an object can be targeted by an opponent's effect
 	 * Rule 7.4.7 - Tough keyword
 	 */
-	public canTargetWithTough(object: IGameObject, controller: string, cost: any): boolean {
+	public canTargetWithTough(
+		object: IGameObject,
+		controller: string,
+		_cost: ICost | undefined
+	): boolean {
 		const toughAbility = object.abilities.find(
 			(a) => a.isKeyword && a.keyword === KeywordAbility.Tough
 		);
@@ -62,7 +67,7 @@ export class KeywordAbilityHandler {
 			return true; // No Tough or same controller
 		}
 
-		const toughValue = toughAbility.keywordValue || 0;
+		const _toughValue = toughAbility.keywordValue || 0;
 		// TODO: Check if opponent can pay the additional cost
 		// For now, return true (assuming they can pay)
 		return true;

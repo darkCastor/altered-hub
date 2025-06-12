@@ -1,15 +1,15 @@
 import type { IZone } from './types/zones';
 import { ObjectFactory } from './ObjectFactory';
-import { GamePhase, ZoneIdentifier, StatusType, CardType } from './types/enums';
+import { GamePhase, ZoneIdentifier, StatusType, CardType, CounterType } from './types/enums';
 import type { EventBus } from './EventBus';
 import { GenericZone, HandZone, DiscardPileZone, LimboZone, DeckZone } from './Zone';
 import type { IGameObject } from './types/objects';
 import type { ICardInstance } from './types/cards';
 import type { ZoneEntity } from './types/zones';
 import { isGameObject } from './types/objects';
-import type { IPlayer, IGameState, IExpeditionState, ITerrainStats } from './types/game';
+import type { IPlayer, IGameState, ITerrainStats } from './types/game';
 import type { ICardDefinition } from './types/cards';
-import { CounterType, KeywordAbility } from './types/enums';
+// import { KeywordAbility } from './types/enums'; // Unused
 import { KeywordAbilityHandler } from './KeywordAbilityHandler';
 import { SupportAbilityHandler } from './SupportAbilityHandler';
 import { AdvancedTriggerHandler } from './AdvancedTriggerHandler';
@@ -37,8 +37,8 @@ export class GameStateManager {
 	public tiebreakerSystem: TiebreakerSystem;
 	// public passiveManager: PassiveAbilityManager; // Removed
 	private ruleAdjudicator: RuleAdjudicator;
-	public turnManager?: any; // Will be set by TurnManager
-	public phaseManager?: any; // Will be set by PhaseManager
+	public turnManager?: TurnManager; // Will be set by TurnManager
+	public phaseManager?: PhaseManager; // Will be set by PhaseManager
 	private cardDefinitions: Map<string, ICardDefinition>;
 
 	constructor(playerIds: string[], cardDefinitions: ICardDefinition[], eventBus: EventBus) {
@@ -704,7 +704,7 @@ export class GameStateManager {
 	 */
 	public calculateExpeditionStats(
 		playerId: string,
-		expeditionType: 'hero' | 'companion'
+		_expeditionType: 'hero' | 'companion'
 	): ITerrainStats {
 		const player = this.getPlayer(playerId);
 		if (!player) return { forest: 0, mountain: 0, water: 0 };
@@ -859,27 +859,7 @@ export class GameStateManager {
 	/**
 	 * Get all visible zones across all players and shared zones
 	 */
-	public getAllVisibleZones(): IZone[] {
-		const zones: IZone[] = [];
-
-		// Add shared zones
-		Object.values(this.state.sharedZones).forEach((zone) => {
-			if (zone && zone.visibility === 'visible' && zone.getAll) {
-				zones.push(zone);
-			}
-		});
-
-		// Add player zones
-		for (const player of this.state.players.values()) {
-			Object.values(player.zones).forEach((zone) => {
-				if (zone && zone.visibility === 'visible' && zone.getAll) {
-					zones.push(zone);
-				}
-			});
-		}
-
-		return zones;
-	}
+	// Removed duplicate implementation of getAllVisibleZones
 
 	/**
 	 * Checks victory conditions after Night phase

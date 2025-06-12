@@ -84,5 +84,5 @@ export interface IGameState {
 	winner?: string;
 	tiebreakerMode: boolean;
 	playerExpandChoices?: Record<string, boolean>;
-	actionHistory: any[]; // Log actions and events for debugging
+	actionHistory: unknown[]; // Log actions and events for debugging
 }
