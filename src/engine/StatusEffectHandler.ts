@@ -186,19 +186,20 @@ export class StatusEffectHandler {
 	 * Night phase status processing (during Rest)
 	 */
 	private processStatusEffectsDuringNight(): void {
+		const expeditionZone = this.gsm.state.sharedZones.expedition;
 		for (const player of this.gsm.state.players.values()) {
-			const expeditionZone = player.zones.expeditionZone;
+			const playerEntitiesInExpedition = expeditionZone.getAll().filter(
+				(e): e is IGameObject => isGameObject(e) && e.controllerId === player.id && e.type === CardType.Character
+			);
 
-			for (const entity of expeditionZone.getAll()) {
-				if (isGameObject(entity) && entity.type === CardType.Character) {
-					// Process Anchored and Asleep statuses
-					const wasAnchored = this.processAnchoredDuringRest(entity);
-					const wasAsleep = this.processAsleepDuringRest(entity);
+			for (const entity of playerEntitiesInExpedition) {
+				// Process Anchored and Asleep statuses
+				const wasAnchored = this.processAnchoredDuringRest(entity);
+				const wasAsleep = this.processAsleepDuringRest(entity);
 
-					// These statuses prevent going to Reserve
-					if (wasAnchored || wasAsleep) {
-						continue;
-					}
+				// These statuses prevent going to Reserve
+				if (wasAnchored || wasAsleep) {
+					continue;
 				}
 			}
 		}
@@ -271,9 +272,9 @@ export class StatusEffectHandler {
 			yield player.zones.reserveZone;
 			yield player.zones.landmarkZone;
 			yield player.zones.heroZone;
-			yield player.zones.expeditionZone;
 		}
 		yield this.gsm.state.sharedZones.adventure;
+		yield this.gsm.state.sharedZones.expedition; // Added shared expedition zone
 		yield this.gsm.state.sharedZones.limbo;
 	}
 }

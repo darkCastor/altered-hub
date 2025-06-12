@@ -151,14 +151,15 @@ export class ReactionManager {
 
 	private getAllGameObjects(): IGameObject[] {
 		const objects: IGameObject[] = [];
+		// Player-specific zones
 		this.gsm.state.players.forEach((player) => {
-			// In-Play zones
-			objects.push(...player.zones.expeditionZone.getAll().filter(isGameObject));
 			objects.push(...player.zones.landmarkZone.getAll().filter(isGameObject));
 			objects.push(...player.zones.heroZone.getAll().filter(isGameObject));
-			// Reserve zone (for support abilities)
-			objects.push(...player.zones.reserveZone.getAll().filter(isGameObject));
+			objects.push(...player.zones.reserveZone.getAll().filter(isGameObject)); // For support abilities
 		});
+		// Shared zones
+		objects.push(...this.gsm.state.sharedZones.expedition.getAll().filter(isGameObject));
+		// Adventure and Limbo zones are generally not sources of reaction abilities from objects within them.
 		return objects;
 	}
 }

@@ -79,11 +79,22 @@ export class ManaSystem {
 		}
 
 		// Check expedition zone - Characters provide terrain mana
-		for (const entity of player.zones.expeditionZone.getAll()) {
-			if (isGameObject(entity) && entity.type === CardType.Character) {
-				const charStats = this.getCharacterTerrainStats(entity);
-				this.addTerrainStats(terrainMana, charStats);
+		// All characters controlled by the player in the shared expedition zone contribute.
+		const sharedExpeditionZone = this.gsm.state.sharedZones.expedition;
+		const playerExpeditionCharacters = sharedExpeditionZone.getAll().filter(
+			(e): e is IGameObject =>
+				isGameObject(e) &&
+				e.controllerId === playerId &&
+				e.type === CardType.Character
+		);
+
+		for (const entity of playerExpeditionCharacters) {
+			// Asleep characters' stats are not counted for terrain mana (Rule 2.4.3.a implies general stat non-contribution)
+			if (entity.statuses.has(StatusType.Asleep)) {
+				continue;
 			}
+			const charStats = this.getCharacterTerrainStats(entity);
+			this.addTerrainStats(terrainMana, charStats);
 		}
 
 		// Check landmark zone for Permanents that might provide mana
@@ -304,12 +315,27 @@ export class ManaSystem {
 			.find((c) => (isGameObject(c) ? c.objectId : c.instanceId) === targetOrbId);
 
 		if (!isGameObject(sourceOrb) || !isGameObject(targetOrb)) return false;
-		if (sourceOrb.statuses.has(StatusType.Exhausted)) return false; // Source must be ready
+		if (sourceOrb.statuses.has(StatusType.Exhausted)) {
+			console.warn(`[ManaSystem.convertMana] Source orb ${sourceOrbId} is already exhausted.`);
+			return false; // Source must be ready
+		}
+		if (!targetOrb.statuses.has(StatusType.Exhausted)) {
+			console.warn(`[ManaSystem.convertMana] Target orb ${targetOrbId} is not exhausted.`);
+			return false; // Target must be exhausted
+		}
 
 		// Exhaust source, ready target
-		sourceOrb.statuses.add(StatusType.Exhausted);
-		targetOrb.statuses.delete(StatusType.Exhausted);
+		// Using statusHandler for consistency, though direct manipulation is also possible
+		// if statusHandler doesn't have other side effects for Exhausted.
+		this.gsm.statusHandler.applyStatusEffect(sourceOrb, StatusType.Exhausted);
+		this.gsm.statusHandler.removeStatusEffect(targetOrb, StatusType.Exhausted);
 
+		this.gsm.eventBus.publish('manaOrbConverted', {
+			playerId,
+			exhaustedOrbId: sourceOrb.objectId,
+			readiedOrbId: targetOrb.objectId
+		});
+		console.log(`[ManaSystem.convertMana] Player ${playerId} converted mana: exhausted ${sourceOrb.name} (ID: ${sourceOrb.objectId}) to ready ${targetOrb.name} (ID: ${targetOrb.objectId}).`);
 		return true;
 	}
 
