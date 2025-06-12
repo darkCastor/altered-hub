@@ -1,10 +1,8 @@
 <script lang="ts">
 	import { page } from '$app/stores';
-	import { goto, invalidateAll } from '$app/navigation';
+	import { goto } from '$app/navigation';
 	import { Menu, X } from 'lucide-svelte';
 	import Button from '$components/ui/button/Button.svelte';
-
-	export let user: { id: string; username: string } | null = null;
 
 	let mobileMenuOpen = false;
 
@@ -20,20 +18,6 @@
 
 	function navigateTo(href: string) {
 		goto(href);
-		mobileMenuOpen = false;
-	}
-
-	async function handleLogout() {
-		const response = await fetch('/auth/logout', { method: 'POST' });
-		if (response.ok) {
-			// Invalidate all data to re-run load functions and update user state
-			await invalidateAll();
-			// Optionally, navigate to home or login page
-			navigateTo('/');
-		} else {
-			console.error('Logout failed');
-			// Handle logout error, maybe show a message
-		}
 		mobileMenuOpen = false;
 	}
 
@@ -66,22 +50,10 @@
 						{item.name}
 					</button>
 				{/each}
-				{#if user}
-					<span class="text-muted-foreground text-sm">Hi, {user.username}</span>
-					<Button variant="outline" size="sm" on:click={handleLogout}>Logout</Button>
-				{:else}
-					<Button variant="ghost" size="sm" on:click={() => navigateTo('/login')}>Login</Button>
-					<Button variant="default" size="sm" on:click={() => navigateTo('/register')}
-						>Register</Button
-					>
-				{/if}
 			</nav>
 
 			<!-- Mobile menu button -->
 			<div class="flex items-center md:hidden">
-				{#if user}
-					<span class="text-muted-foreground mr-2 text-sm">Hi, {user.username}</span>
-				{/if}
 				<Button variant="ghost" size="icon" on:click={toggleMobileMenu} aria-label="Toggle menu">
 					{#if mobileMenuOpen}
 						<X class="h-6 w-6" />
@@ -106,32 +78,6 @@
 							{item.name}
 						</button>
 					{/each}
-					<div class="border-border border-t pt-4 pb-2">
-						{#if user}
-							<!-- <p class="text-muted-foreground px-3 py-2 text-sm">
-								Logged in as: {user.username}
-							</p> -->
-							<button
-								on:click={handleLogout}
-								class="text-muted-foreground hover:text-foreground block w-full rounded-md px-3 py-2 text-left text-base font-medium"
-							>
-								Logout
-							</button>
-						{:else}
-							<button
-								on:click={() => navigateTo('/login')}
-								class="text-muted-foreground hover:text-foreground block w-full rounded-md px-3 py-2 text-left text-base font-medium"
-							>
-								Login
-							</button>
-							<button
-								on:click={() => navigateTo('/register')}
-								class="text-muted-foreground hover:text-foreground block w-full rounded-md px-3 py-2 text-left text-base font-medium"
-							>
-								Register
-							</button>
-						{/if}
-					</div>
 				</div>
 			</div>
 		{/if}

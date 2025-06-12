@@ -1,12 +1,7 @@
 // src/app.d.ts
 declare global {
   namespace App {
-    interface Locals {
-      user: {
-        id: string;
-        username: string;
-      } | null;
-    }
+    interface Locals {}
     // interface PageData {}
     // interface Error {}
     // interface Platform {}
