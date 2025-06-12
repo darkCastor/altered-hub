@@ -1128,6 +1128,222 @@ export class EffectProcessor {
 		return [];
 	}
 
+	public resolveTargetsForDependency(step: IEffectStep, sourceObjectId: string, triggerPayload?: any): string[] {
+		let targetObjectIds: string[] = [];
+		const sourceObject = this.gsm.getObject(sourceObjectId);
+
+		if (!sourceObject) {
+			console.warn(`[EffectProcessor.resolveTargetsForDependency] Source object ${sourceObjectId} not found.`);
+			return [];
+		}
+
+		if (!step.targets) {
+			return [];
+		}
+
+		const targetSpec = step.targets;
+
+		if (typeof targetSpec === 'string') {
+			switch (targetSpec.toLowerCase()) {
+				case 'self':
+					targetObjectIds.push(sourceObjectId);
+					break;
+				case 'controller':
+					targetObjectIds.push(sourceObject.controllerId);
+					break;
+				case 'opponent':
+					const controllerId = sourceObject.controllerId;
+					const opponents = this.gsm.getPlayerIds().filter(pid => pid !== controllerId);
+					targetObjectIds.push(...opponents);
+					break;
+				default:
+					// targetSpec could be an objectId or a playerId
+					if (this.gsm.getObject(targetSpec)) {
+						targetObjectIds.push(targetSpec);
+					} else if (this.gsm.getPlayer(targetSpec)) {
+						targetObjectIds.push(targetSpec);
+					} else {
+						// It might be a more abstract concept or a pre-resolved ID not currently in game state.
+						// For dependency resolution, we might still want to pass it along if it's not clearly an invalid format.
+						// However, to be safer and align with resolveTargetsForStep, let's only add if known.
+						// Or, if the intention is that it *could* be an ID that will exist later, we might add it.
+						// For now, strict check:
+						// console.warn(`[EffectProcessor.resolveTargetsForDependency] Unresolved string target: ${targetSpec}`);
+						// Relaxed approach for dependencies: assume it's a valid ID string for now.
+						targetObjectIds.push(targetSpec);
+					}
+					break;
+			}
+		} else if (Array.isArray(targetSpec)) {
+			targetSpec.forEach(item => {
+				if (typeof item === 'string') {
+					targetObjectIds.push(item);
+				} else if (this.isTargetGameObject(item)) {
+					targetObjectIds.push(item.objectId);
+				} else if (typeof item === 'object' && item !== null && 'objectId' in item && typeof (item as any).objectId === 'string') {
+					targetObjectIds.push((item as any).objectId); // Handles cases where it's an object with objectId
+				} else if (typeof item === 'object' && item !== null && 'id' in item && typeof (item as any).id === 'string') {
+					targetObjectIds.push((item as any).id); // Handles cases where it's an object with id (e.g. player-like)
+				} else {
+					console.warn(`[EffectProcessor.resolveTargetsForDependency] Non-string/non-identifiable element in targetSpec array: ${JSON.stringify(item)}`);
+				}
+			});
+		} else if (typeof targetSpec === 'object' && targetSpec !== null && (targetSpec as any).type) {
+			const spec = targetSpec as any;
+			switch (spec.type.toLowerCase()) {
+				case 'fromtrigger':
+				case 'from_trigger':
+					if (spec.path && triggerPayload) {
+						const value = this.getValueFromPath(triggerPayload, spec.path);
+						if (value === undefined) {
+							console.warn(`[EffectProcessor.resolveTargetsForDependency] Path '${spec.path}' yielded undefined from triggerPayload.`);
+						} else {
+							const items = Array.isArray(value) ? value : [value];
+							items.forEach(item => {
+								if (typeof item === 'string') {
+									targetObjectIds.push(item);
+								} else if (this.isTargetGameObject(item)) {
+									targetObjectIds.push(item.objectId);
+								} else if (typeof item === 'object' && item !== null && 'id' in item && typeof item.id === 'string') {
+									targetObjectIds.push(item.id); // Handle generic objects with an 'id' property
+								} else {
+									console.warn(`[EffectProcessor.resolveTargetsForDependency] from_trigger: Unhandled item type from path ${spec.path}:`, item);
+								}
+							});
+						}
+					} else {
+						console.warn('[EffectProcessor.resolveTargetsForDependency] "from_trigger" target type requires a path and triggerPayload.');
+					}
+					break;
+				case 'objects_matching_criteria':
+				case 'select':
+					const criteria = spec.criteria;
+					if (!criteria) {
+						console.warn(`[EffectProcessor.resolveTargetsForDependency] 'select' target type missing criteria.`);
+						break;
+					}
+
+					let candidateObjects: IGameObject[] = [];
+					// Zone-based pre-filtering
+					if (criteria.zone && criteria.zone !== ZoneIdentifier.Any) {
+						let zonesToScan: IZone[] = [];
+						const zoneString = criteria.zone as string; // Could be ZoneIdentifier or "self_hand", "opponent_discard" etc.
+
+						if (Object.values(ZoneIdentifier).includes(zoneString as ZoneIdentifier)) {
+							// Direct ZoneIdentifier provided (e.g., "expedition", "hand")
+							// This needs a context player. Default to sourceObject's controller or all players for shared zones.
+							let playerContextIds: string[] = [sourceObject.controllerId];
+							if ([ZoneIdentifier.Expedition, ZoneIdentifier.Limbo, ZoneIdentifier.Adventure].includes(zoneString as ZoneIdentifier)) {
+								playerContextIds = this.gsm.getPlayerIds(); // Shared zones apply to all players
+							} else if (criteria.controller === 'opponent') {
+								playerContextIds = this.gsm.getPlayerIds().filter(pid => pid !== sourceObject.controllerId);
+							} else if (typeof criteria.controller === 'string' && criteria.controller !== 'self') {
+								playerContextIds = [criteria.controller];
+							}
+
+							for (const pId of playerContextIds) {
+								const zone = this.findZoneByType(pId, zoneString as ZoneIdentifier);
+								if (zone) zonesToScan.push(zone);
+							}
+						} else {
+							// String codes like "self_hero_expedition", "source_expeditions", "opponent_discard"
+							let expeditionContexts: { playerId: string, type: 'hero' | 'companion' }[] = [];
+							if (zoneString === 'source_expeditions') {
+								expeditionContexts = this._getEffectiveExpeditionContexts(sourceObject, 'self');
+							} else if (zoneString === 'opposing_expeditions_to_source') {
+								expeditionContexts = this._getEffectiveExpeditionContexts(sourceObject, 'opponent');
+							} else if (zoneString === 'all_expeditions') {
+								this.gsm.getPlayerIds().forEach(pid => {
+									expeditionContexts.push({ playerId: pid, type: 'hero' });
+									expeditionContexts.push({ playerId: pid, type: 'companion' });
+								});
+							} else if (zoneString === 'self_hero_expedition') {
+								expeditionContexts.push({ playerId: sourceObject.controllerId, type: 'hero' });
+							} else if (zoneString === 'self_companion_expedition') {
+								expeditionContexts.push({ playerId: sourceObject.controllerId, type: 'companion' });
+							}
+							// ... (add more specific string zone parsers as in resolveTargetsForStep if needed)
+
+							if (expeditionContexts.length > 0) {
+								const expeditionZone = this.gsm.state.sharedZones.expedition;
+								// Filter objects within the main expedition zone based on these contexts
+								const objsInRelevantExpeditions = expeditionZone.getAll().filter(obj => {
+									return expeditionContexts.some(ctx => obj.expeditionAssignment?.playerId === ctx.playerId && obj.expeditionAssignment?.type === ctx.type);
+								});
+								candidateObjects.push(...objsInRelevantExpeditions);
+							} else {
+								// Handle non-expedition specific zones like 'controller_hand', 'opponent_discard_pile'
+								let playerIdsForZone: string[] = [];
+								let zoneType: ZoneIdentifier | null = null;
+
+								if (zoneString.startsWith('controller_')) {
+									playerIdsForZone.push(sourceObject.controllerId);
+									zoneType = zoneString.replace('controller_', '') as ZoneIdentifier;
+								} else if (zoneString.startsWith('opponent_')) {
+									playerIdsForZone.push(...this.gsm.getPlayerIds().filter(pid => pid !== sourceObject.controllerId));
+									zoneType = zoneString.replace('opponent_', '') as ZoneIdentifier;
+								}
+								// Add more cases like 'player_hand' if criteria can specify a player ID directly for the zone
+
+								if (zoneType && Object.values(ZoneIdentifier).includes(zoneType)) {
+									for (const pId of playerIdsForZone) {
+										const zone = this.findZoneByType(pId, zoneType);
+										if (zone) zonesToScan.push(zone);
+									}
+								}
+							}
+						}
+						zonesToScan = [...new Set(zonesToScan)]; // Deduplicate zones
+						for (const zone of zonesToScan) {
+							candidateObjects.push(...zone.getAll());
+						}
+						// Deduplicate objects that might be in multiple scanned zones (though typically not the case for well-defined zones)
+						candidateObjects = [...new Set(candidateObjects)];
+
+					} else if (criteria.zone === ZoneIdentifier.Any || !criteria.zone) {
+						// If zone is 'any' or not specified, consider all objects.
+						candidateObjects.push(...this.gsm.getAllPlayObjects());
+					}
+					// Deduplicate objects after gathering from all sources
+					candidateObjects = Array.from(new Map(candidateObjects.map(obj => [obj.objectId, obj])).values());
+
+
+					// Filter by other criteria
+					const filteredObjects = candidateObjects.filter(obj => {
+						if (criteria.cardType && obj.type !== criteria.cardType) return false;
+						if (criteria.controller === 'self' && obj.controllerId !== sourceObject.controllerId) return false;
+						if (criteria.controller === 'opponent' && obj.controllerId === sourceObject.controllerId) return false;
+						if (typeof criteria.controller === 'string' && !['self', 'opponent'].includes(criteria.controller) && obj.controllerId !== criteria.controller) return false;
+
+						if (criteria.keywords && criteria.keywords.some(kw => !obj.keywords.includes(kw))) return false;
+						if (criteria.notKeywords && criteria.notKeywords.some(kw => obj.keywords.includes(kw))) return false;
+
+						// Stats checks (example, expand as needed)
+						if (criteria.stats) {
+							for (const statKey in criteria.stats) {
+								const requiredStat = criteria.stats[statKey];
+								const actualStat = obj.currentCharacteristics.statistics?.[statKey];
+								if (actualStat === undefined || actualStat < requiredStat) return false;
+							}
+						}
+						// Could add more checks: name, definitionId, isGigantic, etc.
+						return true;
+					});
+
+					targetObjectIds.push(...filteredObjects.map(obj => obj.objectId));
+					break;
+				default:
+					console.warn(`[EffectProcessor.resolveTargetsForDependency] Unknown target object type: ${spec.type}`);
+					break;
+			}
+		} else {
+			console.warn(`[EffectProcessor.resolveTargetsForDependency] Unhandled targetSpec type: ${typeof targetSpec}`, targetSpec);
+		}
+
+		// Ensure no duplicate IDs
+		return [...new Set(targetObjectIds)];
+	}
+
 	private findZoneByType(playerIdForContext: string, zoneType: ZoneIdentifier): IZone | null {
 		const player = this.gsm.getPlayer(playerIdForContext);
 		switch (zoneType) {
