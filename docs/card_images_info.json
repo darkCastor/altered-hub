@@ -1,0 +1,273 @@
+{
+  "altered_card_images": {
+    "terrain_cards": [
+      {
+        "filename": "terrain_clouds_air.jpg",
+        "original_filename": "img12.jpg",
+        "card_type": "Region",
+        "sub_type": "Terrain",
+        "function": "Air/Sky terrain region with swirling clouds and atmospheric effects",
+        "description": "Depicts floating islands with green vegetation surrounded by pink and blue clouds",
+        "terrain_types": ["Air"],
+        "visual_elements": [
+          "floating_islands",
+          "swirling_clouds",
+          "atmospheric_effects",
+          "pink_blue_clouds",
+          "green_vegetation"
+        ]
+      },
+      {
+        "filename": "terrain_clouds_air_alt.jpg",
+        "original_filename": "img22.jpg",
+        "card_type": "Region",
+        "sub_type": "Terrain",
+        "function": "Alternative view of Air/Sky terrain region",
+        "description": "Similar aerial terrain with floating islands and atmospheric clouds",
+        "terrain_types": ["Air"],
+        "visual_elements": [
+          "floating_islands",
+          "atmospheric_clouds",
+          "sky_effects"
+        ]
+      },
+      {
+        "filename": "terrain_clouds_different_view.jpg",
+        "original_filename": "img25.jpg", 
+        "card_type": "Region",
+        "sub_type": "Terrain",
+        "function": "Different perspective of aerial terrain",
+        "description": "Shows aerial terrain from a different angle with cloud formations",
+        "terrain_types": ["Air"],
+        "visual_elements": [
+          "aerial_perspective",
+          "cloud_formations",
+          "atmospheric_effects"
+        ]
+      },
+      {
+        "filename": "terrain_dual_forest_water.jpg",
+        "original_filename": "img13.jpg",
+        "card_type": "Region", 
+        "sub_type": "Terrain",
+        "function": "Dual terrain combining Forest and Water elements",
+        "description": "Split terrain showing forested cliffs above and ocean waters below",
+        "terrain_types": ["Forest", "Water"],
+        "visual_elements": [
+          "forested_cliffs",
+          "ocean_waters",
+          "coastal_environment",
+          "split_terrain_design"
+        ]
+      },
+      {
+        "filename": "terrain_dual_water_land.jpg",
+        "original_filename": "img16.jpg",
+        "card_type": "Region",
+        "sub_type": "Terrain", 
+        "function": "Dual terrain with water and land areas",
+        "description": "Shows aquatic environment above rocky/desert terrain below",
+        "terrain_types": ["Water", "Land"],
+        "visual_elements": [
+          "aquatic_zone",
+          "rocky_terrain", 
+          "desert_environment",
+          "whale_creature",
+          "split_design"
+        ]
+      },
+      {
+        "filename": "terrain_dual_glacier_forest.jpg",
+        "original_filename": "img18.jpg",
+        "card_type": "Region",
+        "sub_type": "Terrain",
+        "function": "Dual terrain combining Glacier and Forest biomes",
+        "description": "Split between icy mountains/glaciers and green forested areas",
+        "terrain_types": ["Glacier", "Forest"],
+        "visual_elements": [
+          "glacial_mountains",
+          "forested_areas",
+          "ice_formations",
+          "green_vegetation",
+          "biome_contrast"
+        ]
+      }
+    ],
+    "card_templates": [
+      {
+        "filename": "hero_card_template.jpg",
+        "original_filename": "img17.jpg",
+        "card_type": "Hero",
+        "sub_type": null,
+        "function": "Template showing Hero card layout and design",
+        "description": "Shows the HÉROS card type template with fantasy cityscape artwork",
+        "visual_elements": [
+          "hero_label",
+          "fantasy_cityscape",
+          "card_frame_design",
+          "architectural_elements"
+        ]
+      },
+      {
+        "filename": "companion_card_template.jpg", 
+        "original_filename": "img19.jpg",
+        "card_type": "Character",
+        "sub_type": "Companion",
+        "function": "Template showing Companion card layout",
+        "description": "Shows the COMPAGNON card type with volcanic/fire themed artwork",
+        "visual_elements": [
+          "companion_label",
+          "volcanic_theme",
+          "fire_effects",
+          "character_artwork"
+        ]
+      }
+    ],
+    "reference_materials": [
+      {
+        "filename": "reference_game_phases.jpg",
+        "original_filename": "img14.jpg",
+        "card_type": "Reference",
+        "sub_type": "Game Rules",
+        "function": "Reference card showing game phases sequence",
+        "description": "PHASES DU JOUR - Shows the 5 game phases: Matin, Midi, Après-midi, Crépuscule, Nuit",
+        "content": {
+          "phases": [
+            "Phase 1: Matin (Morning)",
+            "Phase 2: Midi (Noon)", 
+            "Phase 3: Après-midi (Afternoon)",
+            "Phase 4: Crépuscule (Dusk)",
+            "Phase 5: Nuit (Night)"
+          ]
+        }
+      },
+      {
+        "filename": "reference_game_phases_alt.jpg",
+        "original_filename": "img24.jpg", 
+        "card_type": "Reference",
+        "sub_type": "Game Rules",
+        "function": "Alternative version of game phases reference",
+        "description": "Another version of the game phases reference card",
+        "content": {
+          "phases": [
+            "Phase 1: Matin (Morning)",
+            "Phase 2: Midi (Noon)",
+            "Phase 3: Après-midi (Afternoon)", 
+            "Phase 4: Crépuscule (Dusk)",
+            "Phase 5: Nuit (Night)"
+          ]
+        }
+      },
+      {
+        "filename": "reference_game_icons.jpg",
+        "original_filename": "img15.jpg",
+        "card_type": "Reference",
+        "sub_type": "Game Icons",
+        "function": "Reference showing game icons and their meanings",
+        "description": "ICÔNES - Shows various game icons and status effects including Épuiser, Fugace, Ancré, Endormi",
+        "content": {
+          "icons": [
+            "Play from anywhere",
+            "Play from hand", 
+            "Play from reserve",
+            "Épuiser (Exhaust)",
+            "Fugace (Fleeting)",
+            "Ancré (Anchored)",
+            "Endormi (Asleep)"
+          ]
+        }
+      },
+      {
+        "filename": "reference_game_icons_alt.jpg",
+        "original_filename": "img27.jpg",
+        "card_type": "Reference",
+        "sub_type": "Game Icons", 
+        "function": "Alternative game icons reference",
+        "description": "Another version of the game icons reference card",
+        "content": {
+          "icons": [
+            "Play from anywhere",
+            "Play from hand",
+            "Play from reserve",
+            "Épuiser (Exhaust)",
+            "Fugace (Fleeting)", 
+            "Ancré (Anchored)",
+            "Endormi (Asleep)"
+          ]
+        }
+      },
+      {
+        "filename": "reference_game_symbols.jpg",
+        "original_filename": "img4 (1).jpg",
+        "card_type": "Reference",
+        "sub_type": "Game Symbols",
+        "function": "Reference showing various game symbols and icons",
+        "description": "Collection of game symbols including status effects, cost symbols, and faction icons",
+        "visual_elements": [
+          "status_effect_icons",
+          "cost_symbols",
+          "faction_symbols",
+          "gameplay_icons"
+        ]
+      }
+    ],
+    "game_overview": [
+      {
+        "filename": "game_board_overview.jpg", 
+        "original_filename": "img23.jpg",
+        "card_type": "Reference",
+        "sub_type": "Game Board",
+        "function": "Overview of the game board or play area",
+        "description": "Shows the game board layout with various zones and play areas",
+        "visual_elements": [
+          "game_zones",
+          "play_areas", 
+          "board_layout"
+        ]
+      },
+      {
+        "filename": "world_map_factions.jpg",
+        "original_filename": "img26.jpg", 
+        "card_type": "Reference",
+        "sub_type": "World Map",
+        "function": "World map showing different faction territories",
+        "description": "Overhead view of the game world with faction symbols and territories marked",
+        "visual_elements": [
+          "world_map",
+          "faction_territories",
+          "faction_symbols",
+          "geographical_features"
+        ]
+      }
+    ]
+  },
+  "metadata": {
+    "game": "Altered TCG",
+    "total_images": 15,
+    "renamed_images": 15,
+    "card_types_found": [
+      "Region",
+      "Hero", 
+      "Character",
+      "Reference"
+    ],
+    "sub_types_found": [
+      "Terrain",
+      "Companion",
+      "Game Rules",
+      "Game Icons", 
+      "Game Symbols",
+      "Game Board",
+      "World Map"
+    ],
+    "terrain_types": [
+      "Air",
+      "Forest", 
+      "Water",
+      "Land",
+      "Glacier"
+    ],
+    "rename_date": "2025-01-06",
+    "source": "Altered Complete Rules 3.0"
+  }
+}
