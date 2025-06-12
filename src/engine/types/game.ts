@@ -51,11 +51,11 @@ export interface IPlayer {
 		reserveZone: IZone;
 		landmarkZone: IZone;
 		heroZone: IZone;
-		expeditionZone: IZone;
+		// expeditionZone: IZone; // Removed for shared expedition zone
 		limboZone: IZone; // Shared reference to game's limbo zone for convenience
 		hand: IZone; // Alias for handZone for test compatibility
 		reserve: IZone; // Alias for reserveZone for test compatibility
-		expedition: IZone; // Alias for expeditionZone for test compatibility
+		// expedition: IZone; // Alias for expeditionZone for test compatibility - Removed
 		discardPile: IZone; // Alias for discardPileZone for test compatibility
 	};
 	heroExpedition: IExpeditionState;

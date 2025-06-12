@@ -36,8 +36,9 @@ export interface IGameObject {
 
 	// Custom property to track which expedition a non-Gigantic entity is assigned to.
 	// This would ideally be set by CardPlaySystem when the entity enters an expedition.
-	expeditionAssignment?: 'hero' | 'companion';
+	expeditionAssignment?: { playerId: string; type: 'Hero' | 'Companion' };
 	terrains?: string[]; // Optional field for region-like entities that are GameObjects
+	abilityActivationsToday?: Map<string, number>; // Key: abilityId, Value: count
 }
 
 // Rule 2.2.1.g, 6.3.g

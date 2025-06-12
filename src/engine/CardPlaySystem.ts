@@ -236,15 +236,70 @@ export class CardPlaySystem {
 		console.log(`[CardPlaySystem] TODO: Implement Pay Costs for ${limboCardObject.name}.`);
 
 		// TODO: Rule 5.1.2.i: Resolve Card (Move to final zone, process effects)
-		console.log(`[CardPlaySystem] TODO: Implement Resolve Card for ${limboCardObject.name}.`);
+		// Placeholder for card resolution logic
+		// This is where the card would be moved from Limbo to its final zone (e.g., expedition, landmark)
+		// and its effects (if any) would be processed.
+
+		let finalEntity: IGameObject | null = limboCardObject; // Assume it might stay as limboCardObject if not moved
+
+		// Example: Moving a Character or eligible Permanent to an Expedition Zone
+		if (
+			(cardDefinition.type === CardType.Character ||
+				(cardDefinition.type === CardType.Permanent && cardDefinition.permanentZoneType === PermanentZoneType.Expedition)) && // Assuming Permanents that go to expedition have a specific type
+			options.expeditionChoice // Ensure expeditionChoice is provided for such cards
+		) {
+			const expeditionZone = this.gsm.state.sharedZones.expedition;
+			const resolvedEntity = this.gsm.moveEntity(
+				limboCardObject.id,
+				limboZone,
+				expeditionZone,
+				playerId
+			) as IGameObject | null;
+
+			if (resolvedEntity) {
+				resolvedEntity.expeditionAssignment = {
+					playerId: playerId,
+					type: options.expeditionChoice === 'hero' ? 'Hero' : 'Companion'
+				};
+				console.log(
+					`[CardPlaySystem] Assigned ${resolvedEntity.name} to ${playerId}'s ${options.expeditionChoice} expedition.`
+				);
+				finalEntity = resolvedEntity;
+			} else {
+				console.error(
+					`[CardPlaySystem] Failed to move ${cardDefinition.name} to expedition zone.`
+				);
+				// Failure to move to final zone might trigger other error handling
+			}
+		} else if (cardDefinition.type === CardType.Spell) {
+			// Spell resolution logic would go here
+			// Spells typically go to discard after resolution (unless they have special properties)
+			console.log(`[CardPlaySystem] TODO: Resolve Spell ${cardDefinition.name}.`);
+			// Example: move to discard after effect processing (if applicable)
+			// const discardPile = this.gsm.getPlayer(playerId)?.zones.discardPileZone;
+			// if (discardPile) {
+			// 	this.gsm.moveEntity(limboCardObject.id, limboZone, discardPile, playerId);
+			// }
+		} else if (cardDefinition.type === CardType.Permanent && cardDefinition.permanentZoneType === PermanentZoneType.Landmark) {
+			// Landmark resolution logic
+			console.log(`[CardPlaySystem] TODO: Resolve Landmark ${cardDefinition.name}.`);
+			// const landmarkZone = this.gsm.getPlayer(playerId)?.zones.landmarkZone;
+			// if (landmarkZone) {
+			//  finalEntity = this.gsm.moveEntity(limboCardObject.id, limboZone, landmarkZone, playerId) as IGameObject | null;
+			// }
+		}
+		// Add more conditions for other card types and their final destinations as needed
+
+		console.log(`[CardPlaySystem] Card ${cardDefinition.name} resolution process completed (actual effects might be asynchronous).`);
+
 
 		// For now, publish a generic event. This will be refined once costs/resolution are added.
 		this.eventBus.publish('cardPlayed', {
 			playerId,
-			cardId: limboCardObject.id, // Using limbo object ID
+			cardId: finalEntity ? finalEntity.id : limboCardObject.id, // Use final entity ID if available
 			definitionId: cardDefinition.id,
 			options,
-			message: `${cardDefinition.name} play process initiated and moved to Limbo.`
+			message: `${cardDefinition.name} play process initiated. Current location: ${finalEntity ? this.gsm.findZoneOfObject(finalEntity.id)?.id : 'Limbo'}`
 		});
 	}
 }

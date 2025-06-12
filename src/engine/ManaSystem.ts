@@ -252,31 +252,38 @@ export class ManaSystem {
 		}
 
 		// Note: entityId for moveEntity is cardId itself, as findById ensures it's the key in the zone.
-		// const entityId = isGameObject(handCard) ? handCard.objectId : handCard.instanceId; // This is just cardId
 
 		// Move card to mana zone via GameStateManager
-		try {
-			// The cardId IS the entityId (key) for the handZone.
-			this.gsm.moveEntity(cardId, player.zones.handZone, player.zones.manaZone, playerId);
+		const movedEntity = this.gsm.moveEntity(cardId, player.zones.handZone, player.zones.manaZone, playerId);
 
-			// Apply Rule 3.2.9.b and 3.2.9.c to the moved card
-			// After moveEntity, a new object is in the mana zone. We need to find it.
-			// The original handCard's definitionId is reliable for finding the new entity.
-			// The entity moved will have a new objectId if it became an IGameObject.
-			// We use the definitionId of the original handCard to find it in the mana zone.
-			const newCardInManaZone = player.zones.manaZone.getAll().find(entity => entity.definitionId === handCard.definitionId);
+		if (movedEntity && isGameObject(movedEntity)) {
+			// Ensure it's the one in the mana zone by using its objectId.
+			// GameStateManager.moveEntity is expected to return the actual IGameObject instance
+			// that was added to the destination zone.
+			const cardInManaZone = player.zones.manaZone.findById(movedEntity.objectId) as IGameObject | undefined;
 
-			if (isGameObject(newCardInManaZone)) {
-				newCardInManaZone.faceDown = true; // Rule 3.2.9.b
-				newCardInManaZone.statuses.add(StatusType.Exhausted); // Rule 3.2.9.b
-				newCardInManaZone.type = CardType.ManaOrb; // Rule 3.2.9.c
+			// Double check it's the same object and it's still an IGameObject.
+			// This also confirms it's correctly in the manaZone.
+			if (cardInManaZone && cardInManaZone.objectId === movedEntity.objectId) {
+				 cardInManaZone.faceDown = true; // Rule 3.2.9.b
+				 cardInManaZone.statuses.add(StatusType.Exhausted); // Rule 3.2.9.b
+				 cardInManaZone.type = CardType.ManaOrb; // Rule 3.2.9.c
+				 console.log(`[ManaSystem.addCardToMana] Card ${cardInManaZone.name} (ID: ${cardInManaZone.objectId}) successfully set as Mana Orb.`);
+				 return true;
 			} else {
-				// This case should ideally not happen if moveEntity correctly creates an IGameObject for visible zones like Mana.
-				console.warn(`[ManaSystem.addCardToMana] Card ${handCard.definitionId} in mana zone is not an IGameObject.`);
+				 console.error(`[ManaSystem.addCardToMana] Moved entity ${movedEntity.objectId} (original card ID: ${cardId}) not found in mana zone with the same objectId or is not an IGameObject after move.`);
+				 // This situation indicates a deeper issue if moveEntity's return value isn't reliable
+				 // or if the object was transformed/removed immediately after being moved.
+				 return false;
 			}
-			return true;
-		} catch (error) {
-			console.error('Failed to add card to mana:', error);
+		} else if (movedEntity === null) {
+			// This case means the entity ceased to exist (e.g., a token, though not expected from hand to mana).
+			console.error(`[ManaSystem.addCardToMana] Card ${cardId} ceased to exist (e.g. token) while moving to mana. This is unexpected.`);
+			return false;
+		} else {
+			// This case covers scenarios where moveEntity might have failed silently (returning undefined, though it should throw)
+			// or returned a non-IGameObject (e.g., ICardInstance, if the mana zone was hidden, which it isn't).
+			console.error(`[ManaSystem.addCardToMana] Failed to move card ${cardId} to mana zone, or moved entity is not an IGameObject as expected.`);
 			return false;
 		}
 	}

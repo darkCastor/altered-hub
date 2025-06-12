@@ -1,8 +1,10 @@
 import { describe, test, expect, beforeEach } from 'bun:test';
 import { GameStateManager } from '../../src/engine/GameStateManager';
 import { EventBus } from '../../src/engine/EventBus';
-import { GamePhase, ZoneIdentifier, CardType, StatusType } from '../../src/engine/types/enums';
+import { GamePhase, ZoneIdentifier, CardType, StatusType, CounterType } from '../../src/engine/types/enums';
 import type { ICardDefinition } from '../../src/engine/types/cards';
+import type { IGameObject } from '../../src/engine/types/objects';
+import { isGameObject } from '../../src/engine/types/objects';
 
 /**
  * Unit tests for GameStateManager - Rules 4.1 (Game Setup) and core game state management
@@ -41,13 +43,35 @@ describe('GameStateManager - Rule Compliance Tests', () => {
 				abilities: [],
 				rarity: 'Common',
 				version: '1.0'
+			},
+			// Expedition Test Characters
+			{
+				id: 'char-p1-hero', name: 'P1 Hero Char', type: CardType.Character, subTypes: [], faction: 'Neutral',
+				statistics: { forest: 1, mountain: 0, water: 0 }, abilities: [], rarity: 'Common', version: '1.0',
+				handCost: { total: 1, forest: 0, mountain: 0, water: 0 }, reserveCost: { total: 1, forest: 0, mountain: 0, water: 0 },
+			},
+			{
+				id: 'char-p1-comp', name: 'P1 Comp Char', type: CardType.Character, subTypes: [], faction: 'Neutral',
+				statistics: { forest: 0, mountain: 1, water: 0 }, abilities: [], rarity: 'Common', version: '1.0',
+				handCost: { total: 1, forest: 0, mountain: 0, water: 0 }, reserveCost: { total: 1, forest: 0, mountain: 0, water: 0 },
+			},
+			{
+				id: 'char-p2-hero', name: 'P2 Hero Char', type: CardType.Character, subTypes: [], faction: 'Neutral',
+				statistics: { forest: 0, mountain: 0, water: 1 }, abilities: [], rarity: 'Common', version: '1.0',
+				handCost: { total: 1, forest: 0, mountain: 0, water: 0 }, reserveCost: { total: 1, forest: 0, mountain: 0, water: 0 },
+			},
+			{
+				id: 'char-p1-hero-boost', name: 'P1 Hero Boost Char', type: CardType.Character, subTypes: [], faction: 'Neutral',
+				statistics: { forest: 1, mountain: 1, water: 0 }, abilities: [], rarity: 'Common', version: '1.0',
+				handCost: { total: 1, forest: 0, mountain: 0, water: 0 }, reserveCost: { total: 1, forest: 0, mountain: 0, water: 0 },
 			}
 		];
 
 		// Add enough cards for deck construction (need at least 6 for drawing)
-		for (let i = 2; i <= 10; i++) {
+		// Ensure we have enough unique IDs if we add more specific test cards above.
+		for (let i = mockCardDefinitions.length; i <= 10; i++) { // Start i from current length
 			mockCardDefinitions.push({
-				id: `card-${i}`,
+				id: `spell-card-${i}`, // Differentiate from other test cards
 				name: `Test Card ${i}`,
 				type: CardType.Spell,
 				subTypes: [],
@@ -73,21 +97,26 @@ describe('GameStateManager - Rule Compliance Tests', () => {
 			expect(player2).toBeDefined();
 
 			// Rule 4.1.a: Players must have all required zones
-			const requiredZones = [
+			// ExpeditionZone is now shared, so not checking per player here.
+			const requiredPlayerZones = [
 				'deckZone',
 				'handZone',
 				'discardPileZone',
-				'expeditionZone',
+				// 'expeditionZone', // Removed: now shared
 				'manaZone',
 				'reserveZone',
 				'landmarkZone',
 				'heroZone'
 			];
 
-			requiredZones.forEach((zoneName) => {
+			requiredPlayerZones.forEach((zoneName) => {
 				expect(player1!.zones[zoneName as keyof typeof player1.zones]).toBeDefined();
 				expect(player2!.zones[zoneName as keyof typeof player2.zones]).toBeDefined();
 			});
+
+			// Check for shared expedition zone
+			expect(gameStateManager.state.sharedZones.expedition).toBeDefined();
+			expect(gameStateManager.state.sharedZones.expedition.id).toBe('shared-expedition');
 		});
 
 		test('Rule 4.1.b: Adventure zone should be initialized with Hero and Companion regions', async () => {
@@ -290,6 +319,210 @@ describe('GameStateManager - Rule Compliance Tests', () => {
 			await expect(emptyGameState.initializeGame()).rejects.toThrow(
 				'No card definitions available'
 			);
+		});
+	});
+
+	describe('Shared Expedition Zone Logic', () => {
+		describe('calculateExpeditionStats', () => {
+			let p1CharHero: IGameObject;
+			let p1CharComp: IGameObject;
+			let p2CharHero: IGameObject;
+			let p1CharHeroBoost: IGameObject;
+
+			beforeEach(async () => {
+				await gameStateManager.initializeGame(); // Initialize game to have players and zones ready
+
+				p1CharHero = gameStateManager.objectFactory.createCard('char-p1-hero', 'player1');
+				p1CharComp = gameStateManager.objectFactory.createCard('char-p1-comp', 'player1');
+				p2CharHero = gameStateManager.objectFactory.createCard('char-p2-hero', 'player2');
+				p1CharHeroBoost = gameStateManager.objectFactory.createCard('char-p1-hero-boost', 'player1');
+
+				// Assign to expeditions
+				p1CharHero.expeditionAssignment = { playerId: 'player1', type: 'Hero' };
+				p1CharComp.expeditionAssignment = { playerId: 'player1', type: 'Companion' };
+				p2CharHero.expeditionAssignment = { playerId: 'player2', type: 'Hero' };
+				p1CharHeroBoost.expeditionAssignment = { playerId: 'player1', type: 'Hero' };
+				p1CharHeroBoost.counters.set(CounterType.Boost, 1);
+
+
+				// Add to shared expedition zone
+				const sharedExpeditionZone = gameStateManager.state.sharedZones.expedition;
+				sharedExpeditionZone.add(p1CharHero);
+				sharedExpeditionZone.add(p1CharComp);
+				sharedExpeditionZone.add(p2CharHero);
+				sharedExpeditionZone.add(p1CharHeroBoost);
+			});
+
+			test('should correctly calculate stats for Player 1 Hero expedition', () => {
+				const stats = gameStateManager.calculateExpeditionStats('player1', 'hero');
+				// p1CharHero (F:1) + p1CharHeroBoost (F:1 + Boost:1 = F:2, M:1 + Boost:1 = M:2)
+				// Expected: Forest: 1 (p1CharHero) + 2 (p1CharHeroBoost) = 3
+				//           Mountain: 0 (p1CharHero) + 2 (p1CharHeroBoost) = 2
+				//           Water: 0
+				expect(stats.forest).toBe(1 + 2); // p1CharHero.F + p1CharHeroBoost.F + p1CharHeroBoost.Boost
+				expect(stats.mountain).toBe(0 + 2); // p1CharHero.M + p1CharHeroBoost.M + p1CharHeroBoost.Boost
+				expect(stats.water).toBe(0);
+			});
+
+			test('should correctly calculate stats for Player 1 Companion expedition', () => {
+				const stats = gameStateManager.calculateExpeditionStats('player1', 'companion');
+				// p1CharComp (M:1)
+				expect(stats.forest).toBe(0);
+				expect(stats.mountain).toBe(1);
+				expect(stats.water).toBe(0);
+			});
+
+			test('should correctly calculate stats for Player 2 Hero expedition', () => {
+				const stats = gameStateManager.calculateExpeditionStats('player2', 'hero');
+				// p2CharHero (W:1)
+				expect(stats.forest).toBe(0);
+				expect(stats.mountain).toBe(0);
+				expect(stats.water).toBe(1);
+			});
+
+			test('should return zero stats for an empty expedition (e.g., Player 2 Companion)', () => {
+				const stats = gameStateManager.calculateExpeditionStats('player2', 'companion');
+				expect(stats.forest).toBe(0);
+				expect(stats.mountain).toBe(0);
+				expect(stats.water).toBe(0);
+			});
+
+			test('should not count characters with Asleep status', () => {
+				p1CharHero.statuses.add(StatusType.Asleep);
+				const stats = gameStateManager.calculateExpeditionStats('player1', 'hero');
+				// p1CharHero is Asleep (F:1), p1CharHeroBoost (F:1 + Boost:1 = F:2, M:1 + Boost:1 = M:2)
+				// Expected: Forest: 0 (p1CharHero is asleep) + 2 (p1CharHeroBoost) = 2
+				//           Mountain: 0 (p1CharHero is asleep) + 2 (p1CharHeroBoost) = 2
+				expect(stats.forest).toBe(2);
+				expect(stats.mountain).toBe(2);
+				expect(stats.water).toBe(0);
+			});
+		});
+
+		describe('restPhase', () => {
+			let p1: ReturnType<GameStateManager['getPlayer']>;
+			let p2: ReturnType<GameStateManager['getPlayer']>;
+			let p1CharHero: IGameObject;
+			let p1CharComp: IGameObject;
+			let p2CharHero: IGameObject;
+			let sharedExpeditionZone: ReturnType<GameStateManager['state']['sharedZones']['expedition']>;
+
+			beforeEach(async () => {
+				await gameStateManager.initializeGame();
+				p1 = gameStateManager.getPlayer('player1')!;
+				p2 = gameStateManager.getPlayer('player2')!;
+				sharedExpeditionZone = gameStateManager.state.sharedZones.expedition;
+
+				// Clear expedition zone and player zones for clean test states
+				sharedExpeditionZone.clear();
+				p1.zones.reserveZone.clear();
+				p1.zones.discardPileZone.clear();
+				p2.zones.reserveZone.clear();
+
+				p1CharHero = gameStateManager.objectFactory.createCard('char-p1-hero', 'player1'); // Stats F:1
+				p1CharComp = gameStateManager.objectFactory.createCard('char-p1-comp', 'player1'); // Stats M:1
+				p2CharHero = gameStateManager.objectFactory.createCard('char-p2-hero', 'player2'); // Stats W:1
+
+				p1CharHero.expeditionAssignment = { playerId: 'player1', type: 'Hero' };
+				p1CharComp.expeditionAssignment = { playerId: 'player1', type: 'Companion' };
+				p2CharHero.expeditionAssignment = { playerId: 'player2', type: 'Hero' };
+
+				sharedExpeditionZone.add(p1CharHero);
+				sharedExpeditionZone.add(p1CharComp);
+				sharedExpeditionZone.add(p2CharHero);
+
+				// Reset movement flags
+				p1.heroExpedition.hasMoved = false;
+				p1.companionExpedition.hasMoved = false;
+				p2.heroExpedition.hasMoved = false;
+				p2.companionExpedition.hasMoved = false;
+			});
+
+			test('P1 Hero moved, P1 Comp not: p1CharHero to Reserve, p1CharComp stays', async () => {
+				p1.heroExpedition.hasMoved = true;
+				await gameStateManager.restPhase();
+
+				expect(p1.zones.reserveZone.findById(p1CharHero.objectId)).toBeDefined();
+				expect(sharedExpeditionZone.findById(p1CharHero.objectId)).toBeUndefined();
+				expect(sharedExpeditionZone.findById(p1CharComp.objectId)).toBeDefined();
+				expect(sharedExpeditionZone.findById(p2CharHero.objectId)).toBeDefined();
+			});
+
+			test('P1 Comp moved, P1 Hero not: p1CharComp to Reserve, p1CharHero stays', async () => {
+				p1.companionExpedition.hasMoved = true;
+				await gameStateManager.restPhase();
+
+				expect(p1.zones.reserveZone.findById(p1CharComp.objectId)).toBeDefined();
+				expect(sharedExpeditionZone.findById(p1CharComp.objectId)).toBeUndefined();
+				expect(sharedExpeditionZone.findById(p1CharHero.objectId)).toBeDefined();
+			});
+
+			test('Neither P1 expedition moved: Both P1 characters stay', async () => {
+				await gameStateManager.restPhase();
+				expect(sharedExpeditionZone.findById(p1CharHero.objectId)).toBeDefined();
+				expect(sharedExpeditionZone.findById(p1CharComp.objectId)).toBeDefined();
+			});
+
+			test('P2 Hero moved: p2CharHero to P2 Reserve', async () => {
+				p2.heroExpedition.hasMoved = true;
+				await gameStateManager.restPhase();
+
+				expect(p2.zones.reserveZone.findById(p2CharHero.objectId)).toBeDefined();
+				expect(sharedExpeditionZone.findById(p2CharHero.objectId)).toBeUndefined();
+				expect(sharedExpeditionZone.findById(p1CharHero.objectId)).toBeDefined(); // P1 chars unaffected
+			});
+
+			test('Gigantic entity (assigned to Hero) moves if Companion expedition moved', async () => {
+				p1CharHero.currentCharacteristics.isGigantic = true; // Make it gigantic
+				p1.companionExpedition.hasMoved = true; // Hero did not move, but companion did
+
+				await gameStateManager.restPhase();
+
+				expect(p1.zones.reserveZone.findById(p1CharHero.objectId)).toBeDefined();
+				expect(sharedExpeditionZone.findById(p1CharHero.objectId)).toBeUndefined();
+			});
+
+			test('Fleeting entity moves to Discard instead of Reserve', async () => {
+				p1CharHero.statuses.add(StatusType.Fleeting);
+				p1.heroExpedition.hasMoved = true;
+				await gameStateManager.restPhase();
+
+				expect(p1.zones.discardPileZone.findById(p1CharHero.objectId)).toBeDefined();
+				expect(p1.zones.reserveZone.findById(p1CharHero.objectId)).toBeUndefined();
+				expect(sharedExpeditionZone.findById(p1CharHero.objectId)).toBeUndefined();
+			});
+
+			test('Eternal entity stays in expedition even if its expedition moved', async () => {
+				// Mock isEternal to return true for p1CharHero
+				const originalIsEternal = gameStateManager.keywordHandler.isEternal;
+				gameStateManager.keywordHandler.isEternal = (obj) => obj.objectId === p1CharHero.objectId || originalIsEternal(obj);
+
+				p1.heroExpedition.hasMoved = true;
+				await gameStateManager.restPhase();
+
+				expect(sharedExpeditionZone.findById(p1CharHero.objectId)).toBeDefined();
+				expect(p1.zones.reserveZone.findById(p1CharHero.objectId)).toBeUndefined();
+
+				gameStateManager.keywordHandler.isEternal = originalIsEternal; // Restore original
+			});
+
+			test('Anchored entity stays in expedition even if its expedition moved', async () => {
+				p1CharHero.statuses.add(StatusType.Anchored);
+				p1.heroExpedition.hasMoved = true;
+				await gameStateManager.restPhase();
+
+				expect(sharedExpeditionZone.findById(p1CharHero.objectId)).toBeDefined();
+				expect(p1.zones.reserveZone.findById(p1CharHero.objectId)).toBeUndefined();
+			});
+
+			test('Asleep entity stays in expedition even if its expedition moved', async () => {
+				p1CharHero.statuses.add(StatusType.Asleep);
+				p1.heroExpedition.hasMoved = true;
+				await gameStateManager.restPhase();
+
+				expect(sharedExpeditionZone.findById(p1CharHero.objectId)).toBeDefined();
+				expect(p1.zones.reserveZone.findById(p1CharHero.objectId)).toBeUndefined();
+			});
 		});
 	});
 });

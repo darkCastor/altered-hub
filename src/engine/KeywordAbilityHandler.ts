@@ -120,30 +120,33 @@ export class KeywordAbilityHandler {
 	 */
 	public checkDefenderRestrictions(playerId: string): { hero: boolean; companion: boolean } {
 		const player = this.gsm.getPlayer(playerId);
-		if (!player) return { hero: true, companion: true };
+		if (!player) return { hero: true, companion: true }; // Should not happen if playerId is valid
 
-		const expeditionChars = player.zones.expeditionZone
-			.getAll()
-			.filter((e) => isGameObject(e) && e.type === CardType.Character) as IGameObject[];
+		const sharedExpeditionZone = this.gsm.state.sharedZones.expedition;
+		let defenderInHeroExpedition = false;
+		let defenderInCompanionExpedition = false;
 
-		let defenderPresent = false;
-		for (const char of expeditionChars) {
-			if (char.currentCharacteristics.hasDefender === true) {
-				defenderPresent = true;
-				break;
-			}
-			// Fallback: check base abilities if characteristic not set
-			// (e.g., if RuleAdjudicator hasn't run or missed it for some reason,
-			// or for systems that might query this before full adjudication)
-			if (char.abilities.some((ability) => ability.keyword === KeywordAbility.Defender)) {
-				defenderPresent = true;
-				break;
+		const allPlayerEntitiesInExpedition = sharedExpeditionZone.getAll().filter(e => {
+			if (!isGameObject(e)) return false;
+			return e.expeditionAssignment?.playerId === playerId && e.type === CardType.Character;
+		}) as IGameObject[];
+
+		for (const char of allPlayerEntitiesInExpedition) {
+			const hasDefender = char.currentCharacteristics.hasDefender === true ||
+				char.abilities.some((ability) => ability.keyword === KeywordAbility.Defender);
+
+			if (hasDefender) {
+				if (char.expeditionAssignment?.type === 'Hero') {
+					defenderInHeroExpedition = true;
+				} else if (char.expeditionAssignment?.type === 'Companion') {
+					defenderInCompanionExpedition = true;
+				}
 			}
 		}
 
 		return {
-			hero: !defenderPresent, // If defender is present, hero movement is restricted (false)
-			companion: !defenderPresent // Same for companion
+			hero: !defenderInHeroExpedition, // Hero expedition can move if no defender in it
+			companion: !defenderInCompanionExpedition // Companion expedition can move if no defender in it
 		};
 	}
 
