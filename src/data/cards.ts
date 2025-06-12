@@ -121,17 +121,12 @@ async function populateCardsIfEmpty(db: MyDatabase): Promise<void> {
 }
 
 // Promise to ensure DB is initialized and cards are potentially populated
-export const cardsReadyPromise: Promise<void> = new Promise(async (resolve, reject) => {
-	try {
-		const db = await dbPromise;
-		await populateCardsIfEmpty(db);
-		resolve();
-	} catch (error) {
-		// Error is already logged by either initializeDb or populateCardsIfEmpty
-		// console.error("[RxDB] Failed to initialize database or populate cards:", error);
-		reject(error); // Ensure this promise rejects if previous steps failed
-	}
-});
+const initializeAndPopulateDb = async (): Promise<void> => {
+	const db = await dbPromise;
+	await populateCardsIfEmpty(db);
+};
+
+export const cardsReadyPromise: Promise<void> = initializeAndPopulateDb();
 
 export async function getAllCards(): Promise<AlteredCard[]> {
 	await cardsReadyPromise;
