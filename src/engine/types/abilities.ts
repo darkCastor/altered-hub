@@ -75,4 +75,5 @@ export interface IAbility {
 	isKeyword?: boolean;
 	keyword?: KeywordAbility;
 	keywordValue?: number; // For keywords like Scout X and Tough X
+	reactionActivationsToday?: number; // For NIF Rule 1.4.6.c
 }

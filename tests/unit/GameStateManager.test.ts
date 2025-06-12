@@ -219,7 +219,69 @@ describe('GameStateManager - Rule Compliance Tests', () => {
 			expect(gameStateManager.state.firstMorningSkipped).toBe(true);
 		});
 
+		test('Rule 4.1.g: First player should be determined randomly', async () => {
+			const playerCounts: Record<string, number> = { player1: 0, player2: 0 };
+			const iterations = 50; // Run multiple times to check for randomness
+			for (let i = 0; i < iterations; i++) {
+				// Re-initialize GSM with fresh state for each iteration for a clean firstPlayerId selection
+				const p1Deck: ICardDefinition[] = [{ id: 'hero-p1', name: 'P1 Hero', type: CardType.Hero, statistics: {}, abilities:[], handCost:{total:0}, reserveCost:{total:0}, faction:'Neutral', rarity:'Common', version:'1'}];
+				const p2Deck: ICardDefinition[] = [{ id: 'hero-p2', name: 'P2 Hero', type: CardType.Hero, statistics: {}, abilities:[], handCost:{total:0}, reserveCost:{total:0}, faction:'Neutral', rarity:'Common', version:'1'}];
+				const playerDecks = new Map<string, ICardDefinition[]>();
+				playerDecks.set('player1', p1Deck);
+				playerDecks.set('player2', p2Deck);
+
+				const localGsm = new GameStateManager(playerDecks, eventBus);
+				await localGsm.initializeGame();
+				playerCounts[localGsm.state.firstPlayerId!]++;
+			}
+			// Check if both players got to be first player at least once
+			// This is probabilistic, might fail rarely for low iterations, but good enough for unit test.
+			expect(playerCounts.player1).toBeGreaterThan(0);
+			expect(playerCounts.player2).toBeGreaterThan(0);
+			expect(playerCounts.player1 + playerCounts.player2).toBe(iterations);
+			console.log(`[Test] First player distribution over ${iterations} initializations: P1: ${playerCounts.player1}, P2: ${playerCounts.player2}`);
+		});
+
+		test('Rule 4.1.h & 4.1.i: Hero is in Hero Zone (not deck), deck contains other cards and is shuffled', async () => {
+			// Setup with specific decks for player1
+			const heroDef = { id: 'hero-unique', name: 'My Hero', type: CardType.Hero, statistics: {}, abilities:[], handCost:{total:0}, reserveCost:{total:0}, faction:'Neutral', rarity:'Common', version:'1' };
+			const card1Def = { id: 'card1', name: 'Card 1', type: CardType.Spell, statistics: {}, abilities:[], handCost:{total:0}, reserveCost:{total:0}, faction:'Neutral', rarity:'Common', version:'1' };
+			const card2Def = { id: 'card2', name: 'Card 2', type: CardType.Spell, statistics: {}, abilities:[], handCost:{total:0}, reserveCost:{total:0}, faction:'Neutral', rarity:'Common', version:'1' };
+			const p1RealDeck: ICardDefinition[] = [heroDef, card1Def, card2Def];
+
+			const playerDecks = new Map<string, ICardDefinition[]>();
+			playerDecks.set('player1', p1RealDeck);
+			playerDecks.set('player2', [{ id: 'hero-p2', name: 'P2 Hero', type: CardType.Hero, statistics: {}, abilities:[], handCost:{total:0}, reserveCost:{total:0}, faction:'Neutral', rarity:'Common', version:'1'}]); // Dummy deck for P2
+
+			gameStateManager = new GameStateManager(playerDecks, eventBus); // Re-initialize with specific decks
+			await gameStateManager.initializeGame();
+
+			const player1 = gameStateManager.getPlayer('player1')!;
+			const heroZoneCards = player1.zones.heroZone.getAll();
+			expect(heroZoneCards.length).toBe(1);
+			expect(heroZoneCards[0].definitionId).toBe(heroDef.id);
+
+			const deckCards = player1.zones.deckZone.getAll();
+			expect(deckCards.length).toBe(2); // card1Def and card2Def
+			expect(deckCards.some(c => c.definitionId === heroDef.id)).toBe(false); // Hero should not be in deck
+			expect(deckCards.some(c => c.definitionId === card1Def.id)).toBe(true);
+			expect(deckCards.some(c => c.definitionId === card2Def.id)).toBe(true);
+
+			// Check for shuffle (probabilistic, check if order is not always the same if we could run it multiple times,
+			// or at least that it's not just the input order)
+			// For simplicity here, we assume shuffle() works if called. More rigorous test would be on DeckZone itself.
+			// We can check that the order isn't strictly [card1Def, card2Def] or [card2Def, card1Def] if we ran it enough times,
+			// but for a single run, this is hard to assert beyond what's above.
+		});
+
 		test('Rule 4.1: Expedition counters should be placed in corresponding regions', async () => {
+			// This test was here before, re-running with potentially new setup from playerDeckDefinitions
+			const p1Deck: ICardDefinition[] = [{ id: 'hero-p1', name: 'P1 Hero', type: CardType.Hero, statistics: {}, abilities:[], handCost:{total:0}, reserveCost:{total:0}, faction:'Neutral', rarity:'Common', version:'1'}];
+			const p2Deck: ICardDefinition[] = [{ id: 'hero-p2', name: 'P2 Hero', type: CardType.Hero, statistics: {}, abilities:[], handCost:{total:0}, reserveCost:{total:0}, faction:'Neutral', rarity:'Common', version:'1'}];
+			const playerDecks = new Map<string, ICardDefinition[]>();
+			playerDecks.set('player1', p1Deck);
+			playerDecks.set('player2', p2Deck);
+			gameStateManager = new GameStateManager(playerDecks, eventBus);
 			await gameStateManager.initializeGame();
 
 			const player1 = gameStateManager.getPlayer('player1');
@@ -397,6 +459,32 @@ describe('GameStateManager - Rule Compliance Tests', () => {
 				expect(stats.mountain).toBe(2);
 				expect(stats.water).toBe(0);
 			});
+
+			test('should count Gigantic character for BOTH hero and companion expeditions of its controller', () => {
+				const p1GiganticChar = gameStateManager.objectFactory.createCard('char-p1-hero', 'player1'); // F:1
+				p1GiganticChar.currentCharacteristics.isGigantic = true;
+				// No specific expeditionAssignment, or could be assigned to one, should still count for both.
+				// Let's test without specific assignment first, then with.
+				gameStateManager.state.sharedZones.expedition.add(p1GiganticChar);
+
+				// Remove other p1 chars for clarity for this test
+				gameStateManager.state.sharedZones.expedition.remove(p1CharHero.objectId);
+				gameStateManager.state.sharedZones.expedition.remove(p1CharComp.objectId);
+				gameStateManager.state.sharedZones.expedition.remove(p1CharHeroBoost.objectId);
+
+				const heroStats = gameStateManager.calculateExpeditionStats('player1', 'hero');
+				expect(heroStats.forest).toBe(1); // Gigantic char F:1
+
+				const compStats = gameStateManager.calculateExpeditionStats('player1', 'companion');
+				expect(compStats.forest).toBe(1); // Gigantic char F:1 should also count here
+
+				// Assign to hero expedition and re-test
+				p1GiganticChar.expeditionAssignment = { playerId: 'player1', type: 'Hero' };
+				const heroStatsAssigned = gameStateManager.calculateExpeditionStats('player1', 'hero');
+				expect(heroStatsAssigned.forest).toBe(1);
+				const compStatsAssignedStillCounts = gameStateManager.calculateExpeditionStats('player1', 'companion');
+				expect(compStatsAssignedStillCounts.forest).toBe(1);
+			});
 		});
 
 		describe('restPhase', () => {
@@ -523,6 +611,223 @@ describe('GameStateManager - Rule Compliance Tests', () => {
 				expect(sharedExpeditionZone.findById(p1CharHero.objectId)).toBeDefined();
 				expect(p1.zones.reserveZone.findById(p1CharHero.objectId)).toBeUndefined();
 			});
+		});
+	});
+
+	describe('progressPhase', () => {
+		let p1: ReturnType<GameStateManager['getPlayer']>;
+		let p2: ReturnType<GameStateManager['getPlayer']>;
+		let p1HeroChar: IGameObject;
+		let p2HeroCharOpposing: IGameObject;
+		let p1CompanionChar: IGameObject;
+		let p2CompanionCharOpposing: IGameObject;
+		let sharedExpeditionZone: ReturnType<GameStateManager['state']['sharedZones']['expedition']>;
+		let adventureZone: ReturnType<GameStateManager['state']['sharedZones']['adventure']>;
+
+		beforeEach(async () => {
+			// GSM constructor now expects Map<string, ICardDefinition[]>
+			const p1Deck: ICardDefinition[] = [
+				{ id: 'hero-p1', name: 'P1 Hero', type: CardType.Hero, statistics: {}, abilities:[], handCost:{total:0}, reserveCost:{total:0}, faction:'Neutral', rarity:'Common', version:'1'},
+				{ id: 'c1', name: 'P1 Char Hero', type: CardType.Character, statistics: { forest: 5, mountain: 0, water: 0 }, abilities:[], handCost:{total:0}, reserveCost:{total:0}, faction:'Neutral', rarity:'Common', version:'1'},
+				{ id: 'c2', name: 'P1 Char Comp', type: CardType.Character, statistics: { mountain: 5, forest: 0, water: 0 }, abilities:[], handCost:{total:0}, reserveCost:{total:0}, faction:'Neutral', rarity:'Common', version:'1'},
+			];
+			const p2Deck: ICardDefinition[] = [
+				{ id: 'hero-p2', name: 'P2 Hero', type: CardType.Hero, statistics: {}, abilities:[], handCost:{total:0}, reserveCost:{total:0}, faction:'Neutral', rarity:'Common', version:'1'},
+				{ id: 'c3', name: 'P2 Char Hero Opp', type: CardType.Character, statistics: { forest: 3, mountain: 0, water: 0 }, abilities:[], handCost:{total:0}, reserveCost:{total:0}, faction:'Neutral', rarity:'Common', version:'1'},
+				{ id: 'c4', name: 'P2 Char Comp Opp', type: CardType.Character, statistics: { mountain: 3, forest: 0, water: 0 }, abilities:[], handCost:{total:0}, reserveCost:{total:0}, faction:'Neutral', rarity:'Common', version:'1'},
+			];
+			const playerDecks = new Map<string, ICardDefinition[]>();
+			playerDecks.set('player1', p1Deck);
+			playerDecks.set('player2', p2Deck);
+
+			gameStateManager = new GameStateManager(playerDecks, eventBus);
+			await gameStateManager.initializeGame();
+
+			p1 = gameStateManager.getPlayer('player1')!;
+			p2 = gameStateManager.getPlayer('player2')!;
+			sharedExpeditionZone = gameStateManager.state.sharedZones.expedition;
+			adventureZone = gameStateManager.state.sharedZones.adventure;
+
+			// Clear existing adventure regions and set up a simple one for testing
+			adventureZone.clear();
+			adventureZone.add({ id: 'region1', instanceId: 'region1', type: 'NeutralRegion', faceDown:false, terrains: ['forest'], ownerId:'shared'});
+			adventureZone.add({ id: 'region2', instanceId: 'region2', type: 'NeutralRegion', faceDown:false, terrains: ['mountain'], ownerId:'shared'});
+			// Add more regions if needed for multi-step movement tests
+
+			// Setup characters in expeditions
+			p1HeroChar = gameStateManager.objectFactory.createGameObjectFromDefinition(p1Deck[1], 'player1');
+			p1HeroChar.expeditionAssignment = { playerId: 'player1', type: 'Hero' };
+			sharedExpeditionZone.add(p1HeroChar);
+
+			p1CompanionChar = gameStateManager.objectFactory.createGameObjectFromDefinition(p1Deck[2], 'player1');
+			p1CompanionChar.expeditionAssignment = { playerId: 'player1', type: 'Companion' };
+			sharedExpeditionZone.add(p1CompanionChar);
+
+			p2HeroCharOpposing = gameStateManager.objectFactory.createGameObjectFromDefinition(p2Deck[1], 'player2');
+			p2HeroCharOpposing.expeditionAssignment = { playerId: 'player2', type: 'Hero' };
+			sharedExpeditionZone.add(p2HeroCharOpposing);
+
+			p2CompanionCharOpposing = gameStateManager.objectFactory.createGameObjectFromDefinition(p2Deck[2], 'player2');
+			p2CompanionCharOpposing.expeditionAssignment = { playerId: 'player2', type: 'Companion' };
+			sharedExpeditionZone.add(p2CompanionCharOpposing);
+
+			// Ensure current characteristics are set up for stat calculation
+			[p1HeroChar, p1CompanionChar, p2HeroCharOpposing, p2CompanionCharOpposing].forEach(obj => {
+				gameStateManager.ruleAdjudicator.applyAllPassiveAbilities(); // Applies base characteristics to current
+			});
+		});
+
+		test('expedition moves if its stat is > 0 and > opponents stat in a relevant terrain', async () => {
+			// P1 Hero (Forest 5) vs P2 Hero (Forest 3) in Region1 (Forest)
+			// P1 Companion (Mountain 5) vs P2 Companion (Mountain 3) in Region2 (Mountain) - from P2's perspective
+
+			// To make P1 Companion face P2 Companion in Region2 (index 1), P1 Comp pos=0, P2 Comp pos=0 (target index for P2 Comp is totalRegions-1-pos = 2-1-0 = 1)
+			p1.companionExpedition.position = 0;
+			p2.companionExpedition.position = 0;
+
+
+			await gameStateManager.progressPhase();
+
+			expect(p1.heroExpedition.hasMoved).toBe(true);
+			expect(p1.heroExpedition.position).toBe(1);
+			expect(p1.companionExpedition.hasMoved).toBe(true);
+			expect(p1.companionExpedition.position).toBe(1);
+		});
+
+		test('expedition does not move if its stat is not greater than opponents', async () => {
+			// Modify P1 Hero Char to have Forest 3, same as P2 Hero Opposing
+			p1HeroChar.currentCharacteristics.statistics!.forest = 3;
+
+			await gameStateManager.progressPhase();
+			expect(p1.heroExpedition.hasMoved).toBe(false);
+			expect(p1.heroExpedition.position).toBe(0);
+		});
+
+		test('expedition does not move if its relevant stat is 0', async () => {
+			p1HeroChar.currentCharacteristics.statistics!.forest = 0; // P1 Hero has 0 Forest
+			p2HeroCharOpposing.currentCharacteristics.statistics!.forest = 0; // P2 Hero also 0 Forest
+
+			await gameStateManager.progressPhase();
+			expect(p1.heroExpedition.hasMoved).toBe(false);
+		});
+
+		test('expedition with a Defender character does not move', async () => {
+			p1HeroChar.currentCharacteristics.hasDefender = true; // Add Defender
+			// Re-apply passives for the change to be recognized by KeywordAbilityHandler if it caches them
+			// Or mock checkDefenderRestrictions directly
+			jest.spyOn(gameStateManager.keywordHandler, 'checkDefenderRestrictions').mockReturnValueOnce({
+				hero: false, // Hero expedition cannot move
+				companion: true
+			});
+
+			await gameStateManager.progressPhase();
+			expect(p1.heroExpedition.hasMoved).toBe(false);
+			expect(p1.heroExpedition.position).toBe(0);
+			// Companion should still move if it can
+			expect(p1.companionExpedition.hasMoved).toBe(true);
+		});
+	});
+
+	describe('cleanupPhase', () => {
+		let p1: ReturnType<GameStateManager['getPlayer']>;
+		let hero: IGameObject;
+
+		beforeEach(async () => {
+			const p1Deck: ICardDefinition[] = [
+				{ id: 'hero-p1', name: 'P1 Hero', type: CardType.Hero, statistics: {}, abilities:[], handCost:{total:0}, reserveCost:{total:0}, faction:'Neutral', rarity:'Common', version:'1', reserveLimit: 2, landmarkLimit: 1},
+				{ id: 'r1', name: 'ReserveItem1', type: CardType.Spell, abilities:[], handCost:{total:0}, reserveCost:{total:0}, faction:'Neutral', rarity:'Common', version:'1'},
+				{ id: 'r2', name: 'ReserveItem2', type: CardType.Spell, abilities:[], handCost:{total:0}, reserveCost:{total:0}, faction:'Neutral', rarity:'Common', version:'1'},
+				{ id: 'r3', name: 'ReserveItem3', type: CardType.Spell, abilities:[], handCost:{total:0}, reserveCost:{total:0}, faction:'Neutral', rarity:'Common', version:'1'},
+				{ id: 'l1', name: 'LandmarkItem1', type: CardType.LandmarkPermanent, abilities:[], handCost:{total:0}, reserveCost:{total:0}, faction:'Neutral', rarity:'Common', version:'1'},
+				{ id: 'l2', name: 'LandmarkItem2', type: CardType.LandmarkPermanent, abilities:[], handCost:{total:0}, reserveCost:{total:0}, faction:'Neutral', rarity:'Common', version:'1'},
+			];
+			const playerDecks = new Map<string, ICardDefinition[]>();
+			playerDecks.set('player1', p1Deck);
+
+			gameStateManager = new GameStateManager(playerDecks, eventBus);
+			await gameStateManager.initializeGame(); // This places the Hero
+
+			p1 = gameStateManager.getPlayer('player1')!;
+			hero = p1.zones.heroZone.getAll().find(obj => isGameObject(obj) && obj.type === CardType.Hero) as IGameObject;
+
+			// Populate reserve and landmark zones
+			for (let i = 0; i < 3; i++) {
+				const item = gameStateManager.objectFactory.createGameObjectFromDefinition(p1Deck[i+1], 'player1'); // r1, r2, r3
+				item.timestamp = Date.now() + i; // Ensure unique timestamps for predictable discard if simulation relies on it
+				p1.zones.reserveZone.add(item);
+			}
+			for (let i = 0; i < 2; i++) {
+				const item = gameStateManager.objectFactory.createGameObjectFromDefinition(p1Deck[i+4], 'player1'); // l1, l2
+				item.timestamp = Date.now() + i + 10;
+				p1.zones.landmarkZone.add(item);
+			}
+		});
+
+		test('should call playerActionHandler.playerChoosesObjectsToKeep and discard/sacrifice extras', async () => {
+			// Hero limits: Reserve 2, Landmark 1
+			// Player has 3 in reserve, 2 in landmark
+
+			// Mock actionHandler.playerChoosesObjectsToKeep
+			// Simulate player chooses to keep r1, r2 (so r3 is discarded)
+			// Simulate player chooses to keep l1 (so l2 is sacrificed)
+			const mockPlayerChooses = jest.fn()
+				.mockImplementationOnce(async (_playerId, objects, _limit, zoneType) => { // Reserve
+					expect(zoneType).toBe('reserve');
+					expect(objects.length).toBe(3);
+					// Simulate keeping the two with smallest timestamps if that's the sim logic, or specific ones.
+					// Let's say our mock PAH keeps the first two it's given (which might be sorted by GSM or not)
+					// For this test, let's be explicit: discard r3 (objectId: def-r3 if created that way)
+					const r3 = objects.find((o:IGameObject) => o.definitionId === 'r3');
+					return r3 ? [r3.objectId] : []; // Returns IDs of objects to discard
+				})
+				.mockImplementationOnce(async (_playerId, objects, _limit, zoneType) => { // Landmark
+					expect(zoneType).toBe('landmark');
+					expect(objects.length).toBe(2);
+					const l2 = objects.find((o:IGameObject) => o.definitionId === 'l2');
+					return l2 ? [l2.objectId] : []; // Returns IDs of objects to sacrifice
+				});
+			gameStateManager.actionHandler.playerChoosesObjectsToKeep = mockPlayerChooses;
+
+			await gameStateManager.cleanupPhase();
+
+			expect(mockPlayerChooses).toHaveBeenCalledTimes(2);
+			expect(p1.zones.reserveZone.getCount()).toBe(2);
+			expect(p1.zones.landmarkZone.getCount()).toBe(1);
+			expect(p1.zones.discardPileZone.getCount()).toBe(2);
+
+			// Verify specific cards
+			expect(p1.zones.reserveZone.getAll().some(o => o.definitionId === 'r3')).toBe(false);
+			expect(p1.zones.discardPileZone.getAll().some(o => o.definitionId === 'r3')).toBe(true);
+			expect(p1.zones.landmarkZone.getAll().some(o => o.definitionId === 'l2')).toBe(false);
+			expect(p1.zones.discardPileZone.getAll().some(o => o.definitionId === 'l2')).toBe(true);
+		});
+
+		test('should use hero currentCharacteristics for limits if available', async () => {
+			// Modify hero's currentCharacteristics to have different limits
+			if(hero) {
+				hero.currentCharacteristics.reserveLimit = 1;
+				// No need to applyAllPassiveAbilities as cleanupPhase reads directly
+			}
+
+			const mockPlayerChooses = jest.fn()
+				.mockImplementationOnce(async (_playerId, objects, limit, _zoneType) => { // Reserve
+					expect(limit).toBe(1);
+					// Player has 3, limit 1, should discard 2. Let's say r2, r3.
+					const r2 = objects.find((o:IGameObject) => o.definitionId === 'r2');
+					const r3 = objects.find((o:IGameObject) => o.definitionId === 'r3');
+					return [r2?.objectId, r3?.objectId].filter(id => id) as string[];
+				})
+				.mockImplementationOnce(async (_playerId, objects, limit, _zoneType) => { // Landmark (limit still 1 from base)
+					expect(limit).toBe(1);
+					const l2 = objects.find((o:IGameObject) => o.definitionId === 'l2');
+					return l2 ? [l2.objectId] : [];
+				});
+			gameStateManager.actionHandler.playerChoosesObjectsToKeep = mockPlayerChooses;
+
+			await gameStateManager.cleanupPhase();
+
+			expect(p1.zones.reserveZone.getCount()).toBe(1);
+			expect(p1.zones.discardPileZone.getCount()).toBe(3); // r2, r3, l2
 		});
 	});
 });

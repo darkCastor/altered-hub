@@ -19,52 +19,46 @@ export class EffectProcessor {
 	 * Resolves a complete effect with all its steps
 	 * Rule 1.2.6 - Effects are changes to the game state
 	 */
-	public async resolveEffect(effect: IEffect, optionalCasterObject?: IGameObject): Promise<void> {
-		const sourceIdForLog = effect.sourceObjectId || optionalCasterObject?.id || 'unknown source';
+	public async resolveEffect(effect: IEffect, sourceObject?: IGameObject, targets?: any[], triggerContext?: any): Promise<void> {
+		const sourceIdForLog = effect.sourceObjectId || sourceObject?.objectId || 'unknown source';
 		console.log(
-			`[EffectProcessor] Resolving effect from ${sourceIdForLog} with ${effect.steps.length} steps. Trigger: ${effect._triggerPayload ? JSON.stringify(effect._triggerPayload) : 'none'}`
+			`[EffectProcessor] Resolving effect from ${sourceIdForLog} with ${effect.steps.length} steps. Trigger: ${triggerContext ? JSON.stringify(triggerContext) : 'none'}`
 		);
 
-		this.currentTriggerPayload = effect._triggerPayload || null;
+		// Make triggerContext available to steps if needed, potentially merging with effect._triggerPayload
+		const currentContext = {
+			...(effect._triggerPayload as object || {}),
+			...(triggerContext as object || {}),
+			// This effect instance's specific runtime values can be stored here by verbs like roll_die
+			_effectRuntimeValues: {}
+		};
 
-		let sourceObjectForContext: IGameObject | undefined | null = undefined;
-
+		let sourceObjectForStepContext: IGameObject | undefined | null = sourceObject;
 		if (effect._lkiSourceObject) {
-			// If LKI is present on the effect (common for reactions from emblems),
-			// it should often be the primary context, especially if the reaction
-			// refers to the state of the object as it triggered.
-			console.log(`[EffectProcessor] Prioritizing LKI for source object context: ${effect._lkiSourceObject.name} (ID: ${effect._lkiSourceObject.objectId})`);
-			sourceObjectForContext = effect._lkiSourceObject as IGameObject; // Treat LKI as the context
-		} else if (optionalCasterObject) {
-			// If no LKI on effect, but an optionalCasterObject was passed (e.g. for a spell directly cast by an object)
-			sourceObjectForContext = optionalCasterObject;
-		} else if (effect.sourceObjectId) {
-			// If no LKI and no optionalCasterObject, try to find the live object by ID
-			// This is relevant for effects that are not from emblems or where LKI wasn't captured.
-			const liveSourceObject = this.gsm.getObject(effect.sourceObjectId);
-			if (liveSourceObject) {
-				sourceObjectForContext = liveSourceObject;
-			} else {
-				console.warn(`[EffectProcessor] Live source object ${effect.sourceObjectId} not found, and no LKI or optionalCasterObject provided for ${sourceIdForLog}.`);
-			}
+			sourceObjectForStepContext = effect._lkiSourceObject as IGameObject;
+		} else if (!sourceObjectForStepContext && effect.sourceObjectId) {
+			sourceObjectForStepContext = this.gsm.getObject(effect.sourceObjectId);
 		}
-		// At this point, sourceObjectForContext might still be undefined if no context could be established.
-		// Effect steps need to be robust to this.
 
-		try {
-			for (const step of effect.steps) {
-				try {
-					await this.resolveEffectStep(step, sourceObjectForContext);
-				} catch (error) {
-					console.error(
-						`[EffectProcessor] Error resolving step ${JSON.stringify(step)} for effect from ${sourceIdForLog}:`,
-						error
-					);
-				}
+		for (const step of effect.steps) {
+			try {
+				// Pass down the pre-selected targets from PlayerActionHandler if available
+				// and the current step expects targets that might have been pre-selected.
+				// resolveTargetsForStep will need to know if it should use these preSelectedTargets.
+				await this.resolveEffectStep(step, sourceObjectForStepContext, currentContext, targets);
+			} catch (error) {
+				console.error(
+					`[EffectProcessor] Error resolving step ${JSON.stringify(step)} for effect from ${sourceIdForLog}:`,
+					error
+				);
+				// Decide if an error in one step stops the whole effect. Usually, yes.
+				// throw error; // Optionally re-throw to stop effect processing.
 			}
-		} finally {
-			this.currentTriggerPayload = null;
 		}
+
+		// After the entire effect resolves
+		this.gsm.ruleAdjudicator.applyAllPassiveAbilities(); // Re-evaluate passives
+		await this.gsm.resolveReactions(); // Process any reactions triggered by this effect
 	}
 
 	/**
@@ -72,496 +66,652 @@ export class EffectProcessor {
 	 */
 	private async resolveEffectStep(
 		step: IEffectStep,
-		sourceObjectForContext?: IGameObject | null
+		sourceObjectForContext: IGameObject | undefined | null,
+		currentContext: any, // Combined trigger & effect runtime context
+		preSelectedTargets?: any[] // Targets chosen by player before effect resolution
 	): Promise<void> {
-		// Skip optional effects if conditions not met
-		if (step.isOptional && !this.shouldExecuteOptionalEffect(step)) {
+		if (step.isOptional && !this.shouldExecuteOptionalEffect(step, currentContext)) {
 			console.log(`[EffectProcessor] Skipping optional effect: ${step.verb}`);
 			return;
 		}
 
+		const targetsForThisStep = await this.resolveTargetsForStep(step.targets, sourceObjectForContext, currentContext, preSelectedTargets, step.parameters?.targetKey);
 		console.log(
-			`[EffectProcessor] Executing ${step.verb} for source ${sourceObjectForContext?.name || 'system'}`
+			`[EffectProcessor] Executing ${step.verb} for source ${sourceObjectForContext?.name || 'system'}, targeting: ${targetsForThisStep.map(t => (isGameObject(t) ? t.name : t)).join(', ')}`
 		);
 
 		switch (step.verb.toLowerCase()) {
-			case 'draw':
-				await this.effectDraw(step, sourceObjectForContext);
+			// Existing verbs (ensure they use targetsForThisStep and currentContext as needed)
+			case 'draw': // Renamed to draw_cards for clarity
+			case 'draw_cards':
+				await this.effectDrawCards(step, targetsForThisStep);
 				break;
-			case 'discard':
-				await this.effectDiscard(step, sourceObjectForContext);
+			case 'discard': // Renamed to discard_cards
+			case 'discard_cards':
+				await this.effectDiscardCards(step, targetsForThisStep);
 				break;
 			case 'resupply':
-				await this.effectResupply(step, sourceObjectForContext);
+				await this.effectResupply(step, targetsForThisStep);
 				break;
-			case 'moveforward':
 			case 'move_forward':
-				await this.effectMoveForward(step, sourceObjectForContext);
+				await this.effectMove(step, targetsForThisStep, 1); // 1 for forward
 				break;
-			case 'movebackward':
 			case 'move_backward':
-				await this.effectMoveBackward(step, sourceObjectForContext);
+				await this.effectMove(step, targetsForThisStep, -1); // -1 for backward
 				break;
-			case 'create':
-				await this.effectCreate(step, sourceObjectForContext);
+			case 'create_token': // Was 'create'
+				await this.effectCreateToken(step, sourceObjectForContext, currentContext);
 				break;
-			case 'gainability': // New verb for the old "augment" functionality
-				await this.effectGainAbility(step, sourceObjectForContext);
+			case 'gainability':
+				await this.effectGainAbility(step, targetsForThisStep);
 				break;
-			case 'augmentcounter': // New verb for augmenting counters as per Rule 7.3.3
-				await this.effectAugmentCounters(step, sourceObjectForContext);
-				break;
-			case 'augment': // Deprecated: Keep temporarily to catch old usage
-				console.warn(
-					"[EffectProcessor] Deprecated verb 'augment' used. Use 'gainability' for adding abilities or 'augmentcounter' for counters."
-				);
-				// Optionally, you could still call the old logic or a specific version:
-				// await this.effectGainAbility(step, sourceObjectForContext);
+			case 'augmentcounter':
+				await this.effectAugmentCounters(step, targetsForThisStep);
 				break;
 			case 'exchange':
-				await this.effectExchange(step, sourceObjectForContext);
+				await this.effectExchange(step, sourceObjectForContext, currentContext);
 				break;
-			case 'gaincounter':
-			case 'gain_counter':
-				await this.effectGainCounter(step, sourceObjectForContext);
+			case 'gain_counters': // Was 'gaincounter'
+				await this.effectGainCounters(step, targetsForThisStep);
 				break;
-			case 'losecounter':
-			case 'lose_counter':
-				await this.effectLoseCounter(step, sourceObjectForContext);
+			case 'lose_counters': // Was 'losecounter'
+				await this.effectLoseCounters(step, targetsForThisStep);
 				break;
-			case 'gainstatus':
-			case 'gain_status':
-				await this.effectGainStatus(step, sourceObjectForContext);
+			case 'gain_status': // Was 'gainstatus'
+				await this.effectGainStatus(step, targetsForThisStep);
 				break;
-			case 'losestatus':
-			case 'lose_status':
-				await this.effectLoseStatus(step, sourceObjectForContext);
+			case 'lose_status': // Was 'losestatus'
+				await this.effectLoseStatus(step, targetsForThisStep);
 				break;
-			case 'moveto':
-			case 'move_to':
-				await this.effectMoveTo(step, sourceObjectForContext);
+			case 'put_in_zone': // Was 'moveto'
+			case 'move_to': // Keep alias for compatibility
+				await this.effectPutInZone(step, targetsForThisStep);
 				break;
 			case 'ready':
-				await this.effectReady(step, sourceObjectForContext);
+				await this.effectReady(step, targetsForThisStep);
 				break;
 			case 'exhaust':
-				await this.effectExhaust(step, sourceObjectForContext);
+				await this.effectExhaust(step, targetsForThisStep);
 				break;
+
+			// New Verbs from Task
+			case 'sacrifice':
+				await this.effectSacrifice(step, targetsForThisStep);
+				break;
+			case 'set_characteristic':
+				await this.effectSetCharacteristic(step, targetsForThisStep);
+				break;
+			case 'modify_statistics':
+				await this.effectModifyStatistics(step, targetsForThisStep);
+				break;
+			case 'change_controller':
+				await this.effectChangeController(step, targetsForThisStep);
+				break;
+			case 'roll_die':
+				await this.effectRollDie(step, sourceObjectForContext, currentContext);
+				break;
+			case 'if_condition':
+				await this.effectIfCondition(step, sourceObjectForContext, currentContext, preSelectedTargets);
+				break;
+
 			default:
 				console.warn(`[EffectProcessor] Unknown effect verb: ${step.verb}`);
 		}
 	}
 
 	/**
-	 * Rule 7.3.1 - Draw: Each player draws cards equal to the number specified
+	 * Rule 7.3.7 - Draw Cards
 	 */
-	private async effectDraw(
-		step: IEffectStep,
-		sourceObjectForContext?: IGameObject | null
-	): Promise<void> {
-		const targets = this.resolveTargets(step.targets, sourceObjectForContext);
-		const count = step.parameters?.count || 1;
+	private async effectDrawCards(step: IEffectStep, targets: (IGameObject | string)[]): Promise<void> {
+		const count = typeof step.parameters?.count === 'number' ? step.parameters.count : 1;
 
 		for (const target of targets) {
-			if (typeof target === 'string') {
-				// Target is a player ID
-				await this.gsm.drawCards(target, count);
-				console.log(`[EffectProcessor] Player ${target} drew ${count} cards`);
+			const playerId = typeof target === 'string' ? target : isGameObject(target) ? target.controllerId : null;
+			if (playerId) {
+				await this.gsm.drawCards(playerId, count);
+				this.gsm.eventBus.publish('cardsDrawn', { playerId, count });
+				console.log(`[EffectProcessor] Player ${playerId} drew ${count} cards.`);
 			}
 		}
 	}
 
 	/**
-	 * Rule 7.3.2 - Discard: Players discard specified cards
+	 * Rule 7.3.5 - Discard Cards
 	 */
-	private async effectDiscard(
-		step: IEffectStep,
-		sourceObjectForContext?: IGameObject | null
-	): Promise<void> {
-		const targets = this.resolveTargets(step.targets, sourceObjectForContext);
-		const count = step.parameters?.count || 1;
+	private async effectDiscardCards(step: IEffectStep, targets: (IGameObject | string)[]): Promise<void> {
+		const count = typeof step.parameters?.count === 'number' ? step.parameters.count : 1;
+		const specificCardIds = step.parameters?.cardIds as string[] | undefined;
+		// const fromZoneIdentifier = step.parameters?.fromZone as ZoneIdentifier || ZoneIdentifier.Hand; // Default to hand
 
 		for (const target of targets) {
-			if (typeof target === 'string') {
-				const player = this.gsm.getPlayer(target);
-				if (!player) continue;
+			const playerId = typeof target === 'string' ? target : isGameObject(target) ? target.controllerId : null;
+			if (!playerId) continue;
 
-				// Discard cards from hand
-				const handCards = player.zones.hand.getAll().slice(0, count);
-				for (const card of handCards) {
-					const cardId = isGameObject(card) ? card.objectId : card.instanceId;
-					this.gsm.moveEntity(cardId, player.zones.hand, player.zones.discardPileZone, target);
+			const player = this.gsm.getPlayer(playerId);
+			if (!player) continue;
+
+			const handCards = player.zones.handZone.getAll(); // Assuming discard from hand
+			const cardsToDiscard: (IGameObject | ICardInstance)[] = [];
+
+			if (specificCardIds) {
+				for (const cardId of specificCardIds) {
+					const foundCard = handCards.find(c => (isGameObject(c) ? c.objectId : c.instanceId) === cardId);
+					if (foundCard) cardsToDiscard.push(foundCard);
 				}
-				console.log(`[EffectProcessor] Player ${target} discarded ${handCards.length} cards`);
+			} else {
+				// TODO: Implement random discard or player choice for non-specific discards
+				cardsToDiscard.push(...handCards.slice(0, count)); // Simple: first N cards
+			}
+
+			for (const card of cardsToDiscard) {
+				const cardId = isGameObject(card) ? card.objectId : card.instanceId;
+				this.gsm.moveEntity(cardId, player.zones.handZone, player.zones.discardPileZone, playerId);
+			}
+			if (cardsToDiscard.length > 0) {
+				this.gsm.eventBus.publish('cardsDiscarded', { playerId, count: cardsToDiscard.length, cardIds: cardsToDiscard.map(c => isGameObject(c) ? c.objectId : c.instanceId) });
+				console.log(`[EffectProcessor] Player ${playerId} discarded ${cardsToDiscard.length} cards.`);
 			}
 		}
 	}
 
 	/**
-	 * Rule 7.3.3 - Resupply: Move cards from discard pile to reserve
+	 * Rule 7.3.22 - Resupply
 	 */
-	private async effectResupply(
-		step: IEffectStep,
-		sourceObjectForContext?: IGameObject | null
-	): Promise<void> {
-		const targets = this.resolveTargets(step.targets, sourceObjectForContext);
-		const count = step.parameters?.count || 1;
+	private async effectResupply(step: IEffectStep, targets: (IGameObject | string)[]): Promise<void> {
+		// Count is usually 1 for Resupply from rulebook.
+		const count = typeof step.parameters?.count === 'number' ? step.parameters.count : 1;
 
 		for (const target of targets) {
-			if (typeof target === 'string') { // Target is a player ID
-				const player = this.gsm.getPlayer(target);
-				if (!player) continue;
+			const playerId = typeof target === 'string' ? target : isGameObject(target) ? target.controllerId : null;
+			if (!playerId) continue;
 
-				let cardsResuppliedCount = 0;
-				for (let i = 0; i < count; i++) {
-					// Assume player.zones.deckZone is of type DeckZone which has removeTop, addBottom, shuffle
-					const deckZone = player.zones.deckZone as import('./Zone').DeckZone;
-					const discardPile = player.zones.discardPileZone;
+			const player = this.gsm.getPlayer(playerId);
+			if (!player) continue;
 
-					if (deckZone.getCount() === 0) {
-						if (discardPile.getCount() > 0) {
-							const discardedCards = discardPile.getAll();
-							discardPile.clear();
-
-							const cardsToReshuffle = discardedCards.map(entity => {
-								if (isGameObject(entity)) {
-									// Convert IGameObject from discard back to ICardInstance for deck
-									return this.gsm.objectFactory.createCardInstance(entity.definitionId, entity.ownerId);
-								}
-								// Should already be ICardInstance if somehow there, or could be an error/unexpected type
-								return entity as import('./types/cards').ICardInstance;
-							});
-
-							deckZone.addBottom(cardsToReshuffle);
-							deckZone.shuffle();
-							console.log(`[EffectProcessor] Player ${target} shuffled discard into deck for Resupply.`);
-						}
-					}
-
-					if (deckZone.getCount() > 0) {
-						// Get the top card's instanceId without removing it yet.
-						// moveEntity will handle the removal from deckZone.
-						// DeckZone.getAll() should maintain order, [0] is top.
-						const allDeckInstances = deckZone.getAll() as import('./types/cards').ICardInstance[];
-						const cardToMoveInstance = allDeckInstances[0];
-
-						if (cardToMoveInstance && cardToMoveInstance.instanceId) {
-							this.gsm.moveEntity(
-								cardToMoveInstance.instanceId,
-								deckZone,
-								player.zones.reserveZone,
-								target
-							);
-							cardsResuppliedCount++;
-						} else {
-							// This case implies deckZone had a card, but it was invalid or lacked instanceId.
-							console.warn(`[EffectProcessor] Resupply: Deck top card was invalid or missing instanceId for player ${target}.`);
-							break; // Stop trying to resupply for this player if deck state is unexpected.
-						}
-					} else {
-						// Deck and discard were empty, or became empty
-						console.log(`[EffectProcessor] Player ${target} has no more cards in Deck or Discard to Resupply.`);
-						break;
-					}
-				}
-				if (cardsResuppliedCount > 0) {
-					console.log(`[EffectProcessor] Player ${target} resupplied ${cardsResuppliedCount} cards from Deck to Reserve.`);
+			let resuppliedCount = 0;
+			for (let i = 0; i < count; i++) {
+				const cardMoved = await this.gsm.resupplyPlayer(playerId); // gsm.resupplyPlayer needs to exist or logic here
+				if (cardMoved) resuppliedCount++;
+				else break; // Stop if no more cards can be resupplied
+			}
+			if (resuppliedCount > 0) {
+				this.gsm.eventBus.publish('cardsResupplied', { playerId, count: resuppliedCount });
+				console.log(`[EffectProcessor] Player ${playerId} resupplied ${resuppliedCount} cards.`);
 				}
 			}
 		}
 	}
 
 	/**
-	 * Rule 7.3.4 - Move Forward: Expeditions move forward
+	/**
+	 * Rule 7.3.16 & 7.3.17 - Move Forward / Move Backward
 	 */
-	private async effectMoveForward(
-		step: IEffectStep,
-		sourceObjectForContext?: IGameObject | null
-	): Promise<void> {
-		const targets = this.resolveTargets(step.targets, sourceObjectForContext);
-		const distance = step.parameters?.distance || 1;
+	private async effectMove(step: IEffectStep, targets: (IGameObject | string)[], direction: 1 | -1): Promise<void> {
+		const count = typeof step.parameters?.count === 'number' ? step.parameters.count : 1;
+		const distance = count * direction;
+		const targetExpeditionType = step.parameters?.targetExpeditionType as 'hero' | 'companion' | 'both' | undefined; // 'both' or specific
 
 		for (const target of targets) {
-			if (typeof target === 'string') {
-				const player = this.gsm.getPlayer(target);
-				if (!player) continue;
+			const playerId = typeof target === 'string' ? target : isGameObject(target) ? target.controllerId : null;
+			if (!playerId) continue;
 
-				// Move both expeditions forward
-				player.heroExpedition.position += distance;
-				player.companionExpedition.position += distance;
-				console.log(`[EffectProcessor] Player ${target} expeditions moved forward ${distance}`);
+			const player = this.gsm.getPlayer(playerId);
+			if (!player) continue;
+
+			let movedSomething = false;
+			if (targetExpeditionType === 'hero' || targetExpeditionType === 'both' || !targetExpeditionType) {
+				const oldPos = player.expeditionState.heroPosition;
+				player.expeditionState.heroPosition = Math.max(0, player.expeditionState.heroPosition + distance);
+				// TODO: Check against max position (adventureRegions.length - 1 or similar)
+				// TODO: Handle Tumult card reveals if moving into new region (Rule 7.3.17.b)
+				if (player.expeditionState.heroPosition !== oldPos) {
+					console.log(`[EffectProcessor] Player ${playerId} Hero expedition moved by ${distance} to ${player.expeditionState.heroPosition}.`);
+					this.gsm.eventBus.publish('expeditionMoved', { playerId, type: 'hero', newPosition: player.expeditionState.heroPosition, distance });
+					movedSomething = true;
+				}
+			}
+			if (targetExpeditionType === 'companion' || targetExpeditionType === 'both' || !targetExpeditionType) {
+				const oldPos = player.expeditionState.companionPosition;
+				player.expeditionState.companionPosition = Math.max(0, player.expeditionState.companionPosition + distance);
+				// TODO: Check against max position
+				// TODO: Handle Tumult card reveals
+				if (player.expeditionState.companionPosition !== oldPos) {
+					console.log(`[EffectProcessor] Player ${playerId} Companion expedition moved by ${distance} to ${player.expeditionState.companionPosition}.`);
+					this.gsm.eventBus.publish('expeditionMoved', { playerId, type: 'companion', newPosition: player.expeditionState.companionPosition, distance });
+					movedSomething = true;
+				}
+			}
+			if (!movedSomething) {
+				console.log(`[EffectProcessor] Player ${playerId} expeditions did not move (already at boundary or no valid type specified).`);
 			}
 		}
 	}
 
 	/**
-	 * Rule 7.3.5 - Move Backward: Expeditions move backward
+	 * Rule 7.3.4 - Create Token
 	 */
-	private async effectMoveBackward(
-		step: IEffectStep,
-		sourceObjectForContext?: IGameObject | null
-	): Promise<void> {
-		const targets = this.resolveTargets(step.targets, sourceObjectForContext);
-		const distance = step.parameters?.distance || 1;
+	private async effectCreateToken(step: IEffectStep, sourceObjectForContext: IGameObject | undefined | null, currentContext: any): Promise<void> {
+		const tokenDefinitionId = step.parameters?.tokenDefinitionId as string;
+		// const inlineDefinition = step.parameters?.definition as any; // For fully inline defined tokens
+		const destinationExpeditionType = step.parameters?.destinationExpeditionType as 'hero' | 'companion' | undefined;
+		let controllerId = step.parameters?.controllerId as string | undefined;
 
-		for (const target of targets) {
-			if (typeof target === 'string') {
-				const player = this.gsm.getPlayer(target);
-				if (!player) continue;
-
-				// Move both expeditions backward (minimum 0)
-				player.heroExpedition.position = Math.max(0, player.heroExpedition.position - distance);
-				player.companionExpedition.position = Math.max(
-					0,
-					player.companionExpedition.position - distance
-				);
-				console.log(`[EffectProcessor] Player ${target} expeditions moved backward ${distance}`);
-			}
-		}
-	}
-
-	/**
-	 * Rule 7.3.6 - Create: Create tokens or emblems
-	 */
-	private async effectCreate(
-		step: IEffectStep,
-		sourceObjectForContext?: IGameObject | null
-	): Promise<void> {
-		const targets = this.resolveTargets(step.targets, sourceObjectForContext);
-		// const tokenType = step.parameters?.tokenType || 'Character'; // More specific: definitionId
-		const count = step.parameters?.count || 1;
-		const definitionId = step.parameters?.definitionId; // This is crucial
-
-		if (!definitionId) {
-			console.warn('[EffectProcessor] Create effect called without definitionId.');
+		if (!controllerId && sourceObjectForContext) {
+			controllerId = sourceObjectForContext.controllerId;
+		} else if (!controllerId) {
+			// If controller is not specified and no source object, default to current player if available in context?
+			// This might need a more robust way to determine controller if not explicit.
+			// controllerId = currentContext.currentPlayerId; // Example, if currentPlayerId is in context
+			console.warn('[EffectProcessor] CreateToken: Controller ID not determined, token may not be created correctly.');
 			return;
 		}
 
-		for (const target of targets) {
-			if (typeof target === 'string') {
-				const player = this.gsm.getPlayer(target);
-				if (!player) continue;
-
-				// TODO: Create token objects
-				console.log(`[EffectProcessor] Created ${count} tokens (${definitionId}) for ${target}`);
-			}
+		if (!controllerId) {
+			console.error('[EffectProcessor] CreateToken: Cannot determine controller for the token.');
+			return;
 		}
+
+		if (!tokenDefinitionId /* && !inlineDefinition */) {
+			console.error('[EffectProcessor] CreateToken: No tokenDefinitionId or inline definition provided.');
+			return;
+		}
+
+		// TODO: Handle inlineDefinition by creating a temporary definition or passing params to ObjectFactory
+		const tokenObject = this.gsm.objectFactory.createTokenObjectById(tokenDefinitionId, controllerId);
+		if (!tokenObject) {
+			console.error(`[EffectProcessor] Failed to create token object from definitionId: ${tokenDefinitionId}`);
+			return;
+		}
+
+		if (destinationExpeditionType) {
+			tokenObject.expeditionAssignment = { playerId: controllerId, type: destinationExpeditionType };
+		} else {
+			// If no specific expedition, it might go to a default (e.g., hero) or this might be an error
+			console.warn(`[EffectProcessor] CreateToken: destinationExpeditionType not specified for ${tokenObject.name}. Assigning to 'hero' by default or check effect definition.`);
+			tokenObject.expeditionAssignment = { playerId: controllerId, type: 'hero' }; // Default or handle as error
+		}
+
+		this.gsm.state.sharedZones.expedition.add(tokenObject);
+		this.gsm.eventBus.publish('objectCreated', { object: tokenObject, zone: this.gsm.state.sharedZones.expedition });
+		console.log(`[EffectProcessor] Created token ${tokenObject.name} (ID: ${tokenObject.objectId}) for player ${controllerId} in ${destinationExpeditionType || 'default'} expedition.`);
 	}
 
 	/**
-	 * Old "Augment" - Rule 7.3.7 (now renamed) - Give objects new abilities
+	 * Gain Ability (Old Augment)
 	 */
-	private async effectGainAbility(
-		step: IEffectStep,
-		sourceObjectForContext?: IGameObject | null
-	): Promise<void> {
-		const targets = this.resolveTargets(step.targets, sourceObjectForContext);
-		const ability = step.parameters?.ability; // This should be a full IAbility object
+	private async effectGainAbility(step: IEffectStep, targets: (IGameObject | string)[]): Promise<void> {
+		const abilityDefinition = step.parameters?.ability as any; // Should be IAbilityDefinition or similar structure
 
-		if (!ability) {
-			console.warn('[EffectProcessor] effectGainAbility called without ability.');
+		if (!abilityDefinition) {
+			console.warn('[EffectProcessor] effectGainAbility called without ability definition.');
 			return;
 		}
 		for (const target of targets) {
-			if (this.isTargetGameObject(target) && ability) {
-				target.abilities.push(ability);
-				console.log(`[EffectProcessor] Target ${target.name} gained new ability via effectGainAbility.`);
+			if (this.isTargetGameObject(target)) {
+				// Create a new ability instance from the definition for this specific target
+				const newAbility = this.gsm.objectFactory.createAbility(abilityDefinition, target.objectId);
+				if (newAbility) {
+					if (!target.currentCharacteristics.grantedAbilities) {
+						target.currentCharacteristics.grantedAbilities = [];
+					}
+					target.currentCharacteristics.grantedAbilities.push(newAbility);
+					this.gsm.eventBus.publish('abilityGained', { targetId: target.objectId, abilityId: newAbility.abilityId });
+					console.log(`[EffectProcessor] Target ${target.name} gained ability: ${newAbility.text || newAbility.abilityId}.`);
+				} else {
+					console.error(`[EffectProcessor] Failed to create instance for ability ${abilityDefinition.id || 'unknown'} for target ${target.name}.`);
+				}
 			}
 		}
 	}
 
 	/**
-	 * Rule 7.3.3 - Augment (Counters): Increment an existing counter on an object.
-	 * "To Augment a counter means to add 1 to a counter an object already has."
+	 * Rule 7.3.3 - Augment Counters
 	 */
-	private async effectAugmentCounters(
-		step: IEffectStep,
-		sourceObjectForContext?: IGameObject | null
-	): Promise<void> {
-		const targets = this.resolveTargets(step.targets, sourceObjectForContext);
+	private async effectAugmentCounters(step: IEffectStep, targets: (IGameObject | string)[]): Promise<void> {
 		const counterType = step.parameters?.counterType as CounterType | undefined;
-
 		if (!counterType) {
 			console.warn('[EffectProcessor] effectAugmentCounters called without counterType.');
 			return;
 		}
-
 		for (const target of targets) {
 			if (this.isTargetGameObject(target)) {
 				const currentCount = target.counters.get(counterType);
-				if (currentCount !== undefined && currentCount > 0) {
+				if (typeof currentCount === 'number' && currentCount > 0) { // Must have existing counter > 0
 					target.counters.set(counterType, currentCount + 1);
-					console.log(
-						`[EffectProcessor] Target ${target.name} augmented ${counterType} counter to ${currentCount + 1}.`
-					);
+					this.gsm.eventBus.publish('counterAugmented', { targetId: target.objectId, counterType, newAmount: currentCount + 1 });
+					console.log(`[EffectProcessor] Target ${target.name} augmented ${counterType} counter to ${currentCount + 1}.`);
+					if (counterType === CounterType.Boost) {
+						(this.gsm.statusUpdater as any).updateObjectStatusBasedOnCounters(target); // Assuming statusUpdater exists
+					}
 				} else {
-					console.log(
-						`[EffectProcessor] Target ${target.name} does not have (or has 0) ${counterType} counter(s) to augment.`
-					);
+					console.log(`[EffectProcessor] Target ${target.name} does not have positive ${counterType} counter(s) to augment.`);
 				}
 			}
 		}
 	}
 
 	/**
-	 * Rule 7.3.8 - Exchange: Swap objects between zones
+	 * Rule 7.3.8 - Exchange
 	 */
-	private async effectExchange(
-		_step: IEffectStep,
-		_sourceObjectForContext?: IGameObject | null
-	): Promise<void> {
-		// TODO: Implement object exchange logic based on parameters (e.g., targetA, targetB, zoneA, zoneB)
-		console.log(`[EffectProcessor] Exchange not fully implemented`);
+	private async effectExchange(_step: IEffectStep, _sourceObjectForContext: IGameObject | undefined | null, _currentContext: any): Promise<void> {
+		console.log(`[EffectProcessor] Exchange not fully implemented.`);
+		// Needs complex logic for selecting two sets of targets and swapping their zones/characteristics.
 	}
 
 	/**
-	 * Gain Counter: Add counters to objects
+	 * Rule 7.3.12 - Gain Counters
 	 */
-	private async effectGainCounter(
-		step: IEffectStep,
-		sourceObjectForContext?: IGameObject | null
-	): Promise<void> {
-		const targets = this.resolveTargets(step.targets, sourceObjectForContext);
-		const counterType = step.parameters?.counterType || CounterType.Boost;
-		const amount = step.parameters?.amount || 1;
+	private async effectGainCounters(step: IEffectStep, targets: (IGameObject | string)[]): Promise<void> {
+		const counterType = step.parameters?.counterType as CounterType | undefined || CounterType.Boost;
+		const amount = typeof step.parameters?.amount === 'number' ? step.parameters.amount : 1;
+
+		if (amount <= 0) return; // Gaining 0 or negative counters does nothing.
 
 		for (const target of targets) {
 			if (this.isTargetGameObject(target)) {
 				const current = target.counters.get(counterType) || 0;
 				target.counters.set(counterType, current + amount);
-				console.log(`[EffectProcessor] ${target.name} gained ${amount} ${counterType} counters`);
+				this.gsm.eventBus.publish('counterGained', { targetId: target.objectId, counterType, amount, newTotal: current + amount });
+				console.log(`[EffectProcessor] ${target.name} gained ${amount} ${counterType} counters, new total: ${current + amount}.`);
+				if (counterType === CounterType.Boost) {
+					(this.gsm.statusUpdater as any).updateObjectStatusBasedOnCounters(target);
+				}
 			}
 		}
 	}
 
 	/**
-	 * Lose Counter: Remove counters from objects
+	 * Lose Counters
 	 */
-	private async effectLoseCounter(
-		step: IEffectStep,
-		sourceObjectForContext?: IGameObject | null
-	): Promise<void> {
-		const targets = this.resolveTargets(step.targets, sourceObjectForContext);
-		const counterType = step.parameters?.counterType || CounterType.Boost;
-		const amount = step.parameters?.amount || 1;
+	private async effectLoseCounters(step: IEffectStep, targets: (IGameObject | string)[]): Promise<void> {
+		const counterType = step.parameters?.counterType as CounterType | undefined || CounterType.Boost;
+		const amount = typeof step.parameters?.amount === 'number' ? step.parameters.amount : 1;
+
+		if (amount <= 0) return;
 
 		for (const target of targets) {
 			if (this.isTargetGameObject(target)) {
 				const current = target.counters.get(counterType) || 0;
-				target.counters.set(counterType, Math.max(0, current - amount));
-				console.log(`[EffectProcessor] ${target.name} lost ${amount} ${counterType} counters`);
+				const newAmount = Math.max(0, current - amount);
+				target.counters.set(counterType, newAmount);
+				this.gsm.eventBus.publish('counterLost', { targetId: target.objectId, counterType, amountRemoved: current - newAmount, newTotal: newAmount });
+				console.log(`[EffectProcessor] ${target.name} lost ${amount} ${counterType} counters, new total: ${newAmount}.`);
+				if (counterType === CounterType.Boost) {
+					(this.gsm.statusUpdater as any).updateObjectStatusBasedOnCounters(target);
+				}
 			}
 		}
 	}
 
 	/**
-	 * Gain Status: Add status effects to objects
+	 * Rule 7.3.13 - Gain Status
 	 */
-	private async effectGainStatus(
-		step: IEffectStep,
-		sourceObjectForContext?: IGameObject | null
-	): Promise<void> {
-		const targets = this.resolveTargets(step.targets, sourceObjectForContext);
-		const statusType = step.parameters?.statusType;
+	private async effectGainStatus(step: IEffectStep, targets: (IGameObject | string)[]): Promise<void> {
+		const statusType = step.parameters?.statusType as StatusType | undefined;
 		if (!statusType) {
 			console.warn('[EffectProcessor] GainStatus effect called without statusType.');
 			return;
 		}
 		for (const target of targets) {
-			if (this.isTargetGameObject(target) && statusType) {
-				target.statuses.add(statusType);
-				console.log(`[EffectProcessor] ${target.name} gained ${statusType} status`);
+			if (this.isTargetGameObject(target)) {
+				if (!target.statuses.has(statusType)) {
+					target.statuses.add(statusType);
+					this.gsm.eventBus.publish('statusGained', { targetId: target.objectId, statusType });
+					console.log(`[EffectProcessor] ${target.name} gained ${statusType} status.`);
+				}
 			}
 		}
 	}
 
 	/**
-	 * Lose Status: Remove status effects from objects
+	 * Rule 7.3.15 - Lose Status
 	 */
-	private async effectLoseStatus(
-		step: IEffectStep,
-		sourceObjectForContext?: IGameObject | null
-	): Promise<void> {
-		const targets = this.resolveTargets(step.targets, sourceObjectForContext);
-		const statusType = step.parameters?.statusType;
+	private async effectLoseStatus(step: IEffectStep, targets: (IGameObject | string)[]): Promise<void> {
+		const statusType = step.parameters?.statusType as StatusType | undefined;
 		if (!statusType) {
 			console.warn('[EffectProcessor] LoseStatus effect called without statusType.');
 			return;
 		}
 		for (const target of targets) {
-			if (this.isTargetGameObject(target) && statusType) {
-				target.statuses.delete(statusType);
-				console.log(`[EffectProcessor] ${target.name} lost ${statusType} status`);
+			if (this.isTargetGameObject(target)) {
+				if (target.statuses.has(statusType)) {
+					target.statuses.delete(statusType);
+					this.gsm.eventBus.publish('statusLost', { targetId: target.objectId, statusType });
+					console.log(`[EffectProcessor] ${target.name} lost ${statusType} status.`);
+				}
 			}
 		}
 	}
 
 	/**
-	 * Move To: Move objects to specified zones
+	 * Rule 7.3.21 - Put in Zone (Generic Move)
 	 */
-	private async effectMoveTo(
-		step: IEffectStep,
-		sourceObjectForContext?: IGameObject | null
-	): Promise<void> {
-		const targets = this.resolveTargets(step.targets, sourceObjectForContext);
-		const destinationZoneType = step.parameters?.zone as ZoneIdentifier;
-
-		if (!destinationZoneType) {
-			console.warn('[EffectProcessor] MoveTo effect called without destination zone type.');
+	private async effectPutInZone(step: IEffectStep, targets: (IGameObject | string)[]): Promise<void> {
+		const destinationZoneIdentifier = step.parameters?.destinationZoneIdentifier as ZoneIdentifier | undefined; // Renamed from 'zone'
+		if (!destinationZoneIdentifier) {
+			console.warn('[EffectProcessor] PutInZone effect called without destinationZoneIdentifier.');
 			return;
 		}
 
 		for (const target of targets) {
 			if (this.isTargetGameObject(target)) {
 				const currentZone = this.gsm.findZoneOfObject(target.objectId);
-				// Determine target player for zone context. If 'self' was resolved to an object, use its controller.
-				// If target is a player ID (e.g. from 'controller' target), use that.
-				// Fallback to the target's own controller if it's an object.
-				const zoneOwnerId = typeof target === 'string' ? target : target.controllerId;
-
-				const destZone = this.findZoneByType(zoneOwnerId, destinationZoneType);
+				// Default to target's current controller for destination zone ownership, unless specified otherwise.
+				const zoneOwnerId = step.parameters?.controllerId as string || target.controllerId;
+				const destZone = this.findZoneByType(zoneOwnerId, destinationZoneIdentifier);
 
 				if (currentZone && destZone) {
-					this.gsm.moveEntity(target.objectId, currentZone, destZone, target.controllerId); // Movement uses object's controller for ownership context
-					console.log(`[EffectProcessor] Moved ${target.name} to ${destinationZoneType}`);
+					this.gsm.moveEntity(target.objectId, currentZone, destZone, target.controllerId); // moveEntity uses target.controllerId for some logic
+					console.log(`[EffectProcessor] Moved ${target.name} (ID: ${target.objectId}) to ${destinationZoneIdentifier}.`);
+				} else {
+					console.warn(`[EffectProcessor] Could not move ${target.name}: currentZone ${currentZone?.id}, destZone ${destZone?.id}`);
 				}
 			}
 		}
 	}
 
 	/**
-	 * Ready: Remove Exhausted status
+	 * Rule 7.3.18 - Ready
 	 */
-	private async effectReady(
-		step: IEffectStep,
-		sourceObjectForContext?: IGameObject | null
-	): Promise<void> {
-		const targets = this.resolveTargets(step.targets, sourceObjectForContext);
-
+	private async effectReady(step: IEffectStep, targets: (IGameObject | string)[]): Promise<void> {
 		for (const target of targets) {
 			if (this.isTargetGameObject(target)) {
-				target.statuses.delete(StatusType.Exhausted);
-				console.log(`[EffectProcessor] ${target.name} became ready`);
+				if (target.statuses.has(StatusType.Exhausted)) {
+					target.statuses.delete(StatusType.Exhausted);
+					this.gsm.eventBus.publish('objectReadied', { targetId: target.objectId });
+					console.log(`[EffectProcessor] ${target.name} became ready.`);
+				}
 			}
 		}
 	}
 
 	/**
-	 * Exhaust: Add Exhausted status
+	 * Rule 7.3.10 - Exhaust
 	 */
-	private async effectExhaust(
-		step: IEffectStep,
-		sourceObjectForContext?: IGameObject | null
-	): Promise<void> {
-		const targets = this.resolveTargets(step.targets, sourceObjectForContext);
-
+	private async effectExhaust(step: IEffectStep, targets: (IGameObject | string)[]): Promise<void> {
 		for (const target of targets) {
 			if (this.isTargetGameObject(target)) {
-				target.statuses.add(StatusType.Exhausted);
-				console.log(`[EffectProcessor] ${target.name} became exhausted`);
+				if (!target.statuses.has(StatusType.Exhausted)) {
+					target.statuses.add(StatusType.Exhausted);
+					this.gsm.eventBus.publish('objectExhausted', { targetId: target.objectId });
+					console.log(`[EffectProcessor] ${target.name} became exhausted.`);
+				}
 			}
 		}
 	}
+
+	// --- NEW VERBS START HERE ---
+
+	/**
+	 * Rule 7.3.25 - Sacrifice
+	 */
+	private async effectSacrifice(step: IEffectStep, targets: (IGameObject | string)[]): Promise<void> {
+		for (const target of targets) {
+			if (this.isTargetGameObject(target)) {
+				const playerOwner = this.gsm.getPlayer(target.ownerId);
+				if (!playerOwner) {
+					console.warn(`[EffectProcessor] Owner ${target.ownerId} not found for sacrificed object ${target.name}.`);
+					continue;
+				}
+				const currentZone = this.gsm.findZoneOfObject(target.objectId);
+				if (!currentZone) {
+					console.warn(`[EffectProcessor] Cannot find current zone for sacrificed object ${target.name}.`);
+					continue;
+				}
+				// Sacrifice means move to owner's discard pile.
+				this.gsm.moveEntity(target.objectId, currentZone, playerOwner.zones.discardPileZone, target.controllerId);
+				this.gsm.eventBus.publish('objectSacrificed', { objectId: target.objectId, definitionId: target.definitionId, fromZoneId: currentZone.id });
+				console.log(`[EffectProcessor] ${target.name} (controlled by ${target.controllerId}, owned by ${target.ownerId}) was sacrificed.`);
+			}
+		}
+	}
+
+	/**
+	 * Set Characteristic
+	 */
+	private async effectSetCharacteristic(step: IEffectStep, targets: (IGameObject | string)[]): Promise<void> {
+		const characteristic = step.parameters?.characteristic as string;
+		const value = step.parameters?.value; // Can be any type
+
+		if (!characteristic) {
+			console.warn('[EffectProcessor] SetCharacteristic: "characteristic" parameter missing.');
+			return;
+		}
+
+		for (const target of targets) {
+			if (this.isTargetGameObject(target)) {
+				// Ensure currentCharacteristics exists
+				if (!target.currentCharacteristics) {
+					target.currentCharacteristics = { ...target.baseCharacteristics };
+				}
+				(target.currentCharacteristics as any)[characteristic] = value;
+				this.gsm.eventBus.publish('characteristicSet', { targetId: target.objectId, characteristic, value });
+				console.log(`[EffectProcessor] Set characteristic ${characteristic}=${value} for ${target.name}.`);
+				// Potentially re-evaluate passives if a significant characteristic changed
+				// This might be too broad here; consider if specific characteristics trigger this.
+				// this.gsm.ruleAdjudicator.applyAllPassiveAbilities();
+			}
+		}
+	}
+
+	/**
+	 * Modify Statistics
+	 */
+	private async effectModifyStatistics(step: IEffectStep, targets: (IGameObject | string)[]): Promise<void> {
+		const statsChange = step.parameters?.statsChange as Partial<Record<'forest'|'mountain'|'water'|'power'|'health', number>>;
+
+		if (!statsChange) {
+			console.warn('[EffectProcessor] ModifyStatistics: "statsChange" parameter missing or invalid.');
+			return;
+		}
+
+		for (const target of targets) {
+			if (this.isTargetGameObject(target)) {
+				if (!target.currentCharacteristics.statistics) {
+					target.currentCharacteristics.statistics = { forest: 0, mountain: 0, water: 0, power: 0, health: 0 };
+				}
+				const stats = target.currentCharacteristics.statistics;
+				let changed = false;
+				for (const key of Object.keys(statsChange) as Array<keyof typeof statsChange>) {
+					if (statsChange[key] !== undefined && typeof stats[key] === 'number') {
+						(stats[key] as number) += statsChange[key]!;
+						changed = true;
+					}
+				}
+				if (changed) {
+					this.gsm.eventBus.publish('statisticsModified', { targetId: target.objectId, newStats: { ...stats } });
+					console.log(`[EffectProcessor] Modified statistics for ${target.name}. New stats: F:${stats.forest} M:${stats.mountain} W:${stats.water} P:${stats.power} H:${stats.health}`);
+				}
+			}
+		}
+	}
+
+	/**
+	 * Change Controller (Simplified)
+	 */
+	private async effectChangeController(step: IEffectStep, targets: (IGameObject | string)[]): Promise<void> {
+		const newControllerId = step.parameters?.newControllerId as string;
+		if (!newControllerId || !this.gsm.getPlayer(newControllerId)) {
+			console.warn(`[EffectProcessor] ChangeController: Invalid or missing newControllerId: ${newControllerId}.`);
+			return;
+		}
+
+		for (const target of targets) {
+			if (this.isTargetGameObject(target)) {
+				const oldControllerId = target.controllerId;
+				target.controllerId = newControllerId;
+				// TODO: Full implementation requires moving object to new controller's corresponding zone
+				// if it's in a personal zone (e.g. Reserve, Landmark). If in shared (Expedition), just update controllerId.
+				// This is a complex operation that GameStateManager should handle via a dedicated method.
+				this.gsm.eventBus.publish('controllerChanged', { objectId: target.objectId, newControllerId, oldControllerId });
+				console.log(`[EffectProcessor] Changed controller of ${target.name} from ${oldControllerId} to ${newControllerId}. (Zone change logic is TODO)`);
+			}
+		}
+	}
+
+	/**
+	 * Rule 7.3.19 - Roll Die
+	 */
+	private async effectRollDie(step: IEffectStep, _sourceObjectForContext: IGameObject | undefined | null, currentContext: any): Promise<void> {
+		const result = Math.floor(Math.random() * 6) + 1;
+		const storeAs = step.parameters?.storeAs as string || 'lastDieRoll'; // Key to store result under
+
+		if (currentContext && currentContext._effectRuntimeValues) {
+			currentContext._effectRuntimeValues[storeAs] = result;
+		} else {
+			console.warn("[EffectProcessor] RollDie: Cannot store result, _effectRuntimeValues not on context.");
+		}
+		this.gsm.eventBus.publish('dieRolled', { result, storedAs: storeAs });
+		console.log(`[EffectProcessor] Rolled a die: ${result}. Stored as "${storeAs}".`);
+	}
+
+	/**
+	 * If Condition (Control Flow)
+	 */
+	private async effectIfCondition(step: IEffectStep, sourceObjectForContext: IGameObject | undefined | null, currentContext: any, preSelectedTargets?: any[]): Promise<void> {
+		const condition = step.parameters?.condition as any; // Define specific condition types
+		const then_steps = step.parameters?.then_steps as IEffectStep[] | undefined;
+		const else_steps = step.parameters?.else_steps as IEffectStep[] | undefined;
+
+		if (!condition || !then_steps) {
+			console.warn('[EffectProcessor] IfCondition: Invalid parameters. "condition" and "then_steps" are required.');
+			return;
+		}
+
+		let conditionMet = false;
+		// TODO: Implement various condition evaluation types
+		// Example: { type: 'compare_runtime_value', key: 'lastDieRoll', operator: '>=', value: 4 }
+		if (condition.type === 'compare_runtime_value' && currentContext._effectRuntimeValues) {
+			const val1 = currentContext._effectRuntimeValues[condition.key];
+			const val2 = condition.value;
+			// Implement operators: '===', '!==', '>', '<', '>=', '<='
+			if (condition.operator === '>=' && val1 >= val2) conditionMet = true;
+			if (condition.operator === '===' && val1 === val2) conditionMet = true;
+			// Add more operators
+		} else {
+			console.warn(`[EffectProcessor] IfCondition: Unknown condition type "${condition.type}" or missing runtime values.`);
+		}
+
+		const stepsToExecute = conditionMet ? then_steps : else_steps;
+
+		if (stepsToExecute && stepsToExecute.length > 0) {
+			console.log(`[EffectProcessor] IfCondition: Condition was ${conditionMet ? 'MET' : 'NOT MET'}. Executing ${conditionMet ? 'THEN' : 'ELSE'} branch.`);
+			// Create a new sub-effect to resolve these steps
+			const subEffect: IEffect = {
+				steps: stepsToExecute,
+				sourceObjectId: sourceObjectForContext?.objectId,
+				_triggerPayload: currentContext, // Pass full context along
+				_lkiSourceObject: sourceObjectForContext // Pass LKI if available
+			};
+			// Resolve recursively. Pass original preSelectedTargets if relevant for sub-steps.
+			await this.resolveEffect(subEffect, sourceObjectForContext, preSelectedTargets, currentContext);
+		} else {
+			console.log(`[EffectProcessor] IfCondition: Condition was ${conditionMet ? 'MET' : 'NOT MET'}. No steps in chosen branch.`);
+		}
+	}
+
+
+	// --- END OF NEW VERBS ---
 
 	/**
 	 * Type guard to check if a target is a game object
@@ -572,155 +722,176 @@ export class EffectProcessor {
 		return typeof target === 'object' && target !== null && 'objectId' in target;
 	}
 
-	/**
-	 * Helper to get a value from a nested object using a dot-separated path.
-	 * Example: getValueFromPath(payload, 'object.id')
-	 */
 	private getValueFromPath(obj: unknown, path: string): unknown {
-		if (!obj || typeof obj !== 'object') return undefined;
+		if (!obj || typeof obj !== 'object' && typeof obj !== 'function') return undefined; // Check added for function type
+		// Safeguard against prototype pollution if path could be malicious (e.g. __proto__)
+		if (path.includes('__proto__') || path.includes('constructor') || path.includes('prototype')) {
+			return undefined;
+		}
 		const properties = path.split('.');
-		return properties.reduce((prev, curr) => prev && prev[curr], obj);
+		// Ensure 'reduce' is used safely, especially if 'obj' could have unexpected prototypes.
+		// However, standard objects (from JSON, or class instances without malicious overrides) should be fine.
+		return properties.reduce((prev, curr) => (prev && typeof prev === 'object' && prev[curr] !== undefined) ? prev[curr] : undefined, obj);
 	}
 
-	/**
-	 * Resolves effect targets based on target specification
-	 */
-	private resolveTargets(
-		targets: unknown,
-		sourceObjectForContext?: IGameObject | null
-	): (IGameObject | string)[] {
-		if (!targets) return [];
 
-		if (typeof targets === 'string') {
-			switch (targets.toLowerCase()) {
+	/**
+	 * Enhanced target resolution for effect steps.
+	 * @param targetSpec The 'targets' field from an IEffectStep.
+	 * @param sourceObjectForContext The source of the ability/effect.
+	 * @param currentContext Full context including trigger payload and effect runtime values.
+	 * @param preSelectedTargets Targets already chosen by the player (e.g. for PlayerActionHandler).
+	 * @param targetKey Optional key if the step expects a specific target from a list of pre-selected targets.
+	 */
+	private async resolveTargetsForStep(
+		targetSpec: unknown,
+		sourceObjectForContext: IGameObject | undefined | null,
+		currentContext: any,
+		preSelectedTargets?: any[],
+		targetKey?: string
+	): Promise<(IGameObject | string)[]> {
+		if (!targetSpec) return [];
+
+		// If preSelectedTargets are provided and this step uses a specific key to pick one
+		if (targetKey && preSelectedTargets && preSelectedTargets.length > 0) {
+			const specificTarget = preSelectedTargets.find(t => t.targetId === targetKey || t.key === targetKey); // Assuming TargetInfo has targetId or key
+			if (specificTarget && specificTarget.objectId) {
+				const obj = this.gsm.getObject(specificTarget.objectId);
+				return obj ? [obj] : [];
+			} else if (specificTarget) { // Could be a player ID or other non-object target
+				return [specificTarget.objectId]; // Assuming objectId field holds the value
+			}
+		}
+		// If no targetKey, but preSelectedTargets exist, and targetSpec implies "chosen" (e.g. 'chosen_target')
+		// This part needs more robust definition of how steps declare they use pre-selected targets.
+		// For now, if preSelectedTargets exist and targetSpec isn't a simple string like 'self', assume they are the targets.
+		// This is a simplification.
+		if (preSelectedTargets && preSelectedTargets.length > 0 && typeof targetSpec !== 'string') {
+			return preSelectedTargets.map(t => {
+				if (t.objectId) {
+					const obj = this.gsm.getObject(t.objectId);
+					return obj ? obj : t.objectId; // Return ID if obj not found (could be playerID)
+				}
+				return t; // If no objectId, could be a direct value/ID
+			}).filter(t => t) as (IGameObject | string)[];
+		}
+
+
+		if (typeof targetSpec === 'string') {
+			switch (targetSpec.toLowerCase()) {
 				case 'self':
 					return sourceObjectForContext ? [sourceObjectForContext] : [];
 				case 'controller':
 					return sourceObjectForContext ? [sourceObjectForContext.controllerId] : [];
-				// TODO: Add 'opponent', 'all_players', 'all_objects_in_zone' etc.
-				default: {
-					// Assume it might be a specific objectId or playerId if it's a string not matching keywords
-					const objById = this.gsm.getObject(targets);
-					if (objById) return [objById];
-					// Could be a player ID if not an object ID
-					if (this.gsm.getPlayer(targets)) return [targets];
-					console.warn(
-						`[EffectProcessor] Unresolved string target that is not 'self', 'controller', a known object ID, or a player ID: ${targets}`
-					);
+				case 'opponent':
+					if (sourceObjectForContext) {
+						const controllerId = sourceObjectForContext.controllerId;
+						const opponents = this.gsm.getPlayerIds().filter(pid => pid !== controllerId);
+						return opponents; // Returns array of opponent player IDs
+					}
 					return [];
-				}
+				// TODO: 'all_players', 'all_objects_in_zone_X_matching_Y'
+				default: // Assume it might be a specific objectId or playerId
+					const objById = this.gsm.getObject(targetSpec);
+					if (objById) return [objById];
+					if (this.gsm.getPlayer(targetSpec)) return [targetSpec];
+					console.warn(`[EffectProcessor] Unresolved string target: ${targetSpec}`);
+					return [];
 			}
 		}
 
-		if (typeof targets === 'object' && targets.type) {
-			switch (targets.type.toLowerCase()) {
+		if (typeof targetSpec === 'object' && targetSpec !== null && (targetSpec as any).type) {
+			const spec = targetSpec as any;
+			switch (spec.type.toLowerCase()) {
 				case 'fromtrigger':
-					if (targets.path && this.currentTriggerPayload) {
-						const value = this.getValueFromPath(this.currentTriggerPayload, targets.path);
+				case 'from_trigger': // Alias
+					if (spec.path && currentContext) {
+						const value = this.getValueFromPath(currentContext, spec.path);
 						if (value === undefined) {
-							console.warn(
-								`[EffectProcessor] Path '${targets.path}' yielded undefined from trigger payload:`,
-								this.currentTriggerPayload
-							);
+							console.warn(`[EffectProcessor] Path '${spec.path}' yielded undefined from context:`, currentContext);
 							return [];
 						}
-						if (typeof value === 'string') {
-							// Assume it's an ID
-							const objFromPayloadId = this.gsm.getObject(value);
-							return objFromPayloadId ? [objFromPayloadId] : [value]; // Return ID if object not found, could be player ID
-						} else if (this.isTargetGameObject(value)) {
-							// If payload directly contains an object
-							return [value];
-						} else if (Array.isArray(value)) {
-							// If payload path points to an array of items
-							return value
-								.map((item) => {
-									if (typeof item === 'string') {
-										const objItem = this.gsm.getObject(item);
-										return objItem ? objItem : item;
-									} else if (this.isTargetGameObject(item)) {
-										return item;
-									}
-									return null;
-								})
-								.filter((item) => item !== null) as (IGameObject | string)[];
-						}
-						console.warn(
-							`[EffectProcessor] Unhandled value type from trigger payload path ${targets.path}:`,
-							value
-						);
-						return [];
+						// Standardize to array, handle various resolved value types
+						const items = Array.isArray(value) ? value : [value];
+						return items.map(item => {
+							if (typeof item === 'string') {
+								const objItem = this.gsm.getObject(item);
+								return objItem ? objItem : item; // Return ID if object not found
+							} else if (this.isTargetGameObject(item)) {
+								return item;
+							}
+							console.warn(`[EffectProcessor] fromTrigger: Unhandled item type from path ${spec.path}:`, item);
+							return null;
+						}).filter(item => item !== null) as (IGameObject | string)[];
 					}
-					console.warn(
-						'[EffectProcessor] "fromTrigger" target type requires a path and active trigger payload.'
-					);
+					console.warn('[EffectProcessor] "fromTrigger" target type requires a path and active context.');
 					return [];
-				case 'select': // Placeholder for more complex selections
-					console.log(
-						`[EffectProcessor] Complex target selection for type '${targets.type}' with criteria '${targets.criteria}' not yet fully implemented.`
-					);
-					// This would involve player choice, filtering objects based on criteria (e.g. targets.criteria)
+				case 'objects_matching_criteria': // Placeholder for more complex selections
+				case 'select': // Alias for criteria-based selection
+					console.log(`[EffectProcessor] Complex target selection for type '${spec.type}' with criteria '${JSON.stringify(spec.criteria)}' not yet fully implemented. Requires player choice or advanced filtering.`);
+					// Example: Find all characters in controller's hero expedition
+					if (sourceObjectForContext && spec.criteria?.zone === 'self_hero_expedition' && spec.criteria?.cardType === 'Character') {
+						return this.gsm.getObjectsInExpedition(sourceObjectForContext.controllerId, 'hero')
+							.filter(obj => obj.type === 'Character');
+					}
+					// This would involve player choice or more filtering (e.g. based on spec.criteria)
 					return [];
 				default:
-					console.warn(`[EffectProcessor] Unknown target object type: ${targets.type}`);
+					console.warn(`[EffectProcessor] Unknown target object type: ${spec.type}`);
 					return [];
 			}
 		}
-
-		// If targets is an array, assume it's an array of IDs or IGameObjects
-		if (Array.isArray(targets)) {
-			return targets
-				.map((t) => {
-					if (typeof t === 'string') {
-						const obj = this.gsm.getObject(t);
-						return obj ? obj : t; // Return ID if not found (could be player ID)
-					}
-					return t;
-				})
-				.filter((t) => t !== null && t !== undefined) as (IGameObject | string)[];
+		if (Array.isArray(targetSpec)) { // Assume array of IDs or direct objects
+			return targetSpec.map(t => {
+				if (typeof t === 'string') {
+					const obj = this.gsm.getObject(t);
+					return obj ? obj : t;
+				}
+				return t;
+			}).filter(t => t) as (IGameObject | string)[];
 		}
 
-		console.warn('[EffectProcessor] Unresolved target specification:', targets);
+		console.warn('[EffectProcessor] Unresolved target specification:', targetSpec);
 		return [];
 	}
 
+
 	/**
-	 * Finds a zone by type for a player
+	 * Finds a zone by type for a player or shared.
 	 */
-	private findZoneByType(playerId: string, zoneType: ZoneIdentifier): IZone | null {
-		// Return type should be IZone | null
-		const player = this.gsm.getPlayer(playerId);
-		if (!player) {
-			console.warn(`[EffectProcessor] Player not found for findZoneByType: ${playerId}`);
-			return null;
-		}
+	private findZoneByType(playerIdForContext: string, zoneType: ZoneIdentifier): IZone | null {
+		const player = this.gsm.getPlayer(playerIdForContext);
 
 		switch (zoneType) {
+			// Player-specific zones
 			case ZoneIdentifier.Hand:
-				return player.zones.handZone;
-			case ZoneIdentifier.Reserve:
-				return player.zones.reserveZone;
-			case ZoneIdentifier.Expedition:
-				return player.zones.expeditionZone;
-			case ZoneIdentifier.Landmark:
-				return player.zones.landmarkZone;
-			case ZoneIdentifier.Discard:
-				return player.zones.discardPileZone;
+				return player?.zones.handZone || null;
+			case ZoneIdentifier.Deck:
+				return player?.zones.deckZone || null;
+			case ZoneIdentifier.DiscardPile: // Corrected from Discard
+				return player?.zones.discardPileZone || null;
 			case ZoneIdentifier.Mana:
-				return player.zones.manaZone;
+				return player?.zones.manaZone || null;
+			case ZoneIdentifier.Reserve:
+				return player?.zones.reserveZone || null;
+			case ZoneIdentifier.Landmark:
+				return player?.zones.landmarkZone || null;
 			case ZoneIdentifier.Hero:
-				return player.zones.heroZone;
+				return player?.zones.heroZone || null;
+
+			// Shared zones (don't strictly need playerIdForContext but good for consistency)
+			case ZoneIdentifier.Expedition:
+				return this.gsm.state.sharedZones.expedition;
 			case ZoneIdentifier.Limbo:
 				return this.gsm.state.sharedZones.limbo;
 			case ZoneIdentifier.Adventure:
-				return this.gsm.state.sharedZones.adventureZone;
+				return this.gsm.state.sharedZones.adventure; // Corrected from adventureZone
 			default:
-				console.warn(
-					`[EffectProcessor] Unknown or unhandled zone type for findZoneByType: ${zoneType}`
-				);
+				console.warn(`[EffectProcessor] Unknown or unhandled zone type for findZoneByType: ${zoneType}`);
 				return null;
 		}
 	}
+
 
 	/**
 	 * Determines if optional effects should execute

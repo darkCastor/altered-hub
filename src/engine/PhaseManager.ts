@@ -102,35 +102,25 @@ export class PhaseManager {
 		for (const playerId of this.gameStateManager.getPlayerIdsInInitiativeOrder()) {
 			const player = this.gameStateManager.getPlayer(playerId);
 			if (player && !player.hasExpandedThisTurn) {
-				// Check if the player can expand (has cards in hand).
-				// PlayerActionHandler.getAvailableExpandAction already checks this.
-				const expandAction = this.gameStateManager.playerActionHandler.getAvailableExpandAction(playerId);
+				// PlayerActionHandler.getAvailableExpandAction already checks if player can expand (has cards, hasn't expanded).
+				// Now, we prompt for choice.
+				if (!player.hasExpandedThisTurn && player.zones.handZone.getCount() > 0) {
+					const choice = await this.gameStateManager.actionHandler.promptPlayerForExpandChoice(playerId);
 
-				if (expandAction) {
-					// Simulate player choice: For this subtask, we'll assume the player chooses
-					// to expand if they can, and picks the first card in their hand.
-					// A real implementation would involve UI interaction.
-					const handCards = player.zones.hand.getAll();
-					if (handCards.length > 0) {
-						const firstCardInHand = handCards[0]; // Simulate choosing the first card
-						// Log the simulated choice
-						console.log(`[PhaseManager] Simulating player ${playerId} choosing to expand card ${firstCardInHand.instanceId}`);
-
+					if (choice.cardToExpandId) {
 						try {
-							await this.gameStateManager.playerActionHandler.executeExpandAction(playerId, firstCardInHand.instanceId);
-							console.log(`[PhaseManager] Player ${playerId} successfully expanded ${firstCardInHand.instanceId}.`);
+							await this.gameStateManager.playerActionHandler.executeExpandAction(playerId, choice.cardToExpandId);
+							console.log(`[PhaseManager] Player ${playerId} successfully expanded card ${choice.cardToExpandId}.`);
 							// Resolve reactions AFTER each individual expand action. (Rule 4.2.1.e)
 							await this.gameStateManager.resolveReactions();
 						} catch (error) {
-							console.error(`[PhaseManager] Error during expand action for player ${playerId} with card ${firstCardInHand.instanceId}:`, error);
-							// Decide if the game should halt or if the error is recoverable.
-							// For now, we log and continue.
+							console.error(`[PhaseManager] Error during expand action for player ${playerId} with card ${choice.cardToExpandId}:`, error);
 						}
 					} else {
-						console.log(`[PhaseManager] Player ${playerId} could expand, but has no cards in hand (should have been caught by getAvailableExpandAction).`);
+						console.log(`[PhaseManager] Player ${playerId} chose not to expand or had no cards (choice was null).`);
 					}
 				} else {
-					console.log(`[PhaseManager] Player ${playerId} cannot or has already expanded this turn.`);
+					console.log(`[PhaseManager] Player ${playerId} has already expanded or has no cards in hand.`);
 				}
 			}
 		}
