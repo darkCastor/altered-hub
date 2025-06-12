@@ -30,10 +30,13 @@ export interface IEffectStep {
  * Represents the full effect of an ability or spell.
  * Rule 1.2.6
  */
+import type { IGameObject } from './objects';
+
 export interface IEffect {
 	steps: IEffectStep[];
 	sourceObjectId?: string; // The object that generated this effect
 	_triggerPayload?: unknown;
+	_lkiSourceObject?: Readonly<IGameObject>; // Last Known Information
 }
 
 /**

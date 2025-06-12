@@ -27,17 +27,29 @@ export class EffectProcessor {
 
 		this.currentTriggerPayload = effect._triggerPayload || null;
 
-		let sourceObjectForContext: IGameObject | undefined | null = optionalCasterObject;
-		if (effect.sourceObjectId) {
-			const mainSource = this.gsm.getObject(effect.sourceObjectId);
-			if (mainSource) {
-				sourceObjectForContext = mainSource;
+		let sourceObjectForContext: IGameObject | undefined | null = undefined;
+
+		if (effect._lkiSourceObject) {
+			// If LKI is present on the effect (common for reactions from emblems),
+			// it should often be the primary context, especially if the reaction
+			// refers to the state of the object as it triggered.
+			console.log(`[EffectProcessor] Prioritizing LKI for source object context: ${effect._lkiSourceObject.name} (ID: ${effect._lkiSourceObject.objectId})`);
+			sourceObjectForContext = effect._lkiSourceObject as IGameObject; // Treat LKI as the context
+		} else if (optionalCasterObject) {
+			// If no LKI on effect, but an optionalCasterObject was passed (e.g. for a spell directly cast by an object)
+			sourceObjectForContext = optionalCasterObject;
+		} else if (effect.sourceObjectId) {
+			// If no LKI and no optionalCasterObject, try to find the live object by ID
+			// This is relevant for effects that are not from emblems or where LKI wasn't captured.
+			const liveSourceObject = this.gsm.getObject(effect.sourceObjectId);
+			if (liveSourceObject) {
+				sourceObjectForContext = liveSourceObject;
 			} else {
-				console.warn(
-					`[EffectProcessor] Could not find sourceObjectId ${effect.sourceObjectId} from effect for ${sourceIdForLog}.`
-				);
+				console.warn(`[EffectProcessor] Live source object ${effect.sourceObjectId} not found, and no LKI or optionalCasterObject provided for ${sourceIdForLog}.`);
 			}
 		}
+		// At this point, sourceObjectForContext might still be undefined if no context could be established.
+		// Effect steps need to be robust to this.
 
 		try {
 			for (const step of effect.steps) {
