@@ -17,9 +17,9 @@
 		"typecheck": "svelte-check --tsconfig ./tsconfig.json",
 		"typecheck:watch": "svelte-check --tsconfig ./tsconfig.json --watch",
 		"test": "playwright test",
-		"test:unit": "vitest run",
-		"test:unit:watch": "vitest watch",
-		"test:coverage": "vitest run --coverage",
+		"test:unit": "bun test",
+		"test:unit:watch": "bun test --watch",
+		"test:coverage": "bun test --coverage",
 		"test:e2e": "playwright test",
 		"test:headed": "playwright test --headed",
 		"test:debug": "playwright test --debug",
@@ -67,7 +67,6 @@
 		"tslib": "^2.8.1",
 		"typescript": "^5.8.3",
 		"vite": "^6.3.5",
-		"vitest": "^2.0.5",
 		"jsdom": "^24.1.1"
 	}
 }
