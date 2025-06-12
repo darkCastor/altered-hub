@@ -164,6 +164,7 @@ export class PhaseManager {
 
 	private async handleDusk(): Promise<void> {
 		await this.gameStateManager.progressPhase();
+		await this.gameStateManager.resolveReactions(); // Added this line as per instruction
 		await this.gameStateManager.resolveReactions();
 		console.log('PhaseManager: Dusk logic executed.');
 	}

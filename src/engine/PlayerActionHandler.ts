@@ -1,5 +1,5 @@
 import type { GameStateManager } from './GameStateManager';
-import type { IGameObject, ICardInstance } from './types/objects';
+import type { IGameObject, ICardInstance, IEmblemObject } from './types/objects';
 import { GamePhase, CardType, StatusType } from './types/enums';
 import { isGameObject } from './types/objects';
 
@@ -545,6 +545,21 @@ export class PlayerActionHandler {
 		this.gsm.recordExpansion(playerId);
 
 		console.log(`[PlayerActionHandler] Player ${playerId} expanded card ${cardIdToExpand} into a Mana Orb ${newManaOrb.objectId}.`);
+	}
+
+	public async chooseReaction(playerId: string, availableReactions: IEmblemObject[]): Promise<string | null> {
+		if (availableReactions.length === 0) {
+			return null;
+		}
+		// TODO: Implement actual player choice mechanism here.
+		// For now, mimics the old behavior: sorts by timestamp and picks the oldest.
+		console.log(`[PlayerActionHandler] Player ${playerId} needs to choose a reaction from ${availableReactions.length} available.`);
+
+		availableReactions.sort((a, b) => a.timestamp - b.timestamp);
+		const chosenReaction = availableReactions[0];
+
+		console.log(`[PlayerActionHandler] Auto-choosing oldest reaction: ${chosenReaction.name} (ID: ${chosenReaction.objectId}) for player ${playerId}.`);
+		return chosenReaction.objectId;
 	}
 }
 

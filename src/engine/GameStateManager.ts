@@ -572,18 +572,30 @@ export class GameStateManager {
 				const playerEmblems = allEmblemReactions.filter(e => e.controllerId === pId);
 
 				if (playerEmblems.length > 0) {
-					// Player choice needed if multiple reactions. For now, pick the one with the smallest timestamp (oldest).
-					playerEmblems.sort((a, b) => a.timestamp - b.timestamp);
-					const emblemToPlay = playerEmblems[0];
+					// Player choice needed if multiple reactions.
+					// Delegate choice to PlayerActionHandler.
+					const chosenEmblemId = await this.actionHandler.chooseReaction(pId, playerEmblems);
+
+					if (!chosenEmblemId) {
+						console.log(`[GSM] Player ${pId} chose not to play a reaction or no valid choice was made.`);
+						continue; // Move to the next player or iteration
+					}
+
+					const emblemToPlay = playerEmblems.find(e => e.objectId === chosenEmblemId);
+
+					if (!emblemToPlay) {
+						console.error(`[GSM] Chosen emblem ID ${chosenEmblemId} not found in available player emblems for player ${pId}. This should not happen.`);
+						continue; // Should not occur if chooseReaction returns a valid ID from the list
+					}
 
 					console.log(`[GSM] Player ${pId} (initiative) playing reaction: ${emblemToPlay.name} (ID: ${emblemToPlay.objectId})`);
 
 					let sourceObjectForEffectContext: IGameObject | undefined = undefined;
 					if (emblemToPlay.boundEffect.sourceObjectId) {
-					   sourceObjectForEffectContext = this.getObject(emblemToPlay.boundEffect.sourceObjectId);
-					   if (!sourceObjectForEffectContext) {
-						   console.warn(`[GSM] Source object ${emblemToPlay.boundEffect.sourceObjectId} for reaction emblem ${emblemToPlay.objectId} not found. Using LKI might be needed if effect depends on it.`);
-					   }
+						sourceObjectForEffectContext = this.getObject(emblemToPlay.boundEffect.sourceObjectId);
+						if (!sourceObjectForEffectContext) {
+							console.warn(`[GSM] Source object ${emblemToPlay.boundEffect.sourceObjectId} for reaction emblem ${emblemToPlay.objectId} not found. Using LKI might be needed if effect depends on it.`);
+						}
 					}
 
 					await this.effectProcessor.resolveEffect(emblemToPlay.boundEffect, sourceObjectForEffectContext);
@@ -593,7 +605,7 @@ export class GameStateManager {
 
 					reactionsProcessedInLoop++;
 					reactionPlayedThisIteration = true;
-					break;
+					break; // Process one reaction per overall loop, then re-evaluate all available reactions
 				}
 			}
 
