@@ -100,8 +100,24 @@ export class GameStateManager {
 			type: 'HeroRegion',
 			faceDown: false,
 			terrainType: 'neutral',
-			ownerId: 'shared'
+			ownerId: 'shared',
+			terrains: ['forest', 'mountain', 'water'] // Rule 2.2.2.k (simplified)
 		};
+		adventureZone.add(heroRegion as ZoneEntity);
+
+		// Rule 4.1.c: Place 3 face-down Tumult cards (these go between Hero and Companion regions)
+		for (let i = 0; i < 3; i++) {
+			const tumultCard = {
+				id: `tumult-${i}`,
+				instanceId: `tumult-${i}`,
+				type: 'TumultCard',
+				faceDown: true,
+				terrainType: 'tumult', // Should this be something else or derived? For now, keep.
+				ownerId: 'shared',
+				terrains: [] // Rule 2.2.2.k remark
+			};
+			adventureZone.add(tumultCard as ZoneEntity);
+		}
 
 		const companionRegion = {
 			id: 'companion-region',
@@ -109,24 +125,10 @@ export class GameStateManager {
 			type: 'CompanionRegion',
 			faceDown: false,
 			terrainType: 'neutral',
-			ownerId: 'shared'
+			ownerId: 'shared',
+			terrains: ['forest', 'mountain', 'water'] // Rule 2.2.2.k (simplified)
 		};
-
-		adventureZone.add(heroRegion as ZoneEntity);
 		adventureZone.add(companionRegion as ZoneEntity);
-
-		// Rule 4.1.c: Place 3 face-down Tumult cards between regions
-		for (let i = 0; i < 3; i++) {
-			const tumultCard = {
-				id: `tumult-${i}`,
-				instanceId: `tumult-${i}`,
-				type: 'TumultCard',
-				faceDown: true,
-				terrainType: 'tumult',
-				ownerId: 'shared'
-			};
-			adventureZone.add(tumultCard as ZoneEntity);
-		}
 	}
 
 	private async initializePlayerState(playerId: string, player: IPlayer): Promise<void> {
@@ -613,39 +615,80 @@ export class GameStateManager {
 
 		for (const player of this.state.players.values()) {
 			const expeditionZone = player.zones.expeditionZone;
-			const charactersToProcess = expeditionZone
-				.getAll()
-				.filter((e) => isGameObject(e) && e.type === CardType.Character) as IGameObject[];
+			const entitiesToProcess = expeditionZone.getAll().filter((e): e is IGameObject => {
+				if (!isGameObject(e)) return false;
+				return e.type === CardType.Character || e.type === CardType.Gear;
+			});
 
-			// Check if any expedition moved forward this turn
-			const anyExpeditionMoved =
-				player.heroExpedition.hasMoved || player.companionExpedition.hasMoved;
+			for (const entity of entitiesToProcess) {
+				let isAffectedByMovingExpedition = false;
+				// Rule 7.4.4.a for Gigantic check, or check characteristics if adjudicated
+				const isGigantic =
+					entity.currentCharacteristics.isGigantic === true ||
+					entity.abilities.some((ability) => ability.keyword === KeywordAbility.Gigantic);
 
-			for (const char of charactersToProcess) {
-				// Use status handler to check all status interactions
-				const statusResults = this.statusHandler.checkStatusInteraction(char, 'rest');
-
-				// Check if status effects prevent going to Reserve
-				if (statusResults.anchored || statusResults.asleep) {
-					continue; // Status prevents movement to Reserve
+				if (isGigantic) {
+					if (player.heroExpedition.hasMoved || player.companionExpedition.hasMoved) {
+						isAffectedByMovingExpedition = true;
+						console.log(`[GSM] Gigantic entity ${entity.name} is affected by expedition movement.`);
+					}
+				} else {
+					// Non-Gigantic: check specific expedition assignment
+					// Assumes CardPlaySystem sets entity.expeditionAssignment
+					if (
+						entity.expeditionAssignment === 'hero' &&
+						player.heroExpedition.hasMoved
+					) {
+						isAffectedByMovingExpedition = true;
+						console.log(
+							`[GSM] Entity ${entity.name} in hero expedition is affected by hero movement.`
+						);
+					} else if (
+						entity.expeditionAssignment === 'companion' &&
+						player.companionExpedition.hasMoved
+					) {
+						isAffectedByMovingExpedition = true;
+						console.log(
+							`[GSM] Entity ${entity.name} in companion expedition is affected by companion movement.`
+						);
+					} else if (!entity.expeditionAssignment && (player.heroExpedition.hasMoved || player.companionExpedition.hasMoved)) {
+						// Fallback for entities without explicit assignment (e.g. older system state or if CardPlaySystem hasn't set it)
+						// This maintains previous behavior for unassigned entities if ANY expedition moved.
+						// Ideally, all non-Gigantic entities in expeditionZone should have expeditionAssignment.
+						console.warn(`[GSM] Entity ${entity.name} lacks expeditionAssignment, using anyExpeditionMoved logic.`);
+						isAffectedByMovingExpedition = true;
+					}
 				}
 
-				// Check for Eternal keyword (Rule 7.4.3)
-				if (this.keywordHandler.isEternal(char)) {
-					continue; // Eternal characters don't go to Reserve
-				}
+				if (isAffectedByMovingExpedition) {
+					// Use status handler to check all status interactions
+					const statusResults = this.statusHandler.checkStatusInteraction(entity, 'rest');
 
-				// Only characters in expeditions that moved go to Reserve
-				if (anyExpeditionMoved) {
-					let destinationZone;
-
-					if (statusResults.fleetingDestination === 'discard') {
-						destinationZone = player.zones.discardPileZone;
-					} else {
-						destinationZone = player.zones.reserveZone;
+					// Check if status effects prevent going to Reserve (Rule 2.4.1 Anchored, 2.4.3 Asleep)
+					if (statusResults.anchored || statusResults.asleep) {
+						console.log(
+							`[GSM] Entity ${entity.name} not moved to Reserve due to Anchored/Asleep.`
+						);
+						continue;
 					}
 
-					this.moveEntity(char.objectId, expeditionZone, destinationZone, char.controllerId);
+					// Check for Eternal keyword (Rule 7.4.3)
+					if (this.keywordHandler.isEternal(entity)) {
+						console.log(`[GSM] Eternal entity ${entity.name} not moved to Reserve.`);
+						continue;
+					}
+
+					// Determine destination: Reserve or Discard (if Fleeting, Rule 2.4.5)
+					let destinationZone;
+					if (statusResults.fleetingDestination === 'discard') {
+						destinationZone = player.zones.discardPileZone;
+						console.log(`[GSM] Fleeting entity ${entity.name} to be moved to Discard.`);
+					} else {
+						destinationZone = player.zones.reserveZone;
+						console.log(`[GSM] Entity ${entity.name} to be moved to Reserve.`);
+					}
+
+					this.moveEntity(entity.objectId, expeditionZone, destinationZone, entity.controllerId);
 				}
 			}
 		}
@@ -656,7 +699,19 @@ export class GameStateManager {
 	 * Rule 4.2.5.c: Players discard/sacrifice down to their limits.
 	 */
 	public async cleanupPhase(): Promise<void> {
+		// Rule 4.2.5.c: Clean-up - Each player chooses as many objects in their Reserve as
+		// their Hero's reserve limit and as many objects in their landmarks as their Hero's
+		// landmark limit. All non-selected objects in Reserve are discarded and all non-selected
+		// objects in landmarks are sacrificed, simultaneously.
+		// Rule 1.4.5.a / 6.1.h: Choices are made in initiative order (current player first, then others).
+		// Note on simultaneity: True simultaneity is hard in code. Here, actions are sequential per player.
+		// TODO: Implement player choice for selecting which cards to discard/sacrifice.
+		// The current implementation uses a deterministic approach (e.g., removing the last item added to the zone).
+		// TODO: Process choices in initiative order if >2 players. For 2 players, current player then opponent is fine.
+
 		console.log('[GSM] Beginning Clean-up phase.');
+		// For simplicity in a 2-player game context, iterating through players directly is okay.
+		// For >2 players, an explicit initiative order would be needed for choices.
 		for (const player of this.state.players.values()) {
 			const hero = player.zones.heroZone.getAll()[0] as IGameObject | undefined;
 			const reserveLimit = hero?.baseCharacteristics.reserveLimit ?? 2;
@@ -766,6 +821,9 @@ export class GameStateManager {
 			const heroStats = this.calculateExpeditionStats(player.id, 'hero');
 			const companionStats = this.calculateExpeditionStats(player.id, 'companion');
 
+			const adventureRegions = this.state.sharedZones.adventure.getAll(); // Assuming ordered: H, T1, T2, T3, C
+			const totalRegions = adventureRegions.length;
+
 			// Find opponent (for 2-player game)
 			const opponents = Array.from(this.state.players.values()).filter((p) => p.id !== player.id);
 
@@ -773,25 +831,46 @@ export class GameStateManager {
 				const oppHeroStats = this.calculateExpeditionStats(opponent.id, 'hero');
 				const oppCompanionStats = this.calculateExpeditionStats(opponent.id, 'companion');
 
-				// Hero expedition vs opponent hero expedition
-				if (this.expeditionShouldMove(heroStats, oppHeroStats) && player.heroExpedition.canMove) {
-					player.heroExpedition.position++;
-					player.heroExpedition.hasMoved = true;
-					console.log(
-						`[GSM] Player ${player.id} hero expedition moved to position ${player.heroExpedition.position}`
-					);
+				// Hero expedition
+				if (player.heroExpedition.canMove) {
+					const currentHeroPos = player.heroExpedition.position;
+					if (currentHeroPos < totalRegions) {
+						// Target region for hero is adventureRegions[currentHeroPos]
+						// because position is 0-indexed and represents number of regions already traversed.
+						// So if pos = 0, next region is index 0. If pos = 1, next region is index 1.
+						const targetHeroRegion = adventureRegions[currentHeroPos];
+						// Safely access terrains, defaulting to empty array if not present
+						const heroRegionTerrains = targetHeroRegion?.terrains || [];
+
+						if (this.expeditionShouldMove(heroStats, oppHeroStats, heroRegionTerrains)) {
+							player.heroExpedition.position++;
+							player.heroExpedition.hasMoved = true;
+							console.log(
+								`[GSM] Player ${player.id} hero expedition moved to position ${player.heroExpedition.position} (into region ${targetHeroRegion?.id || 'unknown'})`
+							);
+						}
+					}
 				}
 
-				// Companion expedition vs opponent companion expedition
-				if (
-					this.expeditionShouldMove(companionStats, oppCompanionStats) &&
-					player.companionExpedition.canMove
-				) {
-					player.companionExpedition.position++;
-					player.companionExpedition.hasMoved = true;
-					console.log(
-						`[GSM] Player ${player.id} companion expedition moved to position ${player.companionExpedition.position}`
-					);
+				// Companion expedition
+				if (player.companionExpedition.canMove) {
+					const currentCompanionPos = player.companionExpedition.position;
+					if (currentCompanionPos < totalRegions) {
+						// Target region for companion is adventureRegions[totalRegions - 1 - currentCompanionPos]
+						// E.g. totalRegions = 5. pos = 0 -> target index 4. pos = 1 -> target index 3.
+						const targetCompanionRegionIndex = totalRegions - 1 - currentCompanionPos;
+						const targetCompanionRegion = adventureRegions[targetCompanionRegionIndex];
+						// Safely access terrains, defaulting to empty array if not present
+						const companionRegionTerrains = targetCompanionRegion?.terrains || [];
+
+						if (this.expeditionShouldMove(companionStats, oppCompanionStats, companionRegionTerrains)) {
+							player.companionExpedition.position++;
+							player.companionExpedition.hasMoved = true;
+							console.log(
+								`[GSM] Player ${player.id} companion expedition moved to position ${player.companionExpedition.position} (into region ${targetCompanionRegion?.id || 'unknown'})`
+							);
+						}
+					}
 				}
 			}
 		}
@@ -800,17 +879,26 @@ export class GameStateManager {
 	/**
 	 * Determines if an expedition should move forward based on statistics comparison
 	 * Rule 4.2.4.e: "An expedition moves forward if it has a greater positive total for at least one terrain"
+	 *             that is present in the region.
 	 */
-	private expeditionShouldMove(myStats: ITerrainStats, opponentStats: ITerrainStats): boolean {
-		const myForest = Math.max(0, myStats.forest);
-		const myMountain = Math.max(0, myStats.mountain);
-		const myWater = Math.max(0, myStats.water);
+	private expeditionShouldMove(
+		myStats: ITerrainStats,
+		opponentStats: ITerrainStats,
+		regionTerrains: string[]
+	): boolean {
+		const terrainsToCompare: (keyof ITerrainStats)[] = ['forest', 'mountain', 'water'];
 
-		const oppForest = Math.max(0, opponentStats.forest);
-		const oppMountain = Math.max(0, opponentStats.mountain);
-		const oppWater = Math.max(0, opponentStats.water);
+		for (const terrain of terrainsToCompare) {
+			if (regionTerrains.includes(terrain)) {
+				const myStatValue = Math.max(0, myStats[terrain] || 0);
+				const opponentStatValue = Math.max(0, opponentStats[terrain] || 0);
 
-		return myForest > oppForest || myMountain > oppMountain || myWater > oppWater;
+				if (myStatValue > 0 && myStatValue > opponentStatValue) {
+					return true; // Found a terrain where my expedition has greater positive total
+				}
+			}
+		}
+		return false; // No such terrain found
 	}
 
 	public async drawCards(playerId: string, count: number): Promise<void> {

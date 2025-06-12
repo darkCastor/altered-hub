@@ -33,6 +33,11 @@ export interface IGameObject {
 	counters: Map<CounterType, number>; // Rule 2.5
 
 	abilities: IAbility[]; // Instantiated abilities for this object
+
+	// Custom property to track which expedition a non-Gigantic entity is assigned to.
+	// This would ideally be set by CardPlaySystem when the entity enters an expedition.
+	expeditionAssignment?: 'hero' | 'companion';
+	terrains?: string[]; // Optional field for region-like entities that are GameObjects
 }
 
 // Rule 2.2.1.g, 6.3.g
