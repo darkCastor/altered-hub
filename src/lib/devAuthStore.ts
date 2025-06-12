@@ -67,7 +67,7 @@ export interface WebAuthnCredential extends AuthenticatorDevice {
 // This file is for temporary dev storage, so the exact structure of stored credential can be flexible
 // as long as it holds the necessary info for excludeCredentials.
 // The primary source of truth for credential structure will be in `types/auth.ts`
-// and the actual storage in RxDB later.
+// and the actual storage implementation later.
 
 // Example of how credentials might be structured for excludeCredentials:
 // {

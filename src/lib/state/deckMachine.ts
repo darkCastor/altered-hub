@@ -1,8 +1,8 @@
 import { setup, assign, assertEvent } from 'xstate';
 import { deckValidator, type DeckValidationResult, type DeckFormat } from '$lib/deckValidation';
-import { dbPromise } from '$lib/rxdb';
+import { loadDecks, saveDeck, deleteDeck } from '$lib/deckStorage';
 
-// RxDB Deck type (dates as strings)
+// Deck document type (dates as strings for JSON serialization)
 export interface DeckDoc {
 	id: string;
 	name: string;
@@ -75,55 +75,27 @@ type DeckEvents =
 	| { type: 'ERROR'; message: string } // General error
 	| { type: 'CLEAR_ERROR' };
 
-// Helper to convert DB doc to Machine's Deck type
-function fromDocToDeck(doc: DeckDoc): Deck {
-	return {
-		...doc,
-		createdAt: new Date(doc.createdAt),
-		updatedAt: new Date(doc.updatedAt)
-	};
-}
-
-// Helper to convert Machine's Deck type to DB doc
-function fromDeckToDoc(deck: Deck): DeckDoc {
-	return {
-		...deck,
-		createdAt: deck.createdAt.toISOString(),
-		updatedAt: deck.updatedAt.toISOString()
-	};
-}
 
 export const deckMachine = setup({
 	types: {
 		context: {} as DeckContext,
 		events: {} as DeckEvents,
 		actors: {} as {
-			loadDecksFromDb: { data: Deck[] };
-			saveDeckToDb: { data: Deck; input: { deckToSave: Deck } };
-			deleteDeckFromDb: { data: { id: string }; input: { deckId: string } };
+			loadDecksFromStorage: { data: Deck[] };
+			saveDeckToStorage: { data: Deck; input: { deckToSave: Deck } };
+			deleteDeckFromStorage: { data: { id: string }; input: { deckId: string } };
 		}
 	},
 	actors: {
-		loadDecksFromDb: async () => {
-			const db = await dbPromise;
-			const deckDocs = await db.decks.find().exec();
-			return deckDocs.map((doc) => fromDocToDeck(doc.toJSON()));
+		loadDecksFromStorage: async () => {
+			return loadDecks();
 		},
-		saveDeckToDb: async ({ input }: { input: { deckToSave: Deck } }) => {
-			const db = await dbPromise;
+		saveDeckToStorage: async ({ input }: { input: { deckToSave: Deck } }) => {
 			if (!input.deckToSave) throw new Error('No deck to save');
-			const deckDoc = fromDeckToDoc(input.deckToSave);
-			await db.decks.upsert(deckDoc);
-			return input.deckToSave; // Return the original deck with Date objects
+			return saveDeck(input.deckToSave);
 		},
-		deleteDeckFromDb: async ({ input }: { input: { deckId: string } }) => {
-			const db = await dbPromise;
-			const doc = await db.decks.findOne(input.deckId).exec();
-			if (doc) {
-				await doc.remove();
-				return { id: input.deckId };
-			}
-			throw new Error('Deck not found for deletion');
+		deleteDeckFromStorage: async ({ input }: { input: { deckId: string } }) => {
+			return deleteDeck(input.deckId);
 		}
 	},
 	actions: {
@@ -451,8 +423,8 @@ export const deckMachine = setup({
 	states: {
 		initializing: {
 			invoke: {
-				id: 'loadDecksFromDb',
-				src: 'loadDecksFromDb',
+				id: 'loadDecksFromStorage',
+				src: 'loadDecksFromStorage',
 				onDone: {
 					target: 'idle',
 					actions: 'assignDecksToContext'
@@ -512,8 +484,8 @@ export const deckMachine = setup({
 		saving: {
 			entry: assign({ isLoading: true }),
 			invoke: {
-				id: 'saveDeckToDb',
-				src: 'saveDeckToDb',
+				id: 'saveDeckToStorage',
+				src: 'saveDeckToStorage',
 				input: ({ context }) => ({ deckToSave: context.currentDeck! }), // currentDeck is guarded by hasDeckToSave
 				onDone: {
 					target: 'idle', // Or 'editing' if staying on the page
@@ -528,8 +500,8 @@ export const deckMachine = setup({
 		deleting: {
 			entry: assign({ isLoading: true }),
 			invoke: {
-				id: 'deleteDeckFromDb',
-				src: 'deleteDeckFromDb',
+				id: 'deleteDeckFromStorage',
+				src: 'deleteDeckFromStorage',
 				input: ({ event }) => {
 					// Assuming DELETE_DECK event carries the deckId
 					assertEvent(event, 'DELETE_DECK');

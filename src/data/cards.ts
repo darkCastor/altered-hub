@@ -1,6 +1,5 @@
 import type { AlteredCard } from '$types';
 import rawCardData from './altered_optimized.json';
-import { dbPromise, type MyDatabase } from '$lib/rxdb'; // Import RxDB promise and types
 
 // Keep existing raw type interfaces
 interface RawPower {
@@ -96,63 +95,50 @@ const processedCards: AlteredCard[] = Object.entries(typedRawCardData.cards).map
 	}
 );
 
-// --- RxDB Integration ---
+// --- JSON-based Card Access ---
 
-let populateCalled = false; // Flag to ensure populate is called only once
-
-async function populateCardsIfEmpty(db: MyDatabase): Promise<void> {
-	if (populateCalled) return;
-	populateCalled = true;
-
-	try {
-		const cardCount = await db.cards.count().exec();
-		if (cardCount === 0) {
-			console.log('[RxDB] Card database is empty. Seeding data...');
-			// The 'processedCards' variable holds the data from the JSON, already transformed.
-			await db.cards.bulkInsert(processedCards);
-			console.log('[RxDB] Card data successfully seeded.');
-		} else {
-			console.log('[RxDB] Card data already exists.');
-		}
-	} catch (error) {
-		console.error('[RxDB] Error during card population or count:', error);
-		throw error; // Re-throw to ensure cardsReadyPromise rejects
-	}
+export function getAllCards(): AlteredCard[] {
+	return processedCards;
 }
 
-// Promise to ensure DB is initialized and cards are potentially populated
-const initializeAndPopulateDb = async (): Promise<void> => {
-	const db = await dbPromise;
-	await populateCardsIfEmpty(db);
-};
-
-export const cardsReadyPromise: Promise<void> = initializeAndPopulateDb();
-
-export async function getAllCards(): Promise<AlteredCard[]> {
-	await cardsReadyPromise;
-	const db = await dbPromise; // dbPromise should be resolved if cardsReadyPromise is
-	try {
-		const allCardDocs = await db.cards.find().exec();
-		return allCardDocs.map((doc) => doc.toJSON());
-	} catch (error) {
-		console.error('[RxDB] Error fetching all cards:', error);
-		throw error; // Propagate error to UI
-	}
+export function getCardById(id: string): AlteredCard | null {
+	return processedCards.find(card => card.id === id) || null;
 }
 
-export async function getCardById(id: string): Promise<AlteredCard | null> {
-	await cardsReadyPromise;
-	const db = await dbPromise;
-	try {
-		const cardDoc = await db.cards.findOne(id).exec();
-		return cardDoc ? cardDoc.toJSON() : null;
-	} catch (error) {
-		console.error(`[RxDB] Error fetching card by ID ${id}:`, error);
-		throw error; // Propagate error to UI
-	}
+export function searchCards(query: string): AlteredCard[] {
+	if (!query.trim()) return processedCards;
+	
+	const normalizedQuery = query.toLowerCase().trim();
+	return processedCards.filter(card => 
+		card.name.toLowerCase().includes(normalizedQuery) ||
+		card.type.toLowerCase().includes(normalizedQuery) ||
+		(card.faction && card.faction.toLowerCase().includes(normalizedQuery)) ||
+		card.rarity.toLowerCase().includes(normalizedQuery) ||
+		(card.description && card.description.toLowerCase().includes(normalizedQuery)) ||
+		(card.keywords && card.keywords.some(keyword => keyword.toLowerCase().includes(normalizedQuery)))
+	);
 }
 
-// Keep these lookups loading from static JSON for now as per instructions
+export function filterCards(filters: {
+	faction?: string;
+	type?: string;
+	rarity?: string;
+	cost?: number;
+	minCost?: number;
+	maxCost?: number;
+}): AlteredCard[] {
+	return processedCards.filter(card => {
+		if (filters.faction && card.faction !== filters.faction) return false;
+		if (filters.type && card.type !== filters.type) return false;
+		if (filters.rarity && card.rarity !== filters.rarity) return false;
+		if (filters.cost !== undefined && card.cost !== filters.cost) return false;
+		if (filters.minCost !== undefined && (card.cost === undefined || card.cost < filters.minCost)) return false;
+		if (filters.maxCost !== undefined && (card.cost === undefined || card.cost > filters.maxCost)) return false;
+		return true;
+	});
+}
+
+// Static JSON lookups
 export const factionsLookup = typedRawCardData.lookup_tables.factions;
 export const raritiesLookup = typedRawCardData.lookup_tables.rarities;
 export const cardTypesLookup = typedRawCardData.lookup_tables.card_types;

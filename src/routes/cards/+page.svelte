@@ -4,7 +4,7 @@
 	import { goto } from '$app/navigation';
 	import { useMachine } from '@xstate/svelte';
 	import { deckMachine } from '$lib/state/deckMachine';
-	import { getAllCards, getCardById, cardsReadyPromise } from '$data/cards'; // Updated imports
+	import { getAllCards, getCardById } from '$data/cards';
 	import type { AlteredCard } from '$types';
 	import { Search, Filter, Plus, X, AlertCircle, CheckCircle, Clock } from 'lucide-svelte';
 
@@ -20,9 +20,8 @@
 	let cardsPromise: Promise<AlteredCard[]>;
 
 	onMount(async () => {
-		// It's important cardsReadyPromise resolves before we attempt to getAllCards
-		// cardsReadyPromise itself ensures DB is initialized and seeded if necessary.
-		cardsPromise = cardsReadyPromise.then(() => getAllCards());
+		// Cards are now loaded directly from JSON
+		cardsPromise = Promise.resolve(getAllCards());
 
 		// Check URL parameters for actions after cards are potentially being loaded
 		const urlParams = $page.url.searchParams;
