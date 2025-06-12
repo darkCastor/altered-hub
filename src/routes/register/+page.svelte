@@ -128,7 +128,7 @@
         <input type="text" id="username" bind:value={username} required disabled={isLoading} />
       </div>
       <button type="submit" disabled={isLoading}>
-        {#if isLoading}Registering...{:else}Register with Passkey{:if}
+         {#if isLoading}Registering...{:else}Register with Passkey{/if}
       </button>
     </form>
   {/if}
