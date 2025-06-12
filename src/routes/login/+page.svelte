@@ -120,7 +120,7 @@
         <input type="text" id="username" bind:value={username} disabled={isLoading} placeholder="Leave blank for discoverable passkeys" />
       </div>
       <button type="submit" disabled={isLoading}>
-        {#if isLoading}Logging In...{:else}Login with Passkey{:if}
+         {#if isLoading}Logging In...{:else}Login with Passkey{/if}
       </button>
     </form>
     {#if message}
