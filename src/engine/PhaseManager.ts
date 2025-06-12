@@ -83,25 +83,65 @@ export class PhaseManager {
 				'PhaseManager: TurnManager not found on GameStateManager during handleMorning.'
 			);
 		}
-		await this.gameStateManager.preparePhase();
+		await this.gameStateManager.preparePhase(); // This includes resetting expand flags
 		await this.gameStateManager.resolveReactions();
 
-		for (const playerId of this.gameStateManager.getPlayerIds()) { // Iterate using getPlayerIds for safety
+		// Morning Step 1: Draw cards (Rule 4.2.1.d)
+		for (const playerId of this.gameStateManager.getPlayerIdsInInitiativeOrder()) {
 			await this.gameStateManager.drawCards(playerId, 2); // Draw 2 cards
+			// Note: Drawing cards can trigger reactions, which should be handled by drawCards or GameStateManager.
+			// For now, assuming drawCards and subsequent resolveReactions handle this.
+			// If not, a resolveReactions() might be needed after each player draws or after all draw.
+		}
+		// Resolve reactions after all players have drawn.
+		await this.gameStateManager.resolveReactions();
+
+
+		// Morning Step 2: Expand (Rule 4.2.1.e)
+		// Iterate through each player (respecting initiative order).
+		for (const playerId of this.gameStateManager.getPlayerIdsInInitiativeOrder()) {
 			const player = this.gameStateManager.getPlayer(playerId);
-			// Assuming player.playerExpand is a flag indicating if player *can* expand,
-			// and manaSystem.expandMana handles the choice and card.
-			// The original logic for expandMana was a bit off; it should ideally take a chosen card.
-			// For now, we'll assume some form of expand logic happens or is initiated here.
-			// If expandMana itself is an action that could trigger reactions, it would call resolveReactions internally or after.
-			// The key is that after the "Expand" daily effect step for all players, reactions are checked.
-			if (player && player.playerExpandChoices && !player.hasExpandedThisTurn) {
-				// Simplified: actual expansion would involve player choice.
-				// Assuming expandMana is called within a player loop or similar.
-				console.log(`PhaseManager: Player ${playerId} to handle expand action.`);
+			if (player && !player.hasExpandedThisTurn) {
+				// Check if the player can expand (has cards in hand).
+				// PlayerActionHandler.getAvailableExpandAction already checks this.
+				const expandAction = this.gameStateManager.playerActionHandler.getAvailableExpandAction(playerId);
+
+				if (expandAction) {
+					// Simulate player choice: For this subtask, we'll assume the player chooses
+					// to expand if they can, and picks the first card in their hand.
+					// A real implementation would involve UI interaction.
+					const handCards = player.zones.hand.getAll();
+					if (handCards.length > 0) {
+						const firstCardInHand = handCards[0]; // Simulate choosing the first card
+						// Log the simulated choice
+						console.log(`[PhaseManager] Simulating player ${playerId} choosing to expand card ${firstCardInHand.instanceId}`);
+
+						try {
+							await this.gameStateManager.playerActionHandler.executeExpandAction(playerId, firstCardInHand.instanceId);
+							console.log(`[PhaseManager] Player ${playerId} successfully expanded ${firstCardInHand.instanceId}.`);
+							// Resolve reactions AFTER each individual expand action. (Rule 4.2.1.e)
+							await this.gameStateManager.resolveReactions();
+						} catch (error) {
+							console.error(`[PhaseManager] Error during expand action for player ${playerId} with card ${firstCardInHand.instanceId}:`, error);
+							// Decide if the game should halt or if the error is recoverable.
+							// For now, we log and continue.
+						}
+					} else {
+						console.log(`[PhaseManager] Player ${playerId} could expand, but has no cards in hand (should have been caught by getAvailableExpandAction).`);
+					}
+				} else {
+					console.log(`[PhaseManager] Player ${playerId} cannot or has already expanded this turn.`);
+				}
 			}
 		}
-		await this.gameStateManager.resolveReactions(); // After "Draw" and "Expand" daily effects for all players
+		// Note: The rule 4.2.1.e says "After a player resolves this daily effect, check for reactions."
+		// This implies reactions are checked after each expansion, which is handled above.
+		// A final resolveReactions for the Morning phase itself might be needed after all steps.
+
+		// Morning Step 3: Other Morning daily effects (if any) would go here.
+
+		// Final resolution for the Morning phase before moving on.
+		await this.gameStateManager.resolveReactions();
 
 		console.log(
 			`PhaseManager: Morning logic executed for Day ${this.gameStateManager.state.currentDay}.`

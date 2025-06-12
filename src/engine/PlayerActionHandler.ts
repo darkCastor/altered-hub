@@ -324,32 +324,60 @@ export class PlayerActionHandler {
 	private getAvailableQuickActions(playerId: string): PlayerAction[] {
 		const availableQuickActions: PlayerAction[] = [];
 		const activationLimit = 100; // Rule 1.4.6.c
+		const player = this.gsm.getPlayer(playerId);
+		if (!player) return [];
 
-		// Iterate through all zones where objects might have quick actions
-		// This typically includes zones like Expedition, Landmark, Hero, Reserve
 		for (const zone of this.gsm.getAllVisibleZones()) {
-			// Filter for objects controlled by the player in this zone
 			const playerObjects = zone.getAll().filter(
 				(e): e is IGameObject => isGameObject(e) && e.controllerId === playerId
 			);
 
 			for (const sourceObject of playerObjects) {
 				for (const ability of sourceObject.abilities) {
-					// Assuming quick actions are identifiable, e.g., by ability.abilityType === 'QuickAction'
-					// This check needs to be aligned with how IAbility defines quick actions.
-					// For now, let's assume a property like ability.isQuickAction or a type identifier.
-					// Placeholder: if (ability.type === 'QuickAction') {
-					if (ability.abilityType === 'QuickAction') { // Assuming AbilityType enum or similar
-						const currentActivations = sourceObject.abilityActivationsToday?.get(ability.abilityId) || 0;
-						if (currentActivations < activationLimit) {
-							// TODO: Add further checks if the ability is currently usable (e.g., costs, conditions)
-							availableQuickActions.push({
-								type: 'quickAction',
-								abilityId: ability.abilityId,
-								sourceObjectId: sourceObject.objectId,
-								description: `Use Quick Action: ${ability.text || ability.abilityId} from ${sourceObject.name}`
-							});
+					if (ability.abilityType !== 'QuickAction') { // Corrected enum: AbilityType.QuickAction
+						continue;
+					}
+
+					const currentActivations = sourceObject.abilityActivationsToday?.get(ability.abilityId) || 0;
+					if (currentActivations >= activationLimit) {
+						continue;
+					}
+
+					// Check costs
+					let canPayAllCosts = true;
+					if (ability.cost) {
+						if (ability.cost.mana && ability.cost.mana > 0) {
+							if (!this.canPayManaCost(playerId, ability.cost.mana)) {
+								canPayAllCosts = false;
+							}
 						}
+						if (ability.cost.exhaustSelf) {
+							if (sourceObject.statuses.has(StatusType.Exhausted)) {
+								canPayAllCosts = false;
+							}
+						}
+						if (ability.cost.discardSelfFromReserve) {
+							// Check if the object is in the player's reserve zone
+							const objectZone = this.gsm.findZoneOfObject(sourceObject.objectId);
+							if (!objectZone || objectZone.id !== player.zones.reserveZone.id) {
+								canPayAllCosts = false;
+							}
+							// As per canPlayCardFromReserve, exhausted cards in reserve generally can't be used for abilities
+							// that involve discarding them or activating them.
+							if (sourceObject.statuses.has(StatusType.Exhausted)) {
+								canPayAllCosts = false;
+							}
+						}
+						// Add other cost checks here as ICost expands (e.g., sacrifice, spendCounters)
+					}
+
+					if (canPayAllCosts) {
+						availableQuickActions.push({
+							type: 'quickAction',
+							abilityId: ability.abilityId,
+							sourceObjectId: sourceObject.objectId,
+							description: `Use Quick Action: ${ability.text || ability.abilityId} from ${sourceObject.name}`
+						});
 					}
 				}
 			}
@@ -365,9 +393,10 @@ export class PlayerActionHandler {
 		abilityId: string,
 		sourceObjectId: string
 	): Promise<void> {
+		const player = this.gsm.getPlayer(playerId);
 		const sourceObject = this.gsm.getObject(sourceObjectId);
-		if (!sourceObject) {
-			throw new Error(`Source object ${sourceObjectId} not found for quick action.`);
+		if (!player || !sourceObject) {
+			throw new Error(`Player or Source object ${sourceObjectId} not found for quick action.`);
 		}
 		if (sourceObject.controllerId !== playerId) {
 			throw new Error(`Player ${playerId} does not control source object ${sourceObjectId} for quick action.`);
@@ -377,38 +406,150 @@ export class PlayerActionHandler {
 		if (!ability) {
 			throw new Error(`Ability ${abilityId} not found on source object ${sourceObjectId}.`);
 		}
+		if (ability.abilityType !== 'QuickAction') { // Corrected enum: AbilityType.QuickAction
+			throw new Error(`Ability ${abilityId} is not a QuickAction.`);
+		}
 
-		// Assuming ability.type === 'QuickAction' or similar check was done by getAvailableQuickActions
-
+		// Check activation limit (already checked by getAvailableQuickActions, but good for safety)
 		const activationLimit = 100; // Rule 1.4.6.c
 		const currentActivations = sourceObject.abilityActivationsToday?.get(abilityId) || 0;
-
 		if (currentActivations >= activationLimit) {
-			// This should ideally be caught by getAvailableQuickActions, but good for safety.
 			throw new Error(`Quick action ${abilityId} on ${sourceObjectId} has reached its daily limit.`);
 		}
 
-		// Increment count
+		// Pay Costs
+		if (ability.cost) {
+			if (ability.cost.mana && ability.cost.mana > 0) {
+				if (!this.canPayManaCost(playerId, ability.cost.mana)) { // Double check before paying
+					throw new Error(`Cannot pay mana cost for quick action ${abilityId} from ${sourceObjectId}.`);
+				}
+				await this.payManaCost(playerId, ability.cost.mana);
+				console.log(`[PlayerActionHandler] Paid ${ability.cost.mana} mana for quick action ${abilityId} from ${sourceObject.name}.`);
+			}
+			if (ability.cost.exhaustSelf) {
+				if (sourceObject.statuses.has(StatusType.Exhausted)) { // Double check
+					throw new Error(`Source object ${sourceObjectId} is already exhausted for quick action ${abilityId}.`);
+				}
+				sourceObject.statuses.add(StatusType.Exhausted);
+				console.log(`[PlayerActionHandler] Exhausted ${sourceObject.name} for quick action ${abilityId}.`);
+			}
+			if (ability.cost.discardSelfFromReserve) {
+				const objectZone = this.gsm.findZoneOfObject(sourceObject.objectId);
+				if (!objectZone || objectZone.id !== player.zones.reserveZone.id) {
+					throw new Error(`Source object ${sourceObjectId} is not in reserve for discardSelfFromReserve cost.`);
+				}
+				// No need to check for exhausted status here again if getAvailableQuickActions did it,
+				// but if it could change, a check might be warranted.
+				this.gsm.moveEntity(sourceObject.objectId, player.zones.reserveZone, player.zones.discardPile, playerId);
+				console.log(`[PlayerActionHandler] Discarded ${sourceObject.name} from reserve for quick action ${abilityId}.`);
+				// After discarding, the sourceObject reference might be stale or point to an object in discard.
+				// The effect should resolve based on LKI if needed.
+			}
+			// Add other cost payments here
+		}
+
+		// Increment activation count
 		if (!sourceObject.abilityActivationsToday) {
-			sourceObject.abilityActivationsToday = new Map<string, number>(); // Should be initialized by factory
+			sourceObject.abilityActivationsToday = new Map<string, number>();
 		}
 		sourceObject.abilityActivationsToday.set(abilityId, currentActivations + 1);
 		console.log(`[PlayerActionHandler] Incremented quick action count for ${abilityId} on ${sourceObject.name} to ${currentActivations + 1}`);
 
-		// TODO: Implement actual effect resolution of the quick action
-		// This would involve:
-		// 1. Paying any costs associated with the ability.
-		// 2. Calling this.gsm.effectProcessor.resolveEffect(ability.effect, sourceObject, potentialTargets);
-		console.log(`[PlayerActionHandler] Executing Quick Action: ${ability.text || abilityId} from ${sourceObject.name}`);
-		// Example placeholder for effect resolution:
-		// await this.gsm.effectProcessor.resolveEffect(ability.effect, sourceObject);
+		// Resolve Effect
+		console.log(`[PlayerActionHandler] Executing Quick Action effect: ${ability.text || abilityId} from ${sourceObject.name}`);
+		// Ensure sourceObject passed to resolveEffect is the state *before* paying costs like discardSelf.
+		// If discardSelfFromReserve was paid, sourceObject is now in the discard pile.
+		// EffectProcessor needs to handle LKI (Last Known Information) if the effect relies on the source object's prior state.
+		// For now, we pass the potentially modified sourceObject (e.g. now exhausted).
+		// If it was discarded, the original sourceObject reference is what we have, but it's no longer in its original zone.
+		// This detail is important for effect resolution.
+		await this.gsm.effectProcessor.resolveEffect(ability.effect, sourceObject /*, potentialTargets */);
 
-		// Note: Some quick actions might have costs or further targeting, which needs full implementation.
+		// Note: If discardSelfFromReserve was paid, sourceObject is no longer in its original zone.
+		// The effect resolution must be robust to this.
+	}
+
+	/**
+	 * Gets available expand action for a player.
+	 * Rule 4.2.1.e - Expand: Player may move one card from hand to Mana zone.
+	 */
+	public getAvailableExpandAction(playerId: string): PlayerAction | null {
+		const player = this.gsm.getPlayer(playerId);
+		if (!player || player.hasExpandedThisTurn) {
+			return null;
+		}
+
+		// This action is only available during the Morning phase's Expand step.
+		// PhaseManager will be responsible for calling this at the right time.
+		// For now, we just check if the player has cards in hand.
+		if (player.zones.hand.isEmpty()) {
+			return null;
+		}
+
+		// For simplicity, we assume any card can be chosen.
+		// A more advanced version would list choices or filter by expandable cards.
+		// We'll return a generic action here, the specific card will be chosen by the player.
+		// The PhaseManager will simulate this choice for now.
+		return {
+			type: 'expandMana',
+			description: 'Expand a card from your hand to your Mana zone.',
+		};
+	}
+
+	/**
+	 * Executes the expand action.
+	 * Moves a card from hand to Mana zone, face down, as a Mana Orb.
+	 */
+	public async executeExpandAction(playerId: string, cardIdToExpand: string): Promise<void> {
+		const player = this.gsm.getPlayer(playerId);
+		if (!player) {
+			throw new Error(`Player ${playerId} not found.`);
+		}
+		if (player.hasExpandedThisTurn) {
+			throw new Error(`Player ${playerId} has already expanded this turn.`);
+		}
+
+		const cardToMove = player.zones.hand.findById(cardIdToExpand) as ICardInstance | undefined;
+		if (!cardToMove) {
+			throw new Error(`Card ${cardIdToExpand} not found in player ${playerId}'s hand.`);
+		}
+
+		// Move the card to the player's Mana zone.
+		// It becomes a new IGameObject in the Mana zone.
+		const newManaOrb = this.gsm.moveEntity(
+			cardIdToExpand,
+			player.zones.hand,
+			player.zones.manaZone,
+			playerId,
+			{
+				definitionId: cardToMove.definitionId,
+				name: 'Mana Orb',
+				type: CardType.ManaOrb,
+				faceDown: true,
+				controllerId: playerId,
+				ownerId: playerId,
+				statuses: new Set(),
+				abilities: [],
+				effects: [],
+				zoneId: player.zones.manaZone.id,
+			}
+		);
+
+		if (!newManaOrb || !isGameObject(newManaOrb)) {
+			throw new Error(`Failed to create new Mana Orb from card ${cardIdToExpand}`);
+		}
+
+		newManaOrb.statuses.delete(StatusType.Exhausted);
+
+		player.hasExpandedThisTurn = true;
+		this.gsm.recordExpansion(playerId);
+
+		console.log(`[PlayerActionHandler] Player ${playerId} expanded card ${cardIdToExpand} into a Mana Orb ${newManaOrb.objectId}.`);
 	}
 }
 
 export interface PlayerAction {
-	type: 'playCard' | 'quickAction' | 'pass' | 'convertManaOrb'; // Added 'convertManaOrb'
+	type: 'playCard' | 'quickAction' | 'pass' | 'convertManaOrb' | 'expandMana';
 	cardId?: string;
 	zone?: string;
 	abilityId?: string;
@@ -416,4 +557,7 @@ export interface PlayerAction {
 	sourceOrbId?: string; // For convertManaOrb
 	targetOrbId?: string; // For convertManaOrb
 	description: string;
+	cardToExpandId?: string; // For expandMana
 }
+
+export type PlayerActionType = PlayerAction['type'];
