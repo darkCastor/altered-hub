@@ -581,7 +581,7 @@ export class GameStateManager {
 		return Array.from(this.state.players.keys());
 	}
 
-	public setCurrentPhase(phase: GamePhase) {
+	public async setCurrentPhase(phase: GamePhase) {
 		this.state.currentPhase = phase;
 		this.eventBus.publish('phaseChanged', { phase });
 

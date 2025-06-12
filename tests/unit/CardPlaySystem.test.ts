@@ -1,4 +1,4 @@
-import { describe, test, expect, beforeEach } from 'bun:test';
+import { describe, test, expect, beforeEach } from 'bun:test'; // Removed mock, spyOn, Mock
 import { CardPlaySystem, CardPlayOptions } from '../../src/engine/CardPlaySystem';
 import { GameStateManager } from '../../src/engine/GameStateManager';
 import { EventBus } from '../../src/engine/EventBus';
@@ -8,10 +8,14 @@ import {
 	ZoneIdentifier,
 	GamePhase,
 	KeywordAbility,
-	PermanentZoneType
+	PermanentZoneType,
+	AbilityType // Added AbilityType
 } from '../../src/engine/types/enums'; // Added KeywordAbility, PermanentZoneType
 import type { ICardDefinition } from '../../src/engine/types/cards';
-import type { IGameObject } from '../../src/engine/types/objects';
+import type { IGameObject} from '../../src/engine/types/objects';
+import { isGameObject } from '../../src/engine/types/objects';
+import { GenericZone } from '../../src/engine/Zone';
+
 
 /**
  * Unit tests for CardPlaySystem - Rules 5.1 (Card Playing Process) and 5.2 (Playing from Reserve)
@@ -20,8 +24,8 @@ import type { IGameObject } from '../../src/engine/types/objects';
 // This describe block will be replaced with tests for the new CardPlaySystem API
 describe('CardPlaySystem - NEW API Tests', () => {
 	let cardPlaySystem: CardPlaySystem;
-	let gsm: jest.Mocked<GameStateManager>;
-	let eventBus: jest.Mocked<EventBus>;
+	let gsm: jest.Mocked<GameStateManager>; // Reverted to jest.Mocked
+	let eventBus: jest.Mocked<EventBus>; // Reverted to jest.Mocked
 	let player1: any; // Mock player
 	let mockPlayerDeckDefinitions: Map<string, ICardDefinition[]>;
 
@@ -33,8 +37,8 @@ describe('CardPlaySystem - NEW API Tests', () => {
 	const landmarkDef: ICardDefinition = { id: 'land1', name: 'Test Landmark', type: CardType.Permanent, permanentZoneType: PermanentZoneType.Landmark, handCost: { total: 2 }, reserveCost: { total:2}, faction: 'Neutral', abilities: [], rarity:'Common', version:'1' };
 
 	beforeEach(() => {
-		eventBus = new EventBus() as jest.Mocked<EventBus>;
-		jest.spyOn(eventBus, 'publish'); // Spy on publish method
+		eventBus = new EventBus() as jest.Mocked<EventBus>; // Reverted
+		jest.spyOn(eventBus, 'publish'); // Spy on publish method - Reverted
 
 		// Setup mock Player
 		player1 = {
@@ -51,11 +55,11 @@ describe('CardPlaySystem - NEW API Tests', () => {
 
 		// Setup mock GameStateManager
 		gsm = {
-			getPlayer: jest.fn().mockReturnValue(player1),
-			getCardDefinition: jest.fn(id => {
+			getPlayer: jest.fn().mockReturnValue(player1), // Reverted
+			getCardDefinition: jest.fn(id => { // Reverted
 				return [charDef, spellDef, spellFleetingDef, spellCooldownDef, landmarkDef].find(d => d.id === id);
 			}),
-			moveEntity: jest.fn().mockImplementation((cardId, fromZone, toZone, _controllerId) => {
+			moveEntity: jest.fn().mockImplementation((cardId, fromZone, toZone, _controllerId) => { // Reverted
 				const card = fromZone.remove(cardId);
 				if (card) {
 					// Simulate object creation if moving to a visible zone like Limbo or final destination
@@ -72,7 +76,7 @@ describe('CardPlaySystem - NEW API Tests', () => {
 							ownerId: player1.id,
 							statuses: new Set(),
 							counters: new Map(),
-							abilities: def?.abilities ? JSON.parse(JSON.stringify(def.abilities)) : [], // Deep clone
+					abilities: def?.abilities ? JSON.parse(JSON.stringify(def.abilities)) : [],
 							expeditionAssignment: undefined,
 							abilityActivationsToday: new Map(),
 							timestamp: Date.now(),
@@ -86,11 +90,11 @@ describe('CardPlaySystem - NEW API Tests', () => {
 				return null;
 			}),
 			manaSystem: {
-				canPayMana: jest.fn().mockReturnValue(true),
-				spendMana: jest.fn().mockResolvedValue(undefined),
+				canPayMana: jest.fn().mockReturnValue(true), // Reverted
+				spendMana: jest.fn().mockResolvedValue(undefined), // Reverted
 			},
 			effectProcessor: {
-				resolveEffect: jest.fn().mockResolvedValue(undefined),
+				resolveEffect: jest.fn().mockResolvedValue(undefined), // Reverted
 			},
 			state: {
 				sharedZones: {
@@ -100,17 +104,36 @@ describe('CardPlaySystem - NEW API Tests', () => {
 				currentPhase: GamePhase.Afternoon,
 			},
 			eventBus: eventBus, // Use the spied eventBus
-			objectFactory: { generateId: jest.fn(() => `obj-${Math.random()}`) } // For entities created in Limbo/play
-		} as unknown as jest.Mocked<GameStateManager>;
+			objectFactory: {
+				generateId: jest.fn(() => `obj-${Math.random()}`), // Reverted
+				createGameObjectFromDefinition: jest.fn((def, ownerId) => ({ // Reverted
+					// Basic mock for createGameObjectFromDefinition
+					objectId: `obj-${def.id}-${ownerId}`,
+					definitionId: def.id,
+					name: def.name,
+					type: def.type,
+					subTypes: def.subTypes,
+					baseCharacteristics: { ...def },
+					currentCharacteristics: { ...def },
+					ownerId,
+					controllerId: ownerId,
+					statuses: new Set(),
+					counters: new Map(),
+					abilities: def.abilities ? JSON.parse(JSON.stringify(def.abilities)) : [],
+					timestamp: Date.now(),
+				} as IGameObject))
+			}
+			// getZoneByIdentifier removed from here
+		} as unknown as jest.Mocked<GameStateManager>; // Reverted
 
 		cardPlaySystem = new CardPlaySystem(gsm, eventBus);
 	});
 
 	describe('canPlayCard', () => {
 		test('should allow playing from hand if mana cost is met', async () => {
-			const card = { instanceId: 'c1', definitionId: 'spell1' } as ICardInstance;
+			const card = { instanceId: 'c1', definitionId: 'spell1', ownerId: 'player1' } as ICardInstance;
 			player1.zones.handZone.add(card);
-			gsm.manaSystem.canPayMana = jest.fn().mockReturnValue(true);
+			(gsm.manaSystem.canPayMana as jest.Mock).mockReturnValue(true); // Reverted
 
 			const result = await cardPlaySystem.canPlayCard('player1', 'c1', ZoneIdentifier.Hand);
 			expect(result.isPlayable).toBe(true);
@@ -118,9 +141,9 @@ describe('CardPlaySystem - NEW API Tests', () => {
 		});
 
 		test('should prevent playing from hand if mana cost is not met', async () => {
-			const card = { instanceId: 'c1', definitionId: 'spell1' } as ICardInstance;
+			const card = { instanceId: 'c1', definitionId: 'spell1', ownerId: 'player1' } as ICardInstance;
 			player1.zones.handZone.add(card);
-			gsm.manaSystem.canPayMana = jest.fn().mockReturnValue(false);
+			(gsm.manaSystem.canPayMana as jest.Mock).mockReturnValue(false); // Reverted
 
 			const result = await cardPlaySystem.canPlayCard('player1', 'c1', ZoneIdentifier.Hand);
 			expect(result.isPlayable).toBe(false);
@@ -139,10 +162,10 @@ describe('CardPlaySystem - NEW API Tests', () => {
 
 	describe('playCard Lifecycle', () => {
 		test('Playing a Character moves to Limbo, then to shared expedition with assignment', async () => {
-			const charInstance = { instanceId: 'charInst1', definitionId: 'char1' } as ICardInstance;
+			const charInstance = { instanceId: 'charInst1', definitionId: 'char1', ownerId: 'player1' } as ICardInstance;
 			player1.zones.handZone.add(charInstance);
 
-			await cardPlaySystem.playCard('player1', 'charInst1', ZoneIdentifier.Hand, 'hero');
+			await cardPlaySystem.playCard('player1', 'charInst1', ZoneIdentifier.Hand, { expeditionType: 'hero' });
 
 			expect(gsm.moveEntity).toHaveBeenCalledWith('charInst1', player1.zones.handZone, gsm.state.sharedZones.limbo, 'player1');
 			// The second moveEntity (Limbo to Expedition) is called with the objectId of the card in Limbo
@@ -157,10 +180,10 @@ describe('CardPlaySystem - NEW API Tests', () => {
 		});
 
 		test('Playing a Spell from hand moves to Limbo, resolves effect, then to Reserve', async () => {
-			const spellInstance = { instanceId: 'spellInst1', definitionId: 'spell1' } as ICardInstance;
+			const spellInstance = { instanceId: 'spellInst1', definitionId: 'spell1', ownerId: 'player1' } as ICardInstance;
 			player1.zones.handZone.add(spellInstance);
 
-			await cardPlaySystem.playCard('player1', 'spellInst1', ZoneIdentifier.Hand);
+			await cardPlaySystem.playCard('player1', 'spellInst1', ZoneIdentifier.Hand, {});
 
 			expect(gsm.moveEntity).toHaveBeenCalledWith('spellInst1', player1.zones.handZone, gsm.state.sharedZones.limbo, 'player1');
 			const limboCard = gsm.state.sharedZones.limbo.getAll()[0]; // It's removed after effect
@@ -170,12 +193,14 @@ describe('CardPlaySystem - NEW API Tests', () => {
 		});
 
 		test('Playing a Fleeting Spell from hand moves to Limbo, resolves, then to Discard', async () => {
-			const spellInstance = { instanceId: 'spellInstF', definitionId: 'spell2' } as ICardInstance; // spell2 is FleetingSpell
+			const spellInstance = { instanceId: 'spellInstF', definitionId: 'spell2', ownerId: 'player1' } as ICardInstance; // spell2 is FleetingSpell
 			player1.zones.handZone.add(spellInstance);
 
-			await cardPlaySystem.playCard('player1', 'spellInstF', ZoneIdentifier.Hand);
+			await cardPlaySystem.playCard('player1', 'spellInstF', ZoneIdentifier.Hand, {});
 
-			const limboCardObjectId = gsm.moveEntity.mock.calls.find(call => call[1] === player1.zones.handZone)![0];
+			const limboCardObjectId = (gsm.moveEntity as jest.Mock).mock.calls.find(call => call[1] === player1.zones.handZone)![0]; // Reverted
+
+
 
 			expect(gsm.moveEntity).toHaveBeenCalledWith(limboCardObjectId, player1.zones.handZone, gsm.state.sharedZones.limbo, 'player1');
 			expect(gsm.effectProcessor.resolveEffect).toHaveBeenCalled();
@@ -185,12 +210,13 @@ describe('CardPlaySystem - NEW API Tests', () => {
 		});
 
 		test('Playing a Cooldown Spell from hand moves to Limbo, resolves, then to Reserve and becomes Exhausted', async () => {
-			const spellInstance = { instanceId: 'spellInstC', definitionId: 'spell3' } as ICardInstance; // spell3 is CooldownSpell
+			const spellInstance = { instanceId: 'spellInstC', definitionId: 'spell3', ownerId: 'player1' } as ICardInstance; // spell3 is CooldownSpell
 			player1.zones.handZone.add(spellInstance);
 
-			await cardPlaySystem.playCard('player1', 'spellInstC', ZoneIdentifier.Hand);
+			await cardPlaySystem.playCard('player1', 'spellInstC', ZoneIdentifier.Hand, {});
 
-			const limboCardObjectId = gsm.moveEntity.mock.calls.find(call => call[1] === player1.zones.handZone)![0];
+			const limboCardObjectId = (gsm.moveEntity as jest.Mock).mock.calls.find(call => call[1] === player1.zones.handZone)![0]; // Reverted
+
 			expect(gsm.moveEntity).toHaveBeenCalledWith(limboCardObjectId, player1.zones.handZone, gsm.state.sharedZones.limbo, 'player1');
 			expect(gsm.effectProcessor.resolveEffect).toHaveBeenCalled();
 
@@ -205,10 +231,10 @@ describe('CardPlaySystem - NEW API Tests', () => {
 
 
 		test('Playing a Landmark from hand moves to Limbo, then to Landmark Zone', async () => {
-			const landmarkInstance = { instanceId: 'landInst1', definitionId: 'land1' } as ICardInstance;
+			const landmarkInstance = { instanceId: 'landInst1', definitionId: 'land1', ownerId: 'player1' } as ICardInstance;
 			player1.zones.handZone.add(landmarkInstance);
 
-			await cardPlaySystem.playCard('player1', 'landInst1', ZoneIdentifier.Hand);
+			await cardPlaySystem.playCard('player1', 'landInst1', ZoneIdentifier.Hand, {});
 
 			expect(gsm.moveEntity).toHaveBeenCalledWith('landInst1', player1.zones.handZone, gsm.state.sharedZones.limbo, 'player1');
 			const limboCard = gsm.state.sharedZones.limbo.getAll()[0];
@@ -218,10 +244,11 @@ describe('CardPlaySystem - NEW API Tests', () => {
 
 		test('Playing card from Reserve gains Fleeting and moves to appropriate final zone', async () => {
 			// Test with a Character from reserve
-			const charObject = { ...gameStateManager.objectFactory.createGameObjectFromDefinition(charDef, 'player1'), objectId: 'charObjReserve' };
+			const charObject = (gsm.objectFactory.createGameObjectFromDefinition as jest.Mock)(charDef, 'player1'); // Reverted
+			charObject.objectId = 'charObjReserve'; // Ensure it has a consistent ID for the test
 			player1.zones.reserveZone.add(charObject);
 
-			await cardPlaySystem.playCard('player1', 'charObjReserve', ZoneIdentifier.Reserve, 'companion');
+			await cardPlaySystem.playCard('player1', 'charObjReserve', ZoneIdentifier.Reserve, { expeditionType: 'companion' });
 
 			// Check it gained Fleeting in Limbo (hard to check Limbo state post-play, so check final object)
 			const finalChar = gsm.state.sharedZones.expedition.getAll().find(c => c.definitionId === 'char1');

@@ -440,7 +440,7 @@ This document audits the game engine implementation against the Altered Complete
 
 #### 2.5 Counters
 
-- **Status:** Partially Implemented (Discrepancy in 2.5.j).
+- **Status:** Fully Implemented.
 - **Code References:**
   - `src/engine/types/objects.ts`: `IGameObject.counters` (`Map<CounterType, number>`).
   - `src/engine/types/enums.ts`: `CounterType` enum.
@@ -472,7 +472,7 @@ This document audits the game engine implementation against the Altered Complete
       }
       // newObject.counters = countersToKeep;
       ```
-    - **Discrepancy:** Rule 2.5.j states ALL counters are lost when moving from Expedition/Landmark, *unless* an exception (like Seasoned for boosts to Reserve) applies. The current code only explicitly keeps Seasoned boosts to Reserve. If moving from Exp/Landmark to, say, Hand (if an effect allowed that) or another visible zone that isn't discard, other counters would be lost. The code seems to implicitly lose them by only selectively keeping some. This needs to be robustly tested to ensure it aligns with "lose all unless specified". The current `countersToKeep` starts empty and only adds specific counters to keep. This aligns with losing all by default.
+    - **Verification:** Rule 2.5.j (lose all counters when moving from Exp/Landmark unless specified) confirmed. The `moveEntity` logic in `GameStateManager.ts` correctly initializes `countersToKeep` as empty, ensuring counters are lost by default. Exceptions, like 'Seasoned' allowing Boost counters to be kept when moving to Reserve, are handled. Added specific unit tests to `GameStateManager.test.ts` covering moves from Expedition/Landmark to Reserve (with/without Seasoned), Hand, Limbo, and Discard, all of which passed and confirm the correct behavior.
   - **2.5.k (Keep counters from Reserve/Limbo to another visible zone, unless to Discard):** Fully Implemented. `GameStateManager.moveEntity` logic: `if (fromZoneIsReserveOrLimbo)` then `countersToKeep = sourceGameObject.counters` (if not moving to a losing zone like Discard).
   - **2.5.1 Boost Counters:** Fully Implemented.
     - (a) `CounterType.Boost`.
