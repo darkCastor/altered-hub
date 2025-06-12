@@ -56,12 +56,14 @@ export interface IPlayer {
 		hand: IZone; // Alias for handZone for test compatibility
 		reserve: IZone; // Alias for reserveZone for test compatibility
 		expedition: IZone; // Alias for expeditionZone for test compatibility
+		discardPile: IZone; // Alias for discardPileZone for test compatibility
 	};
 	heroExpedition: IExpeditionState;
 	companionExpedition: IExpeditionState;
 	expeditionState?: IExtendedExpeditionState;
 	hasPassedTurn: boolean;
 	hasExpandedThisTurn: boolean;
+	currentMana: number; // Current available mana for the player
 }
 
 /**

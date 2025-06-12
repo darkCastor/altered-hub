@@ -23,8 +23,8 @@ describe('GameStateManager - Status Rule Compliance (Rule 2.4)', () => {
 		name: 'Sleepy Rock',
 		type: CardType.Character,
 		subTypes: [],
-		handCost: { total: 1 },
-		reserveCost: { total: 1 },
+		handCost: 1,
+		reserveCost: 1,
 		faction: 'Neutral',
 		statistics: { forest: 1, mountain: 1, water: 1 },
 		abilities: [], // No passive abilities that grant these statuses
@@ -37,8 +37,8 @@ describe('GameStateManager - Status Rule Compliance (Rule 2.4)', () => {
 		name: 'Normal Guy',
 		type: CardType.Character,
 		subTypes: [],
-		handCost: { total: 1 },
-		reserveCost: { total: 1 },
+		handCost: 1,
+		reserveCost: 1,
 		faction: 'Neutral',
 		statistics: { forest: 2, mountain: 2, water: 2 },
 		abilities: [],
@@ -51,15 +51,18 @@ describe('GameStateManager - Status Rule Compliance (Rule 2.4)', () => {
 		name: 'Fleeting Fellow',
 		type: CardType.Character,
 		subTypes: [],
-		handCost: { total: 1 },
-		reserveCost: { total: 1 },
+		handCost: 1,
+		reserveCost: 1,
 		faction: 'Neutral',
 		statistics: { forest: 1, mountain: 1, water: 1 },
 		abilities: [
 			{
-				description: 'Fleeting (passive for test)',
-				type: 'passive',
-				keyword: KeywordAbility.Fleeting
+				abilityId: 'abil-fleeting-passive',
+				text: 'This character is Fleeting.',
+				abilityType: 'passive',
+				keyword: KeywordAbility.Fleeting,
+				effect: { steps: [] },
+				isSupportAbility: false
 			}
 		], // Note: This is a conceptual passive. Real Fleeting is applied differently.
 		rarity: 'Common',
@@ -71,7 +74,7 @@ describe('GameStateManager - Status Rule Compliance (Rule 2.4)', () => {
 		name: 'Fleeting Chant',
 		type: CardType.Spell,
 		subTypes: [],
-		handCost: { total: 1 },
+		handCost: 1,
 		faction: 'Neutral',
 		abilities: [
 			{
@@ -92,8 +95,8 @@ describe('GameStateManager - Status Rule Compliance (Rule 2.4)', () => {
 		name: 'Resourceful Tapper',
 		type: CardType.Character,
 		subTypes: [],
-		handCost: { total: 1 },
-		reserveCost: { total: 1 },
+		handCost: 1,
+		reserveCost: 1,
 		faction: 'Neutral',
 		statistics: { forest: 1, mountain: 1, water: 1 },
 		abilities: [
@@ -115,8 +118,8 @@ describe('GameStateManager - Status Rule Compliance (Rule 2.4)', () => {
 		name: 'Helpful Friend',
 		type: CardType.Character,
 		subTypes: [],
-		handCost: { total: 1 },
-		reserveCost: { total: 1 },
+		handCost: 1,
+		reserveCost: 1,
 		faction: 'Neutral',
 		statistics: { forest: 1, mountain: 1, water: 1 },
 		abilities: [

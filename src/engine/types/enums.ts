@@ -70,6 +70,7 @@ export enum KeywordAbility {
 	Cooldown = 'Cooldown',
 	Defender = 'Defender',
 	Eternal = 'Eternal',
+	Fleeting = 'Fleeting',
 	Gigantic = 'Gigantic',
 	Scout = 'Scout',
 	Seasoned = 'Seasoned',
