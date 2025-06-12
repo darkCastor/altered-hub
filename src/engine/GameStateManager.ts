@@ -162,9 +162,8 @@ export class GameStateManager {
 		adventureZone.add(companionRegion as ZoneEntity);
 	}
 
-	private async initializePlayerState(playerId: string, player: IPlayer): Promise<void> {
+	private async initializePlayerState(playerId: string, player: IPlayer, deckDefs: ICardDefinition[]): Promise<void> {
 		// Rule 4.1.h: Heroes should be revealed and placed in Hero zones
-		// This now uses the specific player's deck definitions.
 		const heroDefinition = this.placeHeroInZone(playerId, deckDefs);
 
 		// Rule 4.1.i: Shuffle deck (with remaining cards)
@@ -173,11 +172,8 @@ export class GameStateManager {
 		// Rule 4.1.j: Draw 6 cards
 		await this.drawCards(playerId, 6);
 
-		// Rule 4.1.k: Start with 3 Mana Orbs face-down and ready
-		// The current initializeManaOrbs picks a generic card. This could be improved
-		// to use specific Mana Orb cards if they exist, or continue as is if Mana Orbs
-		// are just represented by any card face down. For now, keep existing logic.
-		this.initializeManaOrbs(playerId);
+		// Rule 4.1.k: Start with 3 Mana Orbs face-down and ready from hand
+		await this.initializeManaOrbsFromHand(playerId);
 
 		// Rule 4.1: Initialize expedition state
 		player.expeditionState = {
@@ -231,21 +227,52 @@ export class GameStateManager {
 		console.log(`[GSM] Initialized and shuffled deck for player ${playerId} with ${deckZone.getCount()} cards.`);
 	}
 
-	private initializeManaOrbs(playerId: string): void {
+	private async initializeManaOrbsFromHand(playerId: string): Promise<void> {
 		const player = this.getPlayer(playerId);
-		if (!player) return;
+		if (!player) {
+			console.error(`[GSM] Player ${playerId} not found for mana orb initialization.`);
+			return;
+		}
 
-		// Rule 4.1.k: 3 Mana Orbs face-down and ready
-		for (let i = 0; i < 3; i++) {
-			const basicCard = Array.from(this.cardDefinitions.values())[0];
-			if (basicCard) {
-				const manaOrb = this.objectFactory.createCard(basicCard.id, playerId);
+		const handZone = player.zones.handZone;
+		const manaZone = player.zones.manaZone;
+		const cardsToSelectFrom = handZone.getAll().filter(isGameObject); // Ensure we are working with GameObjects
+
+		if (cardsToSelectFrom.length < 3) {
+			console.warn(`[GSM] Player ${playerId} has fewer than 3 cards in hand (${cardsToSelectFrom.length}) to choose for mana orbs. Taking all available.`);
+			// Take all available cards from hand if less than 3
+			for (const card of cardsToSelectFrom) {
+				const manaOrb = this.moveEntity(card.objectId, handZone, manaZone, playerId) as IGameObject;
+				if (manaOrb) {
+					manaOrb.faceDown = true;
+					manaOrb.type = CardType.ManaOrb; // Rule 3.2.9.c
+					manaOrb.statuses.delete(StatusType.Exhausted); // Ready
+					// Note: Full characteristic wipe as per Rule 3.2.9.c (losing abilities, stats etc.)
+					// should ideally be handled by moveEntity or ObjectFactory when type changes to ManaOrb
+					// or upon entering ManaZone designated for such orbs.
+				}
+			}
+			console.log(`[GSM] Initialized ${cardsToSelectFrom.length} mana orbs for player ${playerId} from hand.`);
+			return;
+		}
+
+		// Placeholder for player choice: select the first 3 cards from hand.
+		// In a real implementation, this would involve:
+		// const chosenCardIds = await this.actionHandler.playerChoosesCards(playerId, cardsToSelectFrom.map(c => c.objectId), 3, 'Select 3 cards for Mana Orbs');
+		// const cardsToBecomeManaOrbs = cardsToSelectFrom.filter(c => chosenCardIds.includes(c.objectId));
+		// For now, picking the first three:
+		const cardsToBecomeManaOrbs = cardsToSelectFrom.slice(0, 3);
+
+		for (const card of cardsToBecomeManaOrbs) {
+			const manaOrb = this.moveEntity(card.objectId, handZone, manaZone, playerId) as IGameObject;
+			if (manaOrb) {
 				manaOrb.faceDown = true;
 				manaOrb.type = CardType.ManaOrb; // Rule 3.2.9.c
 				manaOrb.statuses.delete(StatusType.Exhausted); // Ready
-				player.zones.manaZone.add(manaOrb);
+				// Again, note characteristic wipe (Rule 3.2.9.c) is a deeper concern for moveEntity/ObjectFactory.
 			}
 		}
+		console.log(`[GSM] Initialized 3 mana orbs for player ${playerId} from hand.`);
 	}
 
 	private initializeGameState(playerIds: string[]): IGameState {
@@ -515,7 +542,7 @@ export class GameStateManager {
 	}
 
 	public getCardDefinition(id: string): ICardDefinition | undefined {
-		return this.cardDefinitions.get(id);
+		return this.allCardDefinitions.get(id); // Corrected to use allCardDefinitions
 	}
 
 	public getObject(id: string): IGameObject | undefined {
@@ -568,7 +595,7 @@ export class GameStateManager {
 		await this.resolveReactions();
 	}
 
-	private getPlayerIdsInInitiativeOrder(startingPlayerId: string): string[] {
+	public getPlayerIdsInInitiativeOrder(startingPlayerId: string): string[] {
 		const playerIds = Array.from(this.state.players.keys());
 		const startIndex = playerIds.indexOf(startingPlayerId);
 		if (startIndex === -1) {
@@ -773,6 +800,7 @@ export class GameStateManager {
 	 */
 	public async preparePhase(): Promise<void> {
 		console.log('[GSM] Beginning Prepare phase (daily effects).');
+		this.resetExpandFlags(); // Rule 4.2.1.e - reset before expand step
 		this.statusHandler.processStatusEffectsDuringPhase('morning'); // Readies objects etc.
 
 		// Reset ability activation counts for "Nothing is Forever" rule (Rule 1.4.6)
@@ -1061,10 +1089,14 @@ export class GameStateManager {
 			player.heroExpedition.canMove = movementRestrictions.hero;
 			player.companionExpedition.canMove = movementRestrictions.companion;
 
-			if (!player.heroExpedition.canMove || !player.companionExpedition.canMove) {
-				console.log(`[GSM] Player ${player.id} expeditions cannot move due to Defender.`);
-				continue;
+			// Corrected logic: if BOTH expeditions cannot move, then continue.
+			// Original logic was: if (player.heroExpedition.canMove || player.companionExpedition.canMove) { ... }
+			// which meant if EITHER could move, it would proceed. We want to skip if BOTH are blocked.
+			if (!player.heroExpedition.canMove && !player.companionExpedition.canMove) {
+				console.log(`[GSM] Player ${player.id}'s hero and companion expeditions cannot move (e.g. due to Defender).`);
+				continue; // Skip this player if both expeditions are blocked
 			}
+
 
 			// Calculate expedition statistics
 			const heroStats = this.calculateExpeditionStats(player.id, 'hero');
@@ -1084,18 +1116,15 @@ export class GameStateManager {
 				if (player.heroExpedition.canMove) {
 					const currentHeroPos = player.heroExpedition.position;
 					if (currentHeroPos < totalRegions) {
-						// Target region for hero is adventureRegions[currentHeroPos]
-						// because position is 0-indexed and represents number of regions already traversed.
-						// So if pos = 0, next region is index 0. If pos = 1, next region is index 1.
 						const targetHeroRegion = adventureRegions[currentHeroPos];
-						// Safely access terrains, defaulting to empty array if not present
 						const heroRegionTerrains = targetHeroRegion?.terrains || [];
+						const heroMovementResult = this.expeditionShouldMove(heroStats, oppHeroStats, heroRegionTerrains);
 
-						if (this.expeditionShouldMove(heroStats, oppHeroStats, heroRegionTerrains)) {
+						if (heroMovementResult.shouldMove) {
 							player.heroExpedition.position++;
 							player.heroExpedition.hasMoved = true;
 							console.log(
-								`[GSM] Player ${player.id} hero expedition moved to position ${player.heroExpedition.position} (into region ${targetHeroRegion?.id || 'unknown'})`
+								`[GSM] Player ${player.id} hero expedition moved to position ${player.heroExpedition.position} (into region ${targetHeroRegion?.id || 'unknown'}) due to terrain(s): ${heroMovementResult.qualifyingTerrains.join(', ')}.`
 							);
 						}
 					}
@@ -1105,18 +1134,16 @@ export class GameStateManager {
 				if (player.companionExpedition.canMove) {
 					const currentCompanionPos = player.companionExpedition.position;
 					if (currentCompanionPos < totalRegions) {
-						// Target region for companion is adventureRegions[totalRegions - 1 - currentCompanionPos]
-						// E.g. totalRegions = 5. pos = 0 -> target index 4. pos = 1 -> target index 3.
 						const targetCompanionRegionIndex = totalRegions - 1 - currentCompanionPos;
 						const targetCompanionRegion = adventureRegions[targetCompanionRegionIndex];
-						// Safely access terrains, defaulting to empty array if not present
 						const companionRegionTerrains = targetCompanionRegion?.terrains || [];
+						const companionMovementResult = this.expeditionShouldMove(companionStats, oppCompanionStats, companionRegionTerrains);
 
-						if (this.expeditionShouldMove(companionStats, oppCompanionStats, companionRegionTerrains)) {
+						if (companionMovementResult.shouldMove) {
 							player.companionExpedition.position++;
 							player.companionExpedition.hasMoved = true;
 							console.log(
-								`[GSM] Player ${player.id} companion expedition moved to position ${player.companionExpedition.position} (into region ${targetCompanionRegion?.id || 'unknown'})`
+								`[GSM] Player ${player.id} companion expedition moved to position ${player.companionExpedition.position} (into region ${targetCompanionRegion?.id || 'unknown'}) due to terrain(s): ${companionMovementResult.qualifyingTerrains.join(', ')}.`
 							);
 						}
 					}
@@ -1134,8 +1161,9 @@ export class GameStateManager {
 		myStats: ITerrainStats,
 		opponentStats: ITerrainStats,
 		regionTerrains: string[]
-	): boolean {
+	): { shouldMove: boolean; qualifyingTerrains: (keyof ITerrainStats)[] } {
 		const terrainsToCompare: (keyof ITerrainStats)[] = ['forest', 'mountain', 'water'];
+		const qualifyingTerrains: (keyof ITerrainStats)[] = [];
 
 		for (const terrain of terrainsToCompare) {
 			if (regionTerrains.includes(terrain)) {
@@ -1143,11 +1171,11 @@ export class GameStateManager {
 				const opponentStatValue = Math.max(0, opponentStats[terrain] || 0);
 
 				if (myStatValue > 0 && myStatValue > opponentStatValue) {
-					return true; // Found a terrain where my expedition has greater positive total
+					qualifyingTerrains.push(terrain);
 				}
 			}
 		}
-		return false; // No such terrain found
+		return { shouldMove: qualifyingTerrains.length > 0, qualifyingTerrains };
 	}
 
 	public async drawCards(playerId: string, count: number): Promise<void> {
@@ -1323,13 +1351,7 @@ export class GameStateManager {
 	public get statusUpdater() {
 		return {
 			updateObjectStatusBasedOnCounters: async (obj: IGameObject) => {
-				// Rule 2.4.4: Update Boosted status based on boost counters
-				const boostCount = obj.counters.get(CounterType.Boost) || 0;
-				if (boostCount > 0) {
-					obj.statuses.add(StatusType.Boosted);
-				} else {
-					obj.statuses.delete(StatusType.Boosted);
-				}
+				this.statusHandler.updateBoostedStatus(obj);
 			}
 		};
 	}
@@ -1455,5 +1477,44 @@ export class GameStateManager {
 			// this.eventBus.publish('cardResupplied', { playerId, card: movedObject });
 		}
 		return movedObject;
+	}
+
+	public addCounters(objectId: string, type: CounterType, amount: number): void {
+		if (amount <= 0) return;
+		const object = this.getObject(objectId);
+		if (!object) {
+			console.warn(`[GSM.addCounters] Object ${objectId} not found.`);
+			return;
+		}
+		object.counters.set(type, (object.counters.get(type) || 0) + amount);
+		console.log(`[GSM.addCounters] Added ${amount} ${type} counters to ${object.name} (ID: ${objectId}). Total: ${object.counters.get(type)}`);
+		if (type === CounterType.Boost) {
+			this.statusHandler.updateBoostedStatus(object);
+		}
+		this.eventBus.publish('countersChanged', { objectId, type, newAmount: object.counters.get(type) });
+	}
+
+	public removeCounters(objectId: string, type: CounterType, amount: number): void {
+		if (amount <= 0) return;
+		const object = this.getObject(objectId);
+		if (!object) {
+			console.warn(`[GSM.removeCounters] Object ${objectId} not found.`);
+			return;
+		}
+		const currentAmount = object.counters.get(type) || 0;
+		const amountToRemove = Math.min(amount, currentAmount);
+		if (amountToRemove > 0) {
+			object.counters.set(type, currentAmount - amountToRemove);
+			console.log(`[GSM.removeCounters] Removed ${amountToRemove} ${type} counters from ${object.name} (ID: ${objectId}). Remaining: ${object.counters.get(type)}`);
+			if (object.counters.get(type) === 0) {
+				object.counters.delete(type); // Clean up if zero
+			}
+			if (type === CounterType.Boost) {
+				this.statusHandler.updateBoostedStatus(object);
+			}
+			this.eventBus.publish('countersChanged', { objectId, type, newAmount: object.counters.get(type) });
+		} else {
+			console.log(`[GSM.removeCounters] No ${type} counters to remove from ${object.name} (ID: ${objectId}).`);
+		}
 	}
 }

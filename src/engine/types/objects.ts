@@ -3,7 +3,7 @@ import type { ICardDefinition } from './cards';
 
 // Re-export for convenience
 export type { ICardInstance, ICardDefinition };
-import type { CardType, StatusType } from './enums';
+import type { CardType, StatusType, CardSubType } from './enums';
 import type { IAbility, IEffect } from './abilities';
 import { CounterType } from './enums';
 import { PermanentZoneType } from './enums';
@@ -18,7 +18,7 @@ export interface IGameObject {
 	definitionId: string; // The ID of the card it's based on
 	name: string;
 	type: CardType;
-	subTypes?: string[];
+	subTypes?: CardSubType[];
 
 	// Characteristics
 	baseCharacteristics: Partial<ICardDefinition>;

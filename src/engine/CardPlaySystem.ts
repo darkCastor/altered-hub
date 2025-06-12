@@ -32,7 +32,8 @@ export class CardPlaySystem {
 		cardId: string, // Can be ICardInstance.instanceId or IGameObject.objectId
 		fromZoneIdentifier: ZoneIdentifier,
 		isScoutPlay?: boolean, // Hint for Scout play
-		scoutRawCost?: number   // Raw Scout cost if isScoutPlay is true
+		scoutRawCost?: number,   // Raw Scout cost if isScoutPlay is true
+		overrideCost?: number // New parameter for specific cost overrides (e.g., 0 for free)
 	): Promise<{ isPlayable: boolean; cost?: number; reason?: string, definitionId?: string }> {
 		const player = this.gsm.getPlayer(playerId);
 		if (!player) return { isPlayable: false, reason: 'Player not found.' };
@@ -55,9 +56,9 @@ export class CardPlaySystem {
 		}
 		// TODO: Add faction requirements if applicable
 
-		const finalCost = this.getModifiedCost(cardEntity, fromZoneIdentifier, playerId, isScoutPlay, scoutRawCost);
+		const finalCost = overrideCost !== undefined ? overrideCost : this.getModifiedCost(cardEntity, fromZoneIdentifier, playerId, isScoutPlay, scoutRawCost);
 
-		if (!this.gsm.manaSystem.canPayMana(playerId, finalCost)) {
+		if (finalCost > 0 && !this.gsm.manaSystem.canPayMana(playerId, finalCost)) { // Only check canPayMana if there's a cost
 			return { isPlayable: false, cost: finalCost, reason: 'Cannot pay mana cost.', definitionId: definition.id };
 		}
 
@@ -75,8 +76,16 @@ export class CardPlaySystem {
 		fromZone: ZoneIdentifier,
 		playerId: string,
 		isScoutPlayHint?: boolean,
-		scoutRawCostHint?: number
+		scoutRawCostHint?: number,
+		overrideCost?: number // Added to signature, though direct check is now in canPlayCard/playCard
 	): number {
+		// If an overrideCost is provided (e.g. for "play for free"), it bypasses all other calculations.
+		// This check is primarily here if getModifiedCost is called externally with an override.
+		// Internally, playCard and canPlayCard now handle overrideCost before calling this for standard calculation.
+		if (overrideCost !== undefined) {
+			return Math.max(0, overrideCost);
+		}
+
 		const definition = this.gsm.getCardDefinition(card.definitionId);
 		if (!definition) throw new Error('Card definition not found for cost calculation.');
 
@@ -200,9 +209,10 @@ export class CardPlaySystem {
 		cardId: string, // ICardInstance.instanceId or IGameObject.objectId
 		fromZoneIdentifier: ZoneIdentifier,
 		selectedExpeditionType?: 'hero' | 'companion',
-		_targets?: TargetInfo[], // Placeholder for target processing
-		isScoutPlay?: boolean,    // Hint for Scout play
-		scoutRawCost?: number     // Raw Scout cost if isScoutPlay is true
+		_targets?: TargetInfo[],
+		isScoutPlay?: boolean,
+		scoutRawCost?: number,
+		overrideCost?: number // New parameter for specific cost overrides
 	): Promise<void> {
 		const player = this.gsm.getPlayer(playerId);
 		if (!player) throw new Error(`Player ${playerId} not found.`);
@@ -223,16 +233,32 @@ export class CardPlaySystem {
 		console.log(`[CardPlaySystem] Card ${limboCardObject.name} (ObjID: ${limboCardObject.objectId}) moved to Limbo.`);
 
 		try {
-			// Fleeting, etc. and other pre-cost steps
-			if (fromZoneIdentifier === ZoneIdentifier.Reserve) {
-				limboCardObject.statuses.add(StatusType.Fleeting);
-				console.log(`[CardPlaySystem] Card ${limboCardObject.name} played from Reserve, gained Fleeting.`);
-			}
 			const definition = this.gsm.getCardDefinition(limboCardObject.definitionId);
 			if (!definition) throw new Error(`Card definition not found for ${limboCardObject.definitionId} in Limbo.`);
-			if (definition.keywords?.has(KeywordAbility.Fleeting)) { // Assuming keywords are directly on definition for this check
-				limboCardObject.statuses.add(StatusType.Fleeting);
-				console.log(`[CardPlaySystem] Card ${limboCardObject.name} has inherent Fleeting.`);
+
+			// Fleeting, etc. and other pre-cost steps
+			if (fromZoneIdentifier === ZoneIdentifier.Reserve) {
+				// Rule 2.4.6.a: Card played from Reserve gains Fleeting, UNLESS it's a Landmark Permanent (implied by 5.2.3)
+				const isLandmarkType = definition.type === CardType.LandmarkPermanent ||
+									  (definition.type === CardType.Permanent && definition.permanentZoneType === PermanentZoneType.Landmark);
+				if (!isLandmarkType) {
+					limboCardObject.statuses.add(StatusType.Fleeting);
+					console.log(`[CardPlaySystem] Card ${limboCardObject.name} played from Reserve, gained Fleeting status.`);
+				} else {
+					console.log(`[CardPlaySystem] Landmark ${limboCardObject.name} played from Reserve, does not gain Fleeting.`);
+				}
+			}
+
+			// Rule 2.4.6.b (Spells) & prepares for 2.4.6.c (Characters/ExpeditionPermanents with inherent Fleeting)
+			const hasFleetingKeyword = definition.abilities.some(ab => ab.keyword === KeywordAbility.Fleeting);
+			if (hasFleetingKeyword) {
+				if (definition.type === CardType.Spell ||
+					definition.type === CardType.Character ||
+					definition.type === CardType.ExpeditionPermanent ||
+					(definition.type === CardType.Permanent && definition.permanentZoneType === PermanentZoneType.Expedition)) {
+					limboCardObject.statuses.add(StatusType.Fleeting);
+					console.log(`[CardPlaySystem] Card ${limboCardObject.name} (Type: ${definition.type}) has Fleeting keyword, gains Fleeting status in Limbo.`);
+				}
 			}
 			// TODO: Apply passives to limboCardObject if any affect its state before cost payment (e.g. granting Fleeting)
 
@@ -253,29 +279,28 @@ export class CardPlaySystem {
 			}
 
 			if (totalToughCost > 0) {
-				if (!this.gsm.manaSystem) {
+				if (!this.gsm.manaSystem) { // Ensure manaSystem exists before using it
 					throw new Error("[CardPlaySystem] ManaSystem not available on GSM. Cannot pay Tough costs.");
 				}
-				// Assuming canPayMana was checked by PlayerActionHandler or is implicitly handled by spendMana throwing error
-				await this.gsm.manaSystem.spendMana(playerId, totalToughCost);
+				await this.gsm.manaSystem.spendMana(playerId, totalToughCost); // Assumes spendMana throws if unable to pay
 				console.log(`[CardPlaySystem] Player ${playerId} paid ${totalToughCost} additional mana for Tough costs for card ${definition.name}.`);
 			}
 
 			// c. Pay Card's Own Costs (Rule 5.1.2.h, 6.4)
-			const effectiveFromZoneForCost = fromZoneIdentifier === ZoneIdentifier.Hand && isScoutPlay ? ZoneIdentifier.Hand : ZoneIdentifier.Limbo;
-			const finalCardManaCost = this.getModifiedCost(limboCardObject, effectiveFromZoneForCost, playerId, isScoutPlay, scoutRawCost);
+			// Determine the effective zone for cost calculation (Limbo usually, but Hand for Scout's initial cost basis)
+			const effectiveZoneForCostCalc = (fromZoneIdentifier === ZoneIdentifier.Hand && isScoutPlay) ? ZoneIdentifier.Hand : ZoneIdentifier.Limbo;
+			const finalCardManaCost = this.getModifiedCost(limboCardObject, effectiveZoneForCostCalc, playerId, isScoutPlay, scoutRawCost);
 
 			console.log(`[CardPlaySystem] Final card mana cost for ${limboCardObject.name}${isScoutPlay ? ' (Scout)' : ''}: ${finalCardManaCost}`);
-			if (finalCardManaCost > 0) { // Only spend if there's a cost
-				if (!this.gsm.manaSystem) {
+			if (finalCardManaCost > 0) {
+				if (!this.gsm.manaSystem) { // Ensure manaSystem exists
 					throw new Error("[CardPlaySystem] ManaSystem not available on GSM. Cannot pay card mana cost.");
 				}
-				await this.gsm.manaSystem.spendMana(playerId, finalCardManaCost);
+				await this.gsm.manaSystem.spendMana(playerId, finalCardManaCost); // Assumes spendMana throws if unable to pay
 				console.log(`[CardPlaySystem] Player ${playerId} paid ${finalCardManaCost} mana for ${definition.name}.`);
 			} else {
-				console.log(`[CardPlaySystem] Card ${definition.name} has no mana cost to pay.`);
+				console.log(`[CardPlaySystem] Card ${definition.name} has no mana cost to pay or cost is 0.`);
 			}
-
 
 			// d. Resolution (Rule 5.1.2.i)
 			console.log(`[CardPlaySystem] Resolving card ${limboCardObject.name} of type ${definition.type}.`);
@@ -289,19 +314,31 @@ export class CardPlaySystem {
 					}
 					const expeditionZone = this.gsm.state.sharedZones.expedition;
 					limboCardObject.expeditionAssignment = { playerId, type: selectedExpeditionType };
-					this.gsm.moveEntity(limboCardObject.objectId, this.gsm.state.sharedZones.limbo, expeditionZone, playerId);
+					const finalExpeditionObject = this.gsm.moveEntity(limboCardObject.objectId, this.gsm.state.sharedZones.limbo, expeditionZone, playerId) as IGameObject;
 					finalDestinationZone = ZoneIdentifier.Expedition;
-					console.log(`[CardPlaySystem] ${definition.type} ${limboCardObject.name} moved to ${selectedExpeditionType} expedition.`);
+					if (finalExpeditionObject && definition.startingCounters) {
+						for (const [type, amount] of definition.startingCounters) {
+							this.gsm.addCounters(finalExpeditionObject.objectId, type, amount);
+						}
+						console.log(`[CardPlaySystem] Applied starting counters to ${finalExpeditionObject.name}.`);
+					}
+					console.log(`[CardPlaySystem] ${definition.type} ${finalExpeditionObject?.name || limboCardObject.name} moved to ${selectedExpeditionType} expedition.`);
 					break;
 
 				case CardType.LandmarkPermanent:
-					this.gsm.moveEntity(limboCardObject.objectId, this.gsm.state.sharedZones.limbo, player.zones.landmarkZone, playerId);
+					const finalLandmarkObject = this.gsm.moveEntity(limboCardObject.objectId, this.gsm.state.sharedZones.limbo, player.zones.landmarkZone, playerId) as IGameObject;
 					finalDestinationZone = ZoneIdentifier.Landmark;
-					console.log(`[CardPlaySystem] Landmark Permanent ${limboCardObject.name} moved to landmark zone.`);
-					if (limboCardObject.statuses.has(StatusType.Fleeting) && fromZoneIdentifier === ZoneIdentifier.Reserve) {
+					if (finalLandmarkObject && definition.startingCounters) {
+						for (const [type, amount] of definition.startingCounters) {
+							this.gsm.addCounters(finalLandmarkObject.objectId, type, amount);
+						}
+						console.log(`[CardPlaySystem] Applied starting counters to ${finalLandmarkObject.name}.`);
+					}
+					console.log(`[CardPlaySystem] Landmark Permanent ${finalLandmarkObject?.name || limboCardObject.name} moved to landmark zone.`);
+					if (finalLandmarkObject?.statuses.has(StatusType.Fleeting) && fromZoneIdentifier === ZoneIdentifier.Reserve) {
                          // Fleeting from reserve should not stick to permanents unless specified by another effect
-                        limboCardObject.statuses.delete(StatusType.Fleeting);
-                        console.log(`[CardPlaySystem] Removed Fleeting from ${limboCardObject.name} upon entering landmark zone.`);
+                        finalLandmarkObject.statuses.delete(StatusType.Fleeting);
+                        console.log(`[CardPlaySystem] Removed Fleeting from ${finalLandmarkObject.name} upon entering landmark zone.`);
                     }
 					break;
 
@@ -320,7 +357,7 @@ export class CardPlaySystem {
 						console.log(`[CardPlaySystem] Non-Fleeting spell ${limboCardObject.name} moving to Reserve.`);
 						const reservedSpell = this.gsm.moveEntity(limboCardObject.objectId, this.gsm.state.sharedZones.limbo, player.zones.reserveZone, playerId) as IGameObject;
 						finalDestinationZone = ZoneIdentifier.Reserve;
-						if (reservedSpell && definition.keywords?.has(KeywordAbility.Cooldown)) {
+						if (reservedSpell && definition.abilities.some(ab => ab.keyword === KeywordAbility.Cooldown)) { // Check abilities array
 							reservedSpell.statuses.add(StatusType.Exhausted);
 							console.log(`[CardPlaySystem] Spell ${reservedSpell.name} has Cooldown, exhausted in Reserve.`);
 						}

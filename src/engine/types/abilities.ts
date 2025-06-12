@@ -22,7 +22,37 @@ export interface ICost {
 export interface IEffectStep {
 	verb: string; // e.g., 'draw', 'createToken', 'gainStatus', 'gainCounter'
 	targets: 'self' | 'controller' | { type: 'select'; criteria: unknown }; // Target selection
-	parameters?: Record<string, unknown> | ModifyPlayCostParameters | undefined; // Verb-specific data
+	parameters?: {
+		// Common parameters
+		count?: number | string; // Can be a number or a string key for a value in currentContext._effectRuntimeValues
+		repeat?: number | string; // For repeating the step X times
+		targetKey?: string; // To pick a specific target from preSelectedTargets
+
+		// Verb-specific parameters
+		tokenDefinitionId?: string; // For create_token
+		destinationExpeditionType?: 'hero' | 'companion' | 'source_assigned_or_choice'; // For create_token
+		controllerId?: string; // For create_token, change_controller
+		ability?: any; // For gain_ability (should be IAbilityDefinition structure)
+		counterType?: CounterType; // For gain_counters, lose_counters, augment_counters
+		amount?: number; // For gain_counters, lose_counters
+		statusType?: StatusType; // For gain_status, lose_status
+		destinationZoneIdentifier?: ZoneIdentifier | 'source_expeditions_choice'; // For put_in_zone
+		sourceObjectForContextOverrideId?: string; // For put_in_zone with 'source_expeditions_choice'
+		cardIds?: string[]; // For discard_cards (specific cards)
+
+		// For IF_CONDITION verb
+		condition?: any; // Define specific condition structure, e.g., { type: 'compare_runtime_value', key: string, operator: string, value: any } or { type: 'check_game_state', ... }
+		then_steps?: IEffectStep[];
+		else_steps?: IEffectStep[];
+
+		// For CHOOSE_MODE verb
+		prompt?: string;
+		modes?: { [choiceKey: string]: IEffectStep[] }; // Key: choice identifier, Value: array of steps for that mode
+		chooseCount?: number;
+
+		// For MODIFY_PLAY_COST (already part of union via ModifyPlayCostParameters)
+		[key: string]: any; // Allows other verb-specific parameters & ModifyPlayCostParameters
+	} | ModifyPlayCostParameters | undefined;
 	isOptional?: boolean; // For "may" effects (Rule 1.2.6.d, 6.5.c)
 }
 
@@ -101,4 +131,45 @@ export interface IAbility {
 	keywordValue?: number; // For keywords like Scout X and Tough X
 	reactionActivationsToday?: number; // For NIF Rule 1.4.6.c
 	isTemporary?: boolean; // For abilities granted temporarily, e.g., by Scout
+}
+
+// --- MODIFIERS --- Rule 6.2
+import { ModifierType } from './enums'; // Import the ModifierType enum
+
+export interface IModifier {
+	modifierId: string; // Unique ID for this instance of an active modifier (e.g., generated at runtime)
+	sourceAbilityId: string; // Ability that generated this modifier
+	sourceObjectId: string;  // Object that has the ability generating this modifier
+
+	modifierType: ModifierType;
+
+	// Context for applicability, e.g. what specific verb, card type, player, zone this modifier applies to.
+	// This could be a structured object or a function.
+	// Example: appliesTo: { verb: 'draw_cards', targetPlayerId: 'self' }
+	// Or a function: condition: (eventContext: GameEventContext, gsm: GameStateManager) => boolean;
+	// For now, let's assume conditions are checked by RuleAdjudicator when fetching modifiers.
+	// A more structured `applicationCriteria` might be better than a generic `condition` function here
+	// to allow EffectProcessor to quickly find relevant modifiers.
+	applicationCriteria: {
+		verb?: string; // e.g., 'draw_cards', 'move_entity', 'pay_cost'
+		// Add more criteria as needed: targetPlayerId, cardType, zone, etc.
+		// Or a more generic condition function evaluated by RuleAdjudicator:
+		customCondition?: (context: any, gsm: GameStateManager) => boolean;
+	};
+
+	// For ReplaceStep, OptionalReplaceStep
+	replacementEffectStep?: IEffectStep;
+
+	// For Additive
+	addedEffectSteps?: IEffectStep[];
+
+	// For OptionalReplaceAlternative
+	alternativeEffectStep?: IEffectStep;
+
+	priority?: number; // Rule 6.2.j - Lower numbers apply first for same type
+
+	// Optional: For modifiers with limited uses or duration, if not handled by the source passive ability itself
+	// maxApplications?: number;
+	// currentApplications?: number;
+	// duration?: string; // e.g., "this_turn", "until_end_of_phase_X"
 }

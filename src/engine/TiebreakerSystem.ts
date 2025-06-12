@@ -36,19 +36,41 @@ export class TiebreakerSystem {
 		const maxScore = Math.max(...Array.from(playerScores.values()));
 
 		// Check if victory threshold reached
-		if (maxScore >= 7) {
-			const winners = playerIds.filter((pid) => playerScores.get(pid) === maxScore);
-
-			if (winners.length === 1) {
-				return winners[0]; // Clear winner
-			} else {
-				// Initiate tiebreaker
-				this.initiateTiebreaker(winners);
-				return null; // Tiebreaker in progress
-			}
+		if (maxScore < 7) {
+			return null; // No one reached the victory threshold
 		}
 
-		return null; // No winner yet
+		// Identify all players who achieved a score of 7 or more
+		const potentialWinners = playerIds.filter(pid => (playerScores.get(pid) ?? 0) >= 7);
+
+		if (potentialWinners.length === 0) {
+			return null; // Should not happen if maxScore >= 7, but as a safeguard
+		}
+
+		if (potentialWinners.length === 1) {
+			// Only one player scored >= 7, they are the winner.
+			return potentialWinners[0];
+		}
+
+		// Multiple players scored >= 7. Now check for strict superiority.
+		// Sort potential winners by score descending.
+		potentialWinners.sort((a, b) => (playerScores.get(b) ?? 0) - (playerScores.get(a) ?? 0));
+
+		const highestScoringPlayer = potentialWinners[0];
+		const secondHighestScoringPlayer = potentialWinners[1]; // Exists because potentialWinners.length > 1
+
+		if ((playerScores.get(highestScoringPlayer) ?? 0) > (playerScores.get(secondHighestScoringPlayer) ?? 0)) {
+			// One player has a strictly higher score (and both are >= 7)
+			return highestScoringPlayer;
+		} else {
+			// Multiple players tied at the highest score (and score is >= 7)
+			// Filter for those who are actually tied at the maxScore among potential winners.
+			const actualMaxScore = playerScores.get(highestScoringPlayer) ?? 0;
+			const playersAtMaxScore = potentialWinners.filter(pid => (playerScores.get(pid) ?? 0) === actualMaxScore);
+
+			this.initiateTiebreaker(playersAtMaxScore);
+			return null; // Tiebreaker in progress
+		}
 	}
 
 	/**
@@ -57,30 +79,23 @@ export class TiebreakerSystem {
 	 */
 	private initiateTiebreaker(tiedPlayers: string[]): void {
 		console.log(`[Tiebreaker] Initiating tiebreaker between players: ${tiedPlayers.join(', ')}`);
+		this.gsm.enterTiebreakerMode(); // This sets up the Arena in GameStateManager
 
 		this.isInTiebreaker = true;
 		this.tiebreakerPlayers = tiedPlayers;
 
-		// Create Arena zone (conceptually - all expeditions in same zone)
-		this.setupArena();
+		// Expeditions are conceptually in the Arena; actual zone might be shared expedition zone.
+		// GameStateManager.enterTiebreakerMode handles visual/logical change of adventure to arena.
+		// this.moveExpeditionsToArena(); // Conceptual or handled by GSM
 
-		// Move all expeditions to Arena
-		this.moveExpeditionsToArena();
+		// Reset expedition positions for Arena combat (Rule 4.3.d - although rule says they keep their position initially)
+		// Rule 4.3.d "Expeditions are not sent to Reserve and keep their position on the Adventure track." - This seems to conflict with resetting.
+		// However, for Arena stat comparison, their relative position doesn't matter, only their stats.
+		// The "Progress" step in tiebreaker (4.3.e) doesn't use positions but total stats.
+		// Let's not reset positions, as it might be against 4.3.d. The comparison logic doesn't use it.
+		// this.resetExpeditionPositions();
 
-		// Reset expedition positions for Arena combat
-		this.resetExpeditionPositions();
-
-		console.log(`[Tiebreaker] Arena setup complete. Beginning tiebreaker turns.`);
-	}
-
-	/**
-	 * Sets up the Arena for tiebreaker combat
-	 * Rule 4.3.b - Arena is a single zone containing all expeditions
-	 */
-	private setupArena(): void {
-		// In the actual implementation, you might create a special zone
-		// For now, we'll track this conceptually
-		console.log(`[Tiebreaker] Arena created for ${this.tiebreakerPlayers.length} players`);
+		console.log(`[Tiebreaker] Tiebreaker mode active. Arena is conceptually ready.`);
 	}
 
 	/**
@@ -101,18 +116,18 @@ export class TiebreakerSystem {
 	/**
 	 * Resets expedition positions for Arena combat
 	 */
-	private resetExpeditionPositions(): void {
-		for (const playerId of this.tiebreakerPlayers) {
-			const player = this.gsm.getPlayer(playerId);
-			if (!player) continue;
+	// private resetExpeditionPositions(): void { // Potentially not needed if Rule 4.3.d means they keep original positions
+	// 	for (const playerId of this.tiebreakerPlayers) {
+	// 		const player = this.gsm.getPlayer(playerId);
+	// 		if (!player) continue;
 
-			// Reset positions to 0 for Arena combat
-			player.heroExpedition.position = 0;
-			player.companionExpedition.position = 0;
-			player.heroExpedition.hasMoved = false;
-			player.companionExpedition.hasMoved = false;
-		}
-	}
+	// 		// Reset positions to 0 for Arena combat
+	// 		player.heroExpedition.position = 0;
+	// 		player.companionExpedition.position = 0;
+	// 		player.heroExpedition.hasMoved = false;
+	// 		player.companionExpedition.hasMoved = false;
+	// 	}
+	// }
 
 	/**
 	 * Processes Progress during tiebreaker

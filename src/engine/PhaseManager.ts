@@ -87,7 +87,7 @@ export class PhaseManager {
 		await this.gameStateManager.resolveReactions();
 
 		// Morning Step 1: Draw cards (Rule 4.2.1.d)
-		for (const playerId of this.gameStateManager.getPlayerIdsInInitiativeOrder()) {
+		for (const playerId of this.gameStateManager.getPlayerIdsInInitiativeOrder(this.gameStateManager.state.firstPlayerId)) {
 			await this.gameStateManager.drawCards(playerId, 2); // Draw 2 cards
 			// Note: Drawing cards can trigger reactions, which should be handled by drawCards or GameStateManager.
 			// For now, assuming drawCards and subsequent resolveReactions handle this.
@@ -99,7 +99,7 @@ export class PhaseManager {
 
 		// Morning Step 2: Expand (Rule 4.2.1.e)
 		// Iterate through each player (respecting initiative order).
-		for (const playerId of this.gameStateManager.getPlayerIdsInInitiativeOrder()) {
+		for (const playerId of this.gameStateManager.getPlayerIdsInInitiativeOrder(this.gameStateManager.state.firstPlayerId)) {
 			const player = this.gameStateManager.getPlayer(playerId);
 			if (player && !player.hasExpandedThisTurn) {
 				// PlayerActionHandler.getAvailableExpandAction already checks if player can expand (has cards, hasn't expanded).
@@ -145,17 +145,19 @@ export class PhaseManager {
 
 	private handleAfternoon(): void {
 		// "At Afternoon" effects are triggered by setCurrentPhase(GamePhase.Afternoon).
-		// Actual turn management and exiting Afternoon is handled by TurnManager.
-		// Game machine will call turnManager.startAfternoon() when phase becomes Afternoon.
 		console.log(
-			'PhaseManager: Afternoon. TurnManager is responsible for player turns and exiting the phase.'
+			'PhaseManager: Afternoon. TurnManager will now be initialized for the phase.'
 		);
+		if (this.gameStateManager.turnManager) {
+			this.gameStateManager.turnManager.startAfternoon();
+		} else {
+			console.error('PhaseManager: TurnManager not found on GameStateManager during handleAfternoon.');
+		}
 	}
 
 	private async handleDusk(): Promise<void> {
 		await this.gameStateManager.progressPhase();
-		await this.gameStateManager.resolveReactions(); // Added this line as per instruction
-		await this.gameStateManager.resolveReactions();
+		await this.gameStateManager.resolveReactions(); // Reactions after Progress daily effect
 		console.log('PhaseManager: Dusk logic executed.');
 	}
 

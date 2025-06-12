@@ -1,5 +1,5 @@
 import type { IAbility } from './abilities';
-import type { CardType, Faction, Rarity, PermanentZoneType, CounterType } from './enums';
+import type { CardType, Faction, Rarity, PermanentZoneType, CounterType, CardSubType } from './enums';
 
 /**
  * Represents the static, immutable data of a card as printed.
@@ -9,7 +9,7 @@ export interface ICardDefinition {
 	id: string; // Unique ID for the card definition, e.g., "BTG-001-C"
 	name: string; // Rule 2.2.4
 	type: CardType; // Rule 2.2.1
-	subTypes?: string[]; // Rule 2.2.2
+	subTypes?: CardSubType[]; // Rule 2.2.2
 	rarity?: Rarity; // Rule 2.2.5
 	version?: string; // Rule 2.2.6
 	handCost: number; // Rule 2.2.7 - Changed to non-optional, defaulting to 0 if undefined
