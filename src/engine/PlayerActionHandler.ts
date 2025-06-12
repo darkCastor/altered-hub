@@ -1,6 +1,6 @@
 import type { GameStateManager } from './GameStateManager';
 import type { IGameObject, ICardInstance, IEmblemObject } from './types/objects';
-import { GamePhase, CardType, StatusType, ZoneIdentifier, AbilityType } from './types/enums';
+import { GamePhase, CardType, StatusType, ZoneIdentifier, AbilityType, KeywordAbility } from './types/enums';
 import { isGameObject } from './types/objects';
 import type { TargetInfo } from './CardPlaySystem'; // Assuming TargetInfo is in CardPlaySystem
 // import type { TargetRequirement } from './CardPlaySystem'; // If defined there
@@ -27,19 +27,41 @@ export class PlayerActionHandler {
 		if (isCurrentPlayer && currentPhase === GamePhase.Afternoon) {
 			// From Hand
 			for (const cardInHand of player.zones.handZone.getAll()) {
-				// Ensure cardInHand is ICardInstance for type safety with cardId potentially being instanceId
 				const currentCardId = cardInHand.instanceId; // Assuming ICardInstance has instanceId
-				const canPlayCheck = await this.gsm.cardPlaySystem.canPlayCard(playerId, currentCardId, ZoneIdentifier.Hand);
-				if (canPlayCheck.isPlayable) {
+				const definition = this.gsm.getCardDefinition(cardInHand.definitionId);
+				if (!definition) continue;
+
+				// Normal Play Action
+				const canPlayCheckNormal = await this.gsm.cardPlaySystem.canPlayCard(playerId, currentCardId, ZoneIdentifier.Hand);
+				if (canPlayCheckNormal.isPlayable) {
 					actions.push({
 						type: 'playCard',
 						cardId: currentCardId,
-						cardDefinitionId: canPlayCheck.definitionId,
+						cardDefinitionId: definition.id,
 						zone: ZoneIdentifier.Hand,
-						cost: canPlayCheck.cost,
-						description: `Play ${this.gsm.getCardDefinition(cardInHand.definitionId)?.name || 'Card'} from hand (Cost: ${canPlayCheck.cost})`
-						// TODO: Add targeting requirements if card needs targets
+						cost: canPlayCheckNormal.cost,
+						description: `Play ${definition.name} from hand (Cost: ${canPlayCheckNormal.cost})`,
+						useScoutCost: false
 					});
+				}
+
+				// Scout Play Action
+				const scoutAbility = definition.abilities.find(ab => ab.keyword === KeywordAbility.Scout);
+				if (scoutAbility && scoutAbility.keywordValue !== undefined) {
+					const scoutCostX = scoutAbility.keywordValue;
+					const canPlayCheckScout = await this.gsm.cardPlaySystem.canPlayCard(playerId, currentCardId, ZoneIdentifier.Hand, true, scoutCostX);
+					if (canPlayCheckScout.isPlayable) {
+						actions.push({
+							type: 'playCard',
+							cardId: currentCardId,
+							cardDefinitionId: definition.id,
+							zone: ZoneIdentifier.Hand,
+							cost: canPlayCheckScout.cost, // This will be the modified scout cost
+							description: `Play ${definition.name} using Scout (Cost: ${canPlayCheckScout.cost}, Base Scout: ${scoutCostX})`,
+							useScoutCost: true,
+							scoutCostValue: scoutCostX
+						});
+					}
 				}
 			}
 			// From Reserve
@@ -142,15 +164,67 @@ export class PlayerActionHandler {
 
 					let canPayAllCosts = true;
 					if (ability.cost) {
-						if (ability.cost.mana && ability.cost.mana > 0) {
-							if (!this.gsm.manaSystem.canPayMana(playerId, ability.cost.mana)) {
-								canPayAllCosts = false;
+					let totalManaCost = 0;
+					if (ability.cost?.mana) {
+						totalManaCost += ability.cost.mana;
+					}
+
+					// Hypothetical: If this ability targets, and we've selected a target.
+					// This part is conceptual for demonstrating Tough integration, as full target
+					// selection isn't part of getAvailableActions yet for all action types.
+					// We would loop through resolved targets if the ability has them.
+					// For now, let's assume a hypothetical single opponentTargetObject if the ability implies targeting.
+
+					// Example: const potentialTargets = this.resolvePotentialTargets(ability.effect, sourceObject, playerId);
+					// for (const pTarget of potentialTargets) {
+					//    if (pTarget.controllerId !== playerId && this.gsm.keywordAbilityHandler) { ... }
+					// }
+					// For this subtask, we'll just illustrate with a placeholder check.
+
+					let currentAdditionalToughCost = 0;
+					let toughCheckPassed = true; // Assume true unless a Tough target makes it false
+
+					// --- Conceptual Tough Check Start (Illustrative) ---
+					// In a real scenario, you'd identify actual potential targets of the ability.
+					// For demonstration, let's imagine 'hypotheticalOpponentTargetWithTough' is one such target.
+					/*
+					if (hypotheticalOpponentTargetWithTough && hypotheticalOpponentTargetWithTough.controllerId !== playerId && this.gsm.keywordAbilityHandler) {
+						const toughValue = this.getToughValue(hypotheticalOpponentTargetWithTough); // Helper to get X
+						if (toughValue > 0) {
+							if (!this.gsm.keywordAbilityHandler.canTargetWithTough(hypotheticalOpponentTargetWithTough, playerId)) {
+								toughCheckPassed = false;
+							} else {
+								currentAdditionalToughCost += toughValue;
 							}
 						}
-						if (ability.cost.exhaustSelf) {
+					}
+					*/
+					// --- Conceptual Tough Check End ---
+
+					if (!toughCheckPassed) {
+						// If any chosen/required Tough target cannot be paid for, this specific action variant isn't available.
+						// This might mean skipping this action, or if the ability can be used without that target,
+						// generating a different version of the action. For now, assume it makes this variant invalid.
+						continue;
+					}
+
+					totalManaCost += currentAdditionalToughCost;
+
+					if (ability.cost?.mana && ability.cost.mana > 0) { // Original mana cost check
+						if (!this.gsm.manaSystem.canPayMana(playerId, totalManaCost)) { // Check total including Tough
+								canPayAllCosts = false;
+							}
+					} else if (currentAdditionalToughCost > 0) { // No base mana cost, but Tough cost exists
+						if (!this.gsm.manaSystem.canPayMana(playerId, currentAdditionalToughCost)) {
+							canPayAllCosts = false;
+						}
+						}
+
+
+					if (ability.cost?.exhaustSelf) {
 							if (sourceObject.statuses.has(StatusType.Exhausted)) canPayAllCosts = false;
 						}
-						if (ability.cost.discardSelfFromReserve) {
+					if (ability.cost?.discardSelfFromReserve) {
 							if (zone.zoneType !== ZoneIdentifier.Reserve || sourceObject.statuses.has(StatusType.Exhausted)) {
 								canPayAllCosts = false;
 							}
@@ -158,13 +232,23 @@ export class PlayerActionHandler {
 						// TODO: Add other cost checks (sacrifice, spendCounters)
 					}
 
+
 					if (canPayAllCosts) {
+					let description = `Use QA: ${ability.text || ability.abilityId} from ${sourceObject.name}`;
+					if (currentAdditionalToughCost > 0) {
+						description += ` (Cost: ${totalManaCost}, incl. Tough ${currentAdditionalToughCost})`;
+					} else if (ability.cost?.mana) {
+						description += ` (Cost: ${ability.cost.mana})`;
+					}
+
 						availableQuickActions.push({
 							type: 'quickAction',
 							abilityId: ability.abilityId,
 							sourceObjectId: sourceObject.objectId,
-							description: `Use QA: ${ability.text || ability.abilityId} from ${sourceObject.name}`
-							// TODO: Add targeting requirements
+						description: description,
+						cost: totalManaCost > 0 ? totalManaCost : (ability.cost?.mana || 0), // Ensure cost reflects total
+						additionalToughCost: currentAdditionalToughCost > 0 ? currentAdditionalToughCost : undefined,
+						// TODO: Add actual target(s) chosen that resulted in this cost
 						});
 					}
 				}
@@ -203,8 +287,16 @@ export class PlayerActionHandler {
 				if (!action.cardId || action.zone === undefined) {
 					throw new Error('Action playCard missing cardId or zone.');
 				}
-				await this.executePlayCardAction(playerId, action.cardId, action.zone as ZoneIdentifier, action.selectedExpeditionType, action.targets);
-				console.log(`[PlayerActionHandler] ${playerId} played card: ${action.cardDefinitionId || action.cardId}`);
+				await this.executePlayCardAction(
+					playerId,
+					action.cardId,
+					action.zone as ZoneIdentifier,
+					action.selectedExpeditionType,
+					action.targets,
+					action.useScoutCost,
+					action.scoutCostValue
+				);
+				console.log(`[PlayerActionHandler] ${playerId} played card: ${action.cardDefinitionId || action.cardId}${action.useScoutCost ? ' using Scout' : ''}`);
 				turnEnds = true;
 				break;
 
@@ -251,14 +343,19 @@ export class PlayerActionHandler {
 		return turnEnds;
 	}
 
+	// getToughValue has been moved to KeywordAbilityHandler.ts
+
 	public async executePlayCardAction(
 		playerId: string,
 		cardId: string,
 		fromZone: ZoneIdentifier,
 		selectedExpeditionType?: 'hero' | 'companion',
-		targets?: TargetInfo[]
+		targets?: TargetInfo[],
+		isScoutPlay?: boolean,
+		scoutRawCost?: number
+		// Tough cost payment will be handled inside CardPlaySystem.playCard or EffectProcessor if it's for effect targets
 	): Promise<void> {
-		await this.gsm.cardPlaySystem.playCard(playerId, cardId, fromZone, selectedExpeditionType, targets);
+		await this.gsm.cardPlaySystem.playCard(playerId, cardId, fromZone, selectedExpeditionType, targets, isScoutPlay, scoutRawCost);
 	}
 
 	public async executeActivateAbilityAction(
@@ -293,14 +390,45 @@ export class PlayerActionHandler {
 			throw new Error(`Quick action ${abilityId} on ${sourceObjectId} has reached its daily activation limit.`);
 		}
 
+		// Calculate and pay Tough costs before ability's own costs
+		let totalToughCost = 0;
+		if (targets && targets.length > 0 && this.gsm.keywordAbilityHandler) {
+			for (const targetInfo of targets) {
+				const targetObject = this.gsm.getObject(targetInfo.objectId);
+				if (targetObject && targetObject.controllerId !== playerId) {
+					const toughValue = this.gsm.keywordAbilityHandler.getToughValue(targetObject);
+					if (toughValue > 0) {
+						totalToughCost += toughValue;
+					}
+				}
+			}
+		}
+
+		if (totalToughCost > 0) {
+			// Ensure ManaSystem is available
+			if (!this.gsm.manaSystem) {
+				throw new Error("[PlayerActionHandler] ManaSystem not available on GSM. Cannot pay Tough costs.");
+			}
+			// Check if player can pay (should have been checked in getAvailableActions, but good for safety)
+			if (!this.gsm.manaSystem.canPayMana(playerId, totalToughCost)) {
+				throw new Error(`Player ${playerId} cannot afford additional ${totalToughCost} mana for Tough costs.`);
+			}
+			await this.gsm.manaSystem.spendMana(playerId, totalToughCost);
+			console.log(`[PlayerActionHandler] Player ${playerId} paid ${totalToughCost} additional mana for Tough costs for QA ${abilityId}.`);
+		}
+
+		// Pay ability's own costs
 		if (ability.cost) {
-			if (ability.cost.mana && ability.cost.mana > 0) { // Check for positive cost
+			if (ability.cost.mana && ability.cost.mana > 0) {
+				if (!this.gsm.manaSystem) {
+					throw new Error("[PlayerActionHandler] ManaSystem not available on GSM. Cannot pay ability mana cost.");
+				}
 				await this.gsm.manaSystem.spendMana(playerId, ability.cost.mana);
-				console.log(`[PlayerActionHandler] Paid ${ability.cost.mana} mana for QA ${abilityId} from ${sourceObject.name}.`);
+				console.log(`[PlayerActionHandler] Paid ${ability.cost.mana} base mana for QA ${abilityId} from ${sourceObject.name}.`);
 			}
 			if (ability.cost.exhaustSelf) {
 				if (sourceObject.statuses.has(StatusType.Exhausted)) {
-					throw new Error(`Cannot pay exhaustSelf cost: ${sourceObject.name} is already exhausted.`);
+					throw new Error(`Cannot pay exhaustSelf cost: ${sourceObject.name} is already exhausted for QA ${abilityId}.`);
 				}
 				sourceObject.statuses.add(StatusType.Exhausted);
 				this.gsm.eventBus.publish('objectStatusChanged', { object: sourceObject, status: StatusType.Exhausted, added: true });
@@ -526,6 +654,11 @@ export interface PlayerAction {
 	targetOrbId?: string;
 	description: string;
 	cardToExpandId?: string;
+	// For Scout keyword
+	useScoutCost?: boolean;
+	scoutCostValue?: number;
+	// For Tough keyword
+	additionalToughCost?: number;
 }
 
 export type PlayerActionType = PlayerAction['type'];

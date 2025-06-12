@@ -1,12 +1,131 @@
-// src/engine/RuleAdjudicator.ts (New File)
+// src/engine/RuleAdjudicator.ts
 
 import type { GameStateManager } from './GameStateManager';
-import type { IGameObject } from './types/objects';
-import type { IAbility } from './types/abilities';
-import { KeywordAbility } from './types/enums'; // Import KeywordAbility
+import type { IGameObject, ICardInstance } from './types/objects';
+import type { IAbility, ModifyPlayCostParameters, IEffectStep } from './types/abilities';
+import { KeywordAbility, ZoneIdentifier, CardType, AbilityType } from './types/enums';
+import type { CostModifier } from './types/costs';
 
 export class RuleAdjudicator {
 	constructor(private gsm: GameStateManager) {}
+
+	public getActiveCostModifiersForCardPlay(
+		cardBeingPlayed: IGameObject | ICardInstance,
+		playingPlayerId: string,
+		fromZone: ZoneIdentifier,
+		// gsm is available via this.gsm
+	): CostModifier[] {
+		const activeModifiers: CostModifier[] = [];
+		const allPlayObjects = this.getAllPlayObjects(); // Includes objects in expedition and landmark zones
+
+		// Consider global emblems or other sources of modifiers if they exist in your game
+		// For now, focusing on abilities on objects in play
+
+		for (const modifierSource of allPlayObjects) {
+			if (!modifierSource.currentCharacteristics) continue; // Object might not have had passives applied yet or is base
+
+			const abilitiesToCheck: IAbility[] = [];
+			if (modifierSource.abilities) { // Base abilities
+				abilitiesToCheck.push(...modifierSource.abilities.map(a => ({ ...a, sourceObjectId: modifierSource.objectId })));
+			}
+			if (modifierSource.currentCharacteristics.grantedAbilities) { // Granted abilities
+				abilitiesToCheck.push(...modifierSource.currentCharacteristics.grantedAbilities.map(a => ({ ...a, sourceObjectId: modifierSource.objectId })));
+			}
+
+			for (const ability of abilitiesToCheck) {
+				if (ability.abilityType !== AbilityType.Passive || !ability.effect || !ability.effect.steps) {
+					continue;
+				}
+				// Check if this ability is negated on its source
+				if (modifierSource.currentCharacteristics.negatedAbilityIds?.includes(ability.abilityId)) {
+					continue;
+				}
+
+
+				for (const step of ability.effect.steps) {
+					if (step.verb === 'MODIFY_PLAY_COST') {
+						const params = step.parameters as ModifyPlayCostParameters;
+						if (!params || !params.type || params.value === undefined) {
+							console.warn(`[RuleAdjudicator] MODIFY_PLAY_COST step on ${modifierSource.name} (Ability: ${ability.abilityId}) is missing critical parameters.`, params);
+							continue;
+						}
+
+						const appliesTo = (
+							evalCard: IGameObject | ICardInstance,
+							evalGsm: GameStateManager, // Passed in for consistency, use this.gsm
+							evalPlayerId: string,
+							evalFromZone: ZoneIdentifier,
+							sourceOfModifier: IGameObject // The object providing the passive ability
+						): boolean => {
+							const cardDef = this.gsm.getCardDefinition(evalCard.definitionId);
+							if (!cardDef) return false;
+
+							// Check appliesToPlayers
+							if (params.appliesToPlayers) {
+								const sourceController = sourceOfModifier.controllerId;
+								if (!sourceController) return false; // Modifier source must have a controller
+
+								if (params.appliesToPlayers === 'self' && sourceController !== evalPlayerId) {
+									return false;
+								}
+								if (params.appliesToPlayers === 'opponent' && sourceController === evalPlayerId) {
+									return false;
+								}
+								// 'all' always passes this check
+							}
+
+							// Check appliesToCardDefinitionId
+							if (params.appliesToCardDefinitionId && cardDef.id !== params.appliesToCardDefinitionId) {
+								return false;
+							}
+
+							// Check appliesToCardType
+							if (params.appliesToCardType && params.appliesToCardType.length > 0) {
+								if (!params.appliesToCardType.includes(cardDef.type)) {
+									return false;
+								}
+							}
+
+							// Check appliesToFaction
+							if (params.appliesToFaction && cardDef.faction !== params.appliesToFaction) {
+								return false;
+							}
+
+							// Check originZone
+							if (params.originZone && params.originZone.length > 0) {
+								if (!params.originZone.includes(evalFromZone)) {
+									return false;
+								}
+							}
+
+							// Placeholder for conditionScript evaluation
+							// if (params.conditionScript) {
+							//   const scriptResult = this.evaluateConditionScript(params.conditionScript, evalCard, evalPlayerId, evalFromZone, sourceOfModifier);
+							//   if (!scriptResult) return false;
+							// }
+
+							return true; // All checks passed
+						};
+
+						// Pass modifierSource to appliesTo closure
+						const boundAppliesTo = (evalCard: IGameObject | ICardInstance, evalGsm: GameStateManager, evalPlayerId: string, evalFromZone: ZoneIdentifier) => {
+							return appliesTo(evalCard, evalGsm, evalPlayerId, evalFromZone, modifierSource);
+						};
+
+
+						const newModifier: CostModifier = {
+							type: params.type,
+							value: params.value,
+							appliesTo: boundAppliesTo,
+							sourceObjectId: modifierSource.objectId,
+						};
+						activeModifiers.push(newModifier);
+					}
+				}
+			}
+		}
+		return activeModifiers;
+	}
 
 	/**
 	 * Re-evaluates and applies all passive abilities in the game.
@@ -22,6 +141,9 @@ export class RuleAdjudicator {
 				...obj.baseCharacteristics,
 				grantedAbilities: [], // Initialize as empty array
 				negatedAbilityIds: [], // Initialize as empty array
+				// Ensure statistics and keywords are initialized if not present on baseCharacteristics
+                statistics: obj.baseCharacteristics.statistics ? { ...obj.baseCharacteristics.statistics } : { forest: 0, mountain: 0, water: 0, power: 0, health: 0 },
+                keywords: obj.baseCharacteristics.keywords ? { ...obj.baseCharacteristics.keywords } : {},
 			};
 		});
 
@@ -29,21 +151,20 @@ export class RuleAdjudicator {
 		// Filter out negated abilities at this stage.
 		const allPassiveAbilities: IAbility[] = [];
 		for (const obj of allObjects) {
+			// Ensure sourceObjectId is attached to each ability for context
 			const baseAbilities = obj.abilities
-				.map((a) => ({ ...a, sourceObjectId: obj.objectId })) // Ensure sourceObjectId
-				.filter((a) => a.abilityType === 'passive');
+				.map((a) => ({ ...a, sourceObjectId: obj.objectId }))
+				.filter((a) => a.abilityType === AbilityType.Passive);
 
 			const grantedAbilities = (obj.currentCharacteristics.grantedAbilities || [])
-				.map((a) => ({ ...a, sourceObjectId: obj.objectId })) // Ensure sourceObjectId, though grantAbility should do this
-				.filter((a) => a.abilityType === 'passive');
+				.map((a) => ({ ...a, sourceObjectId: obj.objectId })) // Granting should set this, but ensure
+				.filter((a) => a.abilityType === AbilityType.Passive);
 
 			const currentObjectAbilities = [...baseAbilities, ...grantedAbilities];
 
 			for (const ability of currentObjectAbilities) {
-				// If an ability is negated on its source object, it should not be collected.
-				if (
-					!obj.currentCharacteristics.negatedAbilityIds?.includes(ability.abilityId)
-				) {
+				// If an ability is negated on its source object, it should not be collected for application.
+				if (!obj.currentCharacteristics.negatedAbilityIds?.includes(ability.abilityId)) {
 					allPassiveAbilities.push(ability);
 				}
 			}
@@ -373,6 +494,16 @@ export class RuleAdjudicator {
 			case 'seasoned':
 				(target.currentCharacteristics as any).isSeasoned = true;
 				break;
+			case 'gigantic':
+				(target.currentCharacteristics as any).isGigantic = true;
+				// Rule 7.4.4.n: "If a non-Gigantic Character would gain Gigantic, it remains in the Expedition
+				// containing the card that represents it and joins the other Expedition of its controller."
+				// This "join" is conceptual. Standard "object enters zone" triggers for the "other" expedition
+				// will not fire from this characteristic change alone. If specific triggers are needed for this
+				// conceptual join, they would need to be custom-handled, possibly by publishing a specific event here.
+				// TODO: Verify if specific triggers for "conceptually joining other expedition" are needed.
+				console.log(`[RuleAdjudicator] ${target.name} gained Gigantic. Conceptually present in other expedition.`);
+				break;
 			case 'tough':
 				(target.currentCharacteristics as any).isTough = value !== undefined ? value : 1;
 				break;
@@ -405,6 +536,16 @@ export class RuleAdjudicator {
 				break;
 			case 'seasoned':
 				(target.currentCharacteristics as any).isSeasoned = false;
+				break;
+			case 'gigantic':
+				(target.currentCharacteristics as any).isGigantic = false;
+				// Rule 7.4.4.o: "If a Gigantic Character would lose Gigantic, it remains in the Expedition
+				// that contains the card that represents it and leaves the other Expedition of its controller."
+				// This "leave" is conceptual. Standard "object leaves zone" triggers for the "other" expedition
+				// will not fire from this characteristic change alone. If specific triggers are needed,
+				// they would need to be custom-handled.
+				// TODO: Verify if specific triggers for "conceptually leaving other expedition" are needed.
+				console.log(`[RuleAdjudicator] ${target.name} lost Gigantic. No longer conceptually present in other expedition.`);
 				break;
 			case 'tough':
 				delete (target.currentCharacteristics as any).isTough;
@@ -501,9 +642,12 @@ export class RuleAdjudicator {
 		}
 	}
 
-
-	private applyAbility(ability: IAbility): void {
-		if (!ability.sourceObjectId) return;
+	// Make sure this is public if called from outside, or refactor applyAllPassiveAbilities
+	public applyAbility(ability: IAbility): void {
+		if (!ability.sourceObjectId) {
+			console.warn(`[RuleAdjudicator] Ability ${ability.abilityId} is missing sourceObjectId.`);
+			return;
+		}
 		const sourceObject = this.gsm.getObject(ability.sourceObjectId);
 		if (!sourceObject) {
 			console.warn(
@@ -512,45 +656,68 @@ export class RuleAdjudicator {
 			return;
 		}
 
+		// Ensure currentCharacteristics exists on sourceObject
 		if (!sourceObject.currentCharacteristics) {
-			sourceObject.currentCharacteristics = { ...sourceObject.baseCharacteristics };
+			sourceObject.currentCharacteristics = {
+				...sourceObject.baseCharacteristics,
+				grantedAbilities: [],
+				negatedAbilityIds: [],
+				statistics: sourceObject.baseCharacteristics.statistics ? { ...sourceObject.baseCharacteristics.statistics } : { forest: 0, mountain: 0, water: 0, power: 0, health: 0 },
+                keywords: sourceObject.baseCharacteristics.keywords ? { ...sourceObject.baseCharacteristics.keywords } : {},
+			};
 		}
 
 		console.log(
 			`[RuleAdjudicator] Applying passive ability ${ability.abilityId} from ${sourceObject.name} (${sourceObject.objectId})`
 		);
 
-		// Handle keyword abilities directly if they have a keyword property
-		if (ability.keyword && Object.values(KeywordAbility).includes(ability.keyword)) {
-			this._grantKeyword(sourceObject, ability.keyword, ability.value);
+		// Handle keyword abilities that are defined by the ability.keyword property itself
+        // (This is for abilities that *are* keywords, like "Eternal" defined as an ability object)
+		if (ability.isKeyword && ability.keyword && Object.values(KeywordAbility).includes(ability.keyword)) {
+			// The target of such a keyword ability is its source object.
+			this._grantKeyword(sourceObject, ability.keyword, ability.keywordValue); // Use keywordValue for things like Scout X
 		}
 
 		// Process effect steps if they exist
+		// These steps define what the ability *does* (e.g., grant another keyword, modify stats, etc.)
 		for (const step of ability.effect.steps) {
-			// Determine targets for this step. For many passives, target is 'self' (the sourceObject).
-			// This part needs to be flexible if passives can target others.
-			// For now, let's assume most passive steps implicitly target the sourceObject unless specified otherwise.
-			let targetsOfStep: IGameObject[] = [sourceObject];
-			if (step.targets) {
-				// A simple 'self' check, could be expanded
-				if (step.targets === 'self') {
-					targetsOfStep = [sourceObject];
-				} else {
-					// TODO: Implement more complex target resolution for passive effects if needed.
-					// For now, if not 'self', it's unclear who the target is for a passive step.
-					// Most passives modify their source.
-					console.warn(
-						`[RuleAdjudicator] Passive ability step has non-'self' target: ${step.targets}. Assuming 'self' for now.`
-					);
-					targetsOfStep = [sourceObject];
-				}
+			let targetsOfStep: IGameObject[] = [];
+
+			// Determine targets for this step.
+			if (step.targets === 'self') {
+				targetsOfStep = [sourceObject];
+			} else if (typeof step.targets === 'object' && step.targets.type === 'select') {
+				// This is more complex for passives. Typically passives affect 'self' or are global.
+				// If a passive needs to select targets, EffectProcessor might be needed.
+				// For now, this example assumes passives primarily target 'self' or have global-like conditions handled in appliesTo.
+				// Or, if a passive grants an ability to another object, that's handled by 'grant_ability' verb with specific parameters.
+				console.warn(`[RuleAdjudicator] Passive ability step for ${ability.abilityId} has complex target selection. This may need EffectProcessor involvement or a different design for passive targeting.`);
+				// Defaulting to self for safety, but this needs review based on game design.
+				targetsOfStep = [sourceObject];
+			} else {
+				// Default to 'self' if target is undefined or not 'select'
+				targetsOfStep = [sourceObject];
 			}
 
 			for (const target of targetsOfStep) {
-				if (!target.currentCharacteristics) {
-					// Ensure target also has currentCharacteristics
-					target.currentCharacteristics = { ...target.baseCharacteristics };
+				if (!target.currentCharacteristics) { // Ensure target also has currentCharacteristics
+					target.currentCharacteristics = {
+						...target.baseCharacteristics,
+						grantedAbilities: [],
+						negatedAbilityIds: [],
+						statistics: target.baseCharacteristics.statistics ? { ...target.baseCharacteristics.statistics } : { forest: 0, mountain: 0, water: 0, power: 0, health: 0 },
+						keywords: target.baseCharacteristics.keywords ? { ...target.baseCharacteristics.keywords } : {},
+					};
 				}
+
+				// Skip applying effect step if the source ability is negated on the target
+				// This is mostly relevant if a passive can target other objects. For 'self' target, this is covered by the initial check.
+				if (target.objectId !== sourceObject.objectId && target.currentCharacteristics.negatedAbilityIds?.includes(ability.abilityId)) {
+					console.log(`[RuleAdjudicator] Skipping effect step for ${ability.abilityId} on target ${target.name} because ability is negated on target.`);
+					continue;
+				}
+
+
 				switch (step.verb.toLowerCase()) {
 					case 'modify_statistics':
 					case 'modifystatistics':
@@ -558,54 +725,57 @@ export class RuleAdjudicator {
 						break;
 					case 'grant_keyword':
 					case 'grantkeyword':
-						if (step.parameters?.keyword) {
-							this._grantKeyword(target, step.parameters.keyword, step.parameters.value);
+						if (step.parameters?.keyword && typeof step.parameters.keyword === 'string') {
+							this._grantKeyword(target, step.parameters.keyword, (step.parameters as any).value);
+						} else {
+							console.warn(`[RuleAdjudicator] grant_keyword step for ${ability.abilityId} missing or invalid keyword parameter.`);
 						}
 						break;
 					case 'lose_keyword':
 					case 'losekeyword':
-						if (step.parameters?.keyword) {
+						if (step.parameters?.keyword && typeof step.parameters.keyword === 'string') {
 							this._loseKeyword(target, step.parameters.keyword);
+						} else {
+							console.warn(`[RuleAdjudicator] lose_keyword step for ${ability.abilityId} missing or invalid keyword parameter.`);
 						}
 						break;
 					case 'set_characteristic':
 					case 'setcharacteristic':
-						if (step.parameters?.characteristic && step.parameters.value !== undefined) {
+						if (step.parameters?.characteristic && typeof step.parameters.characteristic === 'string' && step.parameters.value !== undefined) {
 							this._setCharacteristic(
 								target,
 								step.parameters.characteristic,
 								step.parameters.value
 							);
+						} else {
+							console.warn(`[RuleAdjudicator] set_characteristic step for ${ability.abilityId} missing or invalid parameters.`);
 						}
 						break;
-					case 'grant_ability': // Assuming IAbilityDefinition is passed in parameters.ability
+					case 'grant_ability':
 					case 'grantability':
-						if (step.parameters?.ability && ability.sourceObjectId) { // ability.sourceObjectId is source of current effect
-							this._grantAbility(target, step.parameters.ability, ability.sourceObjectId);
+						// sourceObject.objectId is the object granting the ability via its passive effect.
+						if (step.parameters?.ability && sourceObject.objectId) {
+							this._grantAbility(target, step.parameters.ability, sourceObject.objectId);
+						} else {
+							console.warn(`[RuleAdjudicator] grant_ability step for ${ability.abilityId} missing parameters or source object ID.`);
 						}
 						break;
 					case 'lose_ability':
 					case 'loseability':
-						// Pass all parameters to _loseAbility, it will extract abilityId or allAbilities
 						this._loseAbility(target, step.parameters);
 						break;
-					// Legacy keyword handling from original applyAbility (can be refactored to use steps)
-					case 'apply_keyword_gigantic':
-						this._grantKeyword(target, 'Gigantic');
-						break;
-					case 'apply_keyword_defender':
-						this._grantKeyword(target, 'Defender');
-						break;
-					case 'apply_keyword_eternal':
-						this._grantKeyword(target, 'Eternal');
+					// MODIFY_PLAY_COST is not "applied" as an effect here, it's interpreted by getActiveCostModifiersForCardPlay
+					case 'modify_play_cost':
+						// This verb is handled by getActiveCostModifiersForCardPlay, not directly applied as a characteristic change.
+						// No action needed here during applyAbility pass for this verb.
 						break;
 					default:
-						// Check if verb matches a known keyword directly for very simple passives
+						// Check if verb matches a known keyword directly (legacy/simple setup)
 						if (Object.values(KeywordAbility).includes(step.verb as KeywordAbility)) {
-							this._grantKeyword(target, step.verb);
+							this._grantKeyword(target, step.verb); // Granting the verb itself as a keyword
 						} else {
-							console.log(
-								`[RuleAdjudicator] Passive ability ${ability.abilityId} step verb '${step.verb}' has no specific application logic yet.`
+							console.warn( // Changed from log to warn
+								`[RuleAdjudicator] Passive ability ${ability.abilityId} step verb '${step.verb}' has no specific application logic in applyAbility.`
 							);
 						}
 						break;

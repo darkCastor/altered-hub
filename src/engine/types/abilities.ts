@@ -1,5 +1,5 @@
-import type { CounterType, KeywordAbility } from './enums';
-import type { IGameObject } from './objects';
+import type { CounterType, KeywordAbility, CardType, ZoneIdentifier } from './enums';
+import type { IGameObject, ICardInstance } from './objects';
 import type { GameStateManager } from '../GameStateManager';
 
 /**
@@ -22,15 +22,39 @@ export interface ICost {
 export interface IEffectStep {
 	verb: string; // e.g., 'draw', 'createToken', 'gainStatus', 'gainCounter'
 	targets: 'self' | 'controller' | { type: 'select'; criteria: unknown }; // Target selection
-	parameters?: Record<string, unknown> | undefined; // Verb-specific data, like a status type or counter info
+	parameters?: Record<string, unknown> | ModifyPlayCostParameters | undefined; // Verb-specific data
 	isOptional?: boolean; // For "may" effects (Rule 1.2.6.d, 6.5.c)
+}
+
+/**
+ * Parameters for the 'MODIFY_PLAY_COST' effect verb.
+ * These parameters define how a card's play cost should be modified by a passive ability.
+ */
+export interface ModifyPlayCostParameters {
+	type: 'increase' | 'decrease' | 'set' | 'minimum' | 'maximum';
+	value: number;
+	// Applicability criteria:
+	appliesToCardType?: CardType[]; // e.g., [CardType.Spell]
+	appliesToFaction?: string; // Faction name
+	appliesToCardDefinitionId?: string; // Specific card definition ID
+	appliesToPlayers?: 'self' | 'opponent' | 'all'; // Whose card play is affected
+	originZone?: ZoneIdentifier[]; // e.g., only if played from Hand [ZoneIdentifier.Hand]
+
+	/**
+	 * A string representation of a condition that must be true for this modifier to apply.
+	 * This would be parsed and evaluated by the RuleAdjudicator.
+	 * Example: "sourceController === playingPlayer"
+	 *          "playingPlayerHandSize >= 5"
+	 * The evaluation context would include (card, gsm, playerId, fromZone, sourceObject).
+	 */
+	conditionScript?: string;
 }
 
 /**
  * Represents the full effect of an ability or spell.
  * Rule 1.2.6
  */
-import type { IGameObject } from './objects';
+// import type { IGameObject } from './objects'; // Already imported above
 
 export interface IEffect {
 	steps: IEffectStep[];
@@ -76,4 +100,5 @@ export interface IAbility {
 	keyword?: KeywordAbility;
 	keywordValue?: number; // For keywords like Scout X and Tough X
 	reactionActivationsToday?: number; // For NIF Rule 1.4.6.c
+	isTemporary?: boolean; // For abilities granted temporarily, e.g., by Scout
 }

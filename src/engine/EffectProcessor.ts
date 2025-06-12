@@ -153,6 +153,9 @@ export class EffectProcessor {
 			case 'if_condition':
 				await this.effectIfCondition(step, sourceObjectForContext, currentContext, preSelectedTargets);
 				break;
+			case 'switch_expedition': // New verb for Rule 7.4.4.m
+				await this.effectSwitchExpedition(step, targetsForThisStep);
+				break;
 
 			default:
 				console.warn(`[EffectProcessor] Unknown effect verb: ${step.verb}`);
@@ -292,8 +295,7 @@ export class EffectProcessor {
 	 */
 	private async effectCreateToken(step: IEffectStep, sourceObjectForContext: IGameObject | undefined | null, currentContext: any): Promise<void> {
 		const tokenDefinitionId = step.parameters?.tokenDefinitionId as string;
-		// const inlineDefinition = step.parameters?.definition as any; // For fully inline defined tokens
-		const destinationExpeditionType = step.parameters?.destinationExpeditionType as 'hero' | 'companion' | undefined;
+		let destinationExpeditionType = step.parameters?.destinationExpeditionType as 'hero' | 'companion' | 'source_assigned_or_choice' | undefined;
 		let controllerId = step.parameters?.controllerId as string | undefined;
 
 		if (!controllerId && sourceObjectForContext) {
@@ -325,10 +327,23 @@ export class EffectProcessor {
 
 		if (destinationExpeditionType) {
 			tokenObject.expeditionAssignment = { playerId: controllerId, type: destinationExpeditionType };
-		} else {
-			// If no specific expedition, it might go to a default (e.g., hero) or this might be an error
-			console.warn(`[EffectProcessor] CreateToken: destinationExpeditionType not specified for ${tokenObject.name}. Assigning to 'hero' by default or check effect definition.`);
-			tokenObject.expeditionAssignment = { playerId: controllerId, type: 'hero' }; // Default or handle as error
+		} else if (destinationExpeditionType === 'source_assigned_or_choice' && sourceObjectForContext) {
+			const isSourceGigantic = sourceObjectForContext.currentCharacteristics.isGigantic === true;
+			if (isSourceGigantic) {
+				// Rule 7.4.4.h: Player must pick. Simplified: default to source's assignment or 'hero'.
+				const chosenType = sourceObjectForContext.expeditionAssignment?.type || 'hero';
+				tokenObject.expeditionAssignment = { playerId: controllerId, type: chosenType };
+				console.log(`[EffectProcessor] CreateToken (Gigantic Source): ${tokenObject.name} assigned to ${chosenType} expedition for ${controllerId}. TODO: Implement player choice.`);
+			} else {
+				// Not Gigantic, use source's assignment or default.
+				const assignedType = sourceObjectForContext.expeditionAssignment?.type || 'hero';
+				tokenObject.expeditionAssignment = { playerId: controllerId, type: assignedType };
+			}
+		}
+		 else {
+			// Default if no specific type or source-based logic applies
+			console.warn(`[EffectProcessor] CreateToken: destinationExpeditionType not specified or context insufficient for ${tokenObject.name}. Assigning to 'hero' by default.`);
+			tokenObject.expeditionAssignment = { playerId: controllerId, type: 'hero' };
 		}
 
 		this.gsm.state.sharedZones.expedition.add(tokenObject);
@@ -487,7 +502,9 @@ export class EffectProcessor {
 	 * Rule 7.3.21 - Put in Zone (Generic Move)
 	 */
 	private async effectPutInZone(step: IEffectStep, targets: (IGameObject | string)[]): Promise<void> {
-		const destinationZoneIdentifier = step.parameters?.destinationZoneIdentifier as ZoneIdentifier | undefined; // Renamed from 'zone'
+		let destinationZoneIdentifier = step.parameters?.destinationZoneIdentifier as ZoneIdentifier | 'source_expeditions_choice' | undefined;
+		const sourceObjectForEffect = step.parameters?.sourceObjectForContextOverrideId ? this.gsm.getObject(step.parameters.sourceObjectForContextOverrideId as string) : null; // Assuming step might define its own context source for destination
+
 		if (!destinationZoneIdentifier) {
 			console.warn('[EffectProcessor] PutInZone effect called without destinationZoneIdentifier.');
 			return;
@@ -496,13 +513,45 @@ export class EffectProcessor {
 		for (const target of targets) {
 			if (this.isTargetGameObject(target)) {
 				const currentZone = this.gsm.findZoneOfObject(target.objectId);
-				// Default to target's current controller for destination zone ownership, unless specified otherwise.
-				const zoneOwnerId = step.parameters?.controllerId as string || target.controllerId;
-				const destZone = this.findZoneByType(zoneOwnerId, destinationZoneIdentifier);
+				let zoneOwnerId = step.parameters?.controllerId as string || target.controllerId;
+				let destZone: IZone | null = null;
+
+				if (destinationZoneIdentifier === 'source_expeditions_choice' && sourceObjectForEffect) {
+					zoneOwnerId = sourceObjectForEffect.controllerId; // Destination is for the source's controller
+					const isSourceGigantic = sourceObjectForEffect.currentCharacteristics.isGigantic === true;
+					if (isSourceGigantic) {
+						// Rule 7.4.4.h: Player must pick. Simplified: default to source's assignment or 'hero'.
+						const chosenType = sourceObjectForEffect.expeditionAssignment?.type || 'hero';
+						destZone = this.findZoneByType(zoneOwnerId, ZoneIdentifier.Expedition); // Base expedition zone
+						// We need to ensure the object gets the correct expeditionAssignment if destZone is Expedition
+						target.expeditionAssignment = { playerId: zoneOwnerId, type: chosenType };
+						console.log(`[EffectProcessor] PutInZone (Gigantic Source Dest): ${target.name} will be put in ${chosenType} expedition for ${zoneOwnerId}. TODO: Implement player choice.`);
+					} else {
+						// Not Gigantic source, use source's assignment or default 'hero'
+						const assignedType = sourceObjectForEffect.expeditionAssignment?.type || 'hero';
+						destZone = this.findZoneByType(zoneOwnerId, ZoneIdentifier.Expedition);
+						target.expeditionAssignment = { playerId: zoneOwnerId, type: assignedType };
+					}
+				} else if (typeof destinationZoneIdentifier === 'string' && Object.values(ZoneIdentifier).includes(destinationZoneIdentifier as ZoneIdentifier)) {
+					destZone = this.findZoneByType(zoneOwnerId, destinationZoneIdentifier as ZoneIdentifier);
+				} else {
+					console.warn(`[EffectProcessor] PutInZone: Invalid destinationZoneIdentifier: ${destinationZoneIdentifier}`);
+					return;
+				}
 
 				if (currentZone && destZone) {
-					this.gsm.moveEntity(target.objectId, currentZone, destZone, target.controllerId); // moveEntity uses target.controllerId for some logic
-					console.log(`[EffectProcessor] Moved ${target.name} (ID: ${target.objectId}) to ${destinationZoneIdentifier}.`);
+					// If moving to expedition, ensure expeditionAssignment is set (handled above for choice case)
+					if (destZone.zoneType === ZoneIdentifier.Expedition && !target.expeditionAssignment && sourceObjectForEffect) {
+                        // If not set by Gigantic choice logic, means it's a direct move to "Expedition" zone.
+                        // Default to source's assignment or hero, if applicable.
+                        target.expeditionAssignment = { playerId: zoneOwnerId, type: sourceObjectForEffect.expeditionAssignment?.type || 'hero' };
+                    } else if (destZone.zoneType !== ZoneIdentifier.Expedition) {
+                        // Clear assignment if moving out of expedition
+                        delete target.expeditionAssignment;
+                    }
+
+					this.gsm.moveEntity(target.objectId, currentZone, destZone, target.controllerId);
+					console.log(`[EffectProcessor] Moved ${target.name} (ID: ${target.objectId}) to ${destZone.id} (intended type: ${destinationZoneIdentifier}).`);
 				} else {
 					console.warn(`[EffectProcessor] Could not move ${target.name}: currentZone ${currentZone?.id}, destZone ${destZone?.id}`);
 				}
@@ -688,8 +737,48 @@ export class EffectProcessor {
 			if (condition.operator === '>=' && val1 >= val2) conditionMet = true;
 			if (condition.operator === '===' && val1 === val2) conditionMet = true;
 			// Add more operators
+		} else if (sourceObjectForContext && condition.type === 'zone_state_check') {
+			// Example: condition = { type: 'zone_state_check', zone: 'source_expeditions', check: 'is_behind_opponent', comparisonValue: true }
+			//          condition = { type: 'zone_state_check', zone: 'source_expeditions', check: 'object_count', criteria: {...}, operator: '>', value: 0 }
+			const zoneSpecifier = condition.zone;
+			const checkType = condition.check;
+			let resultsFromAllContexts: boolean[] = [];
+
+			let relevantContexts: { playerId: string, type: 'hero' | 'companion' }[] = [];
+			if (zoneSpecifier === 'source_expeditions') {
+				relevantContexts = this._getEffectiveExpeditionContexts(sourceObjectForContext, 'self');
+			} else if (zoneSpecifier === 'source_hero_expedition') {
+				relevantContexts.push({playerId: sourceObjectForContext.controllerId, type: 'hero'});
+			} else if (zoneSpecifier === 'source_companion_expedition') {
+				relevantContexts.push({playerId: sourceObjectForContext.controllerId, type: 'companion'});
+			}
+			// Add more zoneSpecifiers like 'opposing_expeditions_to_source' if needed for conditions
+
+			if (relevantContexts.length === 0 && (zoneSpecifier === 'source_expeditions' || zoneSpecifier === 'source_hero_expedition' || zoneSpecifier === 'source_companion_expedition')) {
+				// If source_expeditions was specified but no valid contexts (e.g. source not in an expedition), condition is likely false.
+				conditionMet = false;
+			} else if (relevantContexts.length > 0) {
+				for (const ctx of relevantContexts) {
+					// This is conceptual. Actual checks need specific implementation.
+					// E.g., this.gsm.checkExpeditionState(ctx.playerId, ctx.type, checkType, condition.criteria, condition.operator, condition.value)
+					const singleContextResult = this.evaluateSingleZoneCondition(ctx, checkType, condition);
+					resultsFromAllContexts.push(singleContextResult);
+				}
+
+				// Rule 7.4.4.j: "the condition applies to both Expeditions simultaneously" - typically implies AND logic.
+				// If only one context (non-Gigantic source), then it's just that one result.
+				if (resultsFromAllContexts.length > 0) {
+					conditionMet = resultsFromAllContexts.every(r => r === true);
+				} else {
+					conditionMet = false; // No relevant contexts to check, or no results.
+				}
+			} else {
+				console.warn(`[EffectProcessor] IfCondition: Unhandled zone_state_check for zone specifier: ${zoneSpecifier}`);
+				conditionMet = false; // Default to false if the zone cannot be resolved for condition
+			}
+
 		} else {
-			console.warn(`[EffectProcessor] IfCondition: Unknown condition type "${condition.type}" or missing runtime values.`);
+			console.warn(`[EffectProcessor] IfCondition: Unknown condition type "${condition.type}" or missing runtime/source context.`);
 		}
 
 		const stepsToExecute = conditionMet ? then_steps : else_steps;
@@ -706,7 +795,65 @@ export class EffectProcessor {
 			// Resolve recursively. Pass original preSelectedTargets if relevant for sub-steps.
 			await this.resolveEffect(subEffect, sourceObjectForContext, preSelectedTargets, currentContext);
 		} else {
-			console.log(`[EffectProcessor] IfCondition: Condition was ${conditionMet ? 'MET' : 'NOT MET'}. No steps in chosen branch.`);
+			console.log(`[EffectProcessor] IfCondition: Condition was ${conditionMet ? 'MET' : 'NOT MET'}. No steps in chosen branch or chosen branch is empty.`);
+		}
+	}
+
+	// Placeholder for actual condition evaluation logic for a single zone context
+	private evaluateSingleZoneCondition(
+		context: { playerId: string, type: 'hero' | 'companion' },
+		checkType: string,
+		conditionParams: any
+	): boolean {
+		// This would contain detailed logic for various 'checkType' like 'is_behind_opponent', 'object_count', etc.
+		// For example:
+		// if (checkType === 'object_count') {
+		//   const objects = this.gsm.getObjectsInExpedition(context.playerId, context.type);
+		//   const filteredObjects = objects.filter(obj => matchesCriteria(obj, conditionParams.criteria));
+		//   return compare(filteredObjects.length, conditionParams.operator, conditionParams.value);
+		// }
+		// if (checkType === 'is_behind_opponent') { ... }
+		console.warn(`[EffectProcessor.evaluateSingleZoneCondition] Placeholder for: checking ${checkType} in ${context.type} of ${context.playerId} with params ${JSON.stringify(conditionParams)} - returning false by default.`);
+		return false;
+	}
+
+	/**
+	 * Rule 7.4.4.m - Switch Expeditions effect for a character.
+	 */
+	private async effectSwitchExpedition(step: IEffectStep, targets: (IGameObject | string)[]): Promise<void> {
+		for (const target of targets) {
+			if (this.isTargetGameObject(target)) {
+				if (target.type !== 'Character') { // Assuming only characters can be in expeditions this way
+					console.warn(`[EffectProcessor.effectSwitchExpedition] Target ${target.name} is not a Character. Skipping.`);
+					continue;
+				}
+				if (!target.expeditionAssignment) {
+					console.warn(`[EffectProcessor.effectSwitchExpedition] Target ${target.name} has no expeditionAssignment. Skipping.`);
+					continue;
+				}
+
+				const isGigantic = target.currentCharacteristics.isGigantic === true;
+				const oldAssignment = target.expeditionAssignment.type;
+				const newAssignment = oldAssignment === 'hero' ? 'companion' : 'hero';
+
+				if (isGigantic) {
+					// Rule 7.4.4.m: "the card representing it switches Expeditions."
+					// "As long as it remains Gigantic, the Character itself does not leave nor join either Expedition."
+					// This means no standard leave/join triggers should fire.
+					target.expeditionAssignment.type = newAssignment;
+					console.log(`[EffectProcessor] Gigantic character ${target.name} (ID: ${target.objectId}) switched its primary expedition assignment from ${oldAssignment} to ${newAssignment}. This does not trigger leave/join events for the Gigantic character itself.`);
+					this.gsm.eventBus.publish('giganticAssignmentSwitched', { objectId: target.objectId, newAssignmentType: newAssignment, oldAssignmentType: oldAssignment });
+				} else {
+					// Non-Gigantic character: This is a standard move between expeditions.
+					// This would involve leaving one and joining another, potentially triggering effects.
+					// For now, just change assignment. Full move logic might be more complex (e.g. using gsm.moveEntity if zones were distinct).
+					// Since expedition is one shared zone, just changing the assignment property is key.
+					// However, to trigger "leaves X expedition" and "joins Y expedition", more is needed if those are specific events.
+					target.expeditionAssignment.type = newAssignment;
+					console.log(`[EffectProcessor] Non-Gigantic character ${target.name} (ID: ${target.objectId}) switched expedition assignment from ${oldAssignment} to ${newAssignment}. TODO: Implement full leave/join trigger logic if distinct from assignment change.`);
+					this.gsm.eventBus.publish('expeditionAssignmentSwitched', { objectId: target.objectId, newAssignmentType: newAssignment, oldAssignmentType: oldAssignment });
+				}
+			}
 		}
 	}
 
@@ -832,9 +979,42 @@ export class EffectProcessor {
 					// Example: Find all characters in controller's hero expedition
 					if (sourceObjectForContext && spec.criteria?.zone === 'self_hero_expedition' && spec.criteria?.cardType === 'Character') {
 						return this.gsm.getObjectsInExpedition(sourceObjectForContext.controllerId, 'hero')
-							.filter(obj => obj.type === 'Character');
+				.filter(obj => obj.type === 'Character'); // Ensure this method exists and works as expected
 					}
+		// Rule 7.4.4.f (My Expedition) & 7.4.4.g (Expedition Facing Me)
+		if (sourceObjectForContext && spec.criteria?.zone) {
+			const targetCardType = spec.criteria.cardType as CardType | undefined; // e.g., 'Character'
+			let resolvedTargets: IGameObject[] = [];
+			let contexts: { playerId: string, type: 'hero' | 'companion' }[] = [];
+
+			if (spec.criteria.zone === 'source_expeditions') { // Target source's own expedition(s)
+				contexts = this._getEffectiveExpeditionContexts(sourceObjectForContext, 'self');
+			} else if (spec.criteria.zone === 'opposing_expeditions_to_source') { // Target expedition(s) opposing the source
+				contexts = this._getEffectiveExpeditionContexts(sourceObjectForContext, 'opponent');
+			}
+
+			for (const ctx of contexts) {
+				// Assuming a method like this exists on GSM or can be constructed:
+				// gsm.getObjectsInExpedition(playerId, expeditionType, filterCriteria)
+				const objectsInExpedition = this.gsm.getObjectsInExpedition(ctx.playerId, ctx.type);
+				objectsInExpedition.forEach(obj => {
+					if (!targetCardType || obj.type === targetCardType) {
+						if (!resolvedTargets.some(rt => rt.objectId === obj.objectId)) { // Avoid duplicates
+							resolvedTargets.push(obj);
+						}
+					}
+				});
+			}
+			if (contexts.length > 0) return resolvedTargets; // Return if we handled it via new specifiers
+		}
+
+		// Rule 7.4.4.k ("The Other Expedition" - for a Gigantic source)
+		if (sourceObjectForContext?.currentCharacteristics.isGigantic && spec.criteria?.zone === 'source_other_expedition') {
+			return []; // Returns an empty list of targets
+		}
+
 					// This would involve player choice or more filtering (e.g. based on spec.criteria)
+		console.warn(`[EffectProcessor] Complex target selection for type '${spec.type}' with criteria '${JSON.stringify(spec.criteria)}' partially unhandled or fell through.`);
 					return [];
 				default:
 					console.warn(`[EffectProcessor] Unknown target object type: ${spec.type}`);
@@ -929,5 +1109,60 @@ export class EffectProcessor {
 	public addPendingEffect(effect: IEffect): void {
 		this.pendingEffects.push(effect);
 		console.log(`[EffectProcessor] Added pending effect, queue size: ${this.pendingEffects.length}`);
+	}
+
+	/**
+	 * Helper to determine which expeditions are relevant for a source object, especially if Gigantic.
+	 * @param sourceObject The game object whose perspective is being used (e.g., the source of an ability).
+	 * @param perspective 'self' for the sourceObject's own expeditions, 'opponent' for expeditions opposing the sourceObject.
+	 * @returns An array of expedition contexts, each specifying playerId and type ('hero' or 'companion').
+	 */
+	private _getEffectiveExpeditionContexts(
+		sourceObject: IGameObject,
+		perspective: 'self' | 'opponent'
+	): { playerId: string, type: 'hero' | 'companion' }[] {
+		const contexts: { playerId: string, type: 'hero' | 'companion' }[] = [];
+		const isSourceGigantic = sourceObject.currentCharacteristics.isGigantic === true;
+		const sourceControllerId = sourceObject.controllerId;
+
+		if (perspective === 'self') {
+			if (isSourceGigantic) {
+				contexts.push({ playerId: sourceControllerId, type: 'hero' });
+				contexts.push({ playerId: sourceControllerId, type: 'companion' });
+			} else {
+				// Non-Gigantic: use its assigned expedition type, or default if somehow unassigned in an expedition.
+				const assignedType = sourceObject.expeditionAssignment?.type;
+				if (assignedType) {
+					contexts.push({ playerId: sourceControllerId, type: assignedType });
+				} else {
+					// This case should be rare if objects in expedition always have assignment. Defaulting or error handling needed.
+					console.warn(`[EffectProcessor._getEffectiveExpeditionContexts] Non-Gigantic source ${sourceObject.name} in expedition has no specific assignment. Defaulting to 'hero'.`);
+					contexts.push({ playerId: sourceControllerId, type: 'hero' });
+				}
+			}
+		} else { // perspective === 'opponent'
+			const opponents = this.gsm.getPlayerIds().filter(pid => pid !== sourceControllerId);
+			for (const opponentId of opponents) {
+				if (isSourceGigantic) {
+					// If source is Gigantic, its effect towards opponent considers both opponent expeditions.
+					contexts.push({ playerId: opponentId, type: 'hero' });
+					contexts.push({ playerId: opponentId, type: 'companion' });
+				} else {
+					// If source is not Gigantic, it "faces" one expedition of the opponent.
+					// This simplistic model assumes hero faces hero, companion faces companion.
+					// Real "facing" logic might depend on relative positions or game rules not yet defined here.
+					// For now, assume it targets the same type as the source's assignment, or both if source is unassigned/global.
+					const assignedType = sourceObject.expeditionAssignment?.type;
+					if (assignedType) {
+						contexts.push({ playerId: opponentId, type: assignedType }); // e.g. source's hero expedition faces opponent's hero
+					} else {
+						// If source has no specific expedition (e.g. global effect from a landmark), it might affect both.
+						contexts.push({ playerId: opponentId, type: 'hero' });
+						contexts.push({ playerId: opponentId, type: 'companion' });
+					}
+				}
+			}
+		}
+		return contexts;
 	}
 }
