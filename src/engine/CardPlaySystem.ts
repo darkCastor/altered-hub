@@ -1,7 +1,7 @@
 import type { GameStateManager } from './GameStateManager';
 import type { EventBus } from './EventBus';
 import type { IGameObject, ICardInstance } from './types/objects';
-import { ZoneIdentifier, CardType, StatusType, KeywordAbility } from './types/enums';
+import { ZoneIdentifier, CardType, StatusType, KeywordAbility, PermanentZoneType } from './types/enums';
 import { isGameObject } from './types/objects';
 import type { CostModifier } from './types/costs'; // Import CostModifier
 

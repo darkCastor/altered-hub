@@ -128,9 +128,15 @@ export enum ZoneIdentifier {
 }
 
 export enum ModifierType {
-	ReplaceStep = 'ReplaceStep', // Rule 6.2.b
-	Additive = 'Additive',       // Rule 6.2.c
-	OptionalReplaceStep = 'OptionalReplaceStep', // Rule 6.2.d
-	OptionalReplaceAlternative = 'OptionalReplaceAlternative' // Rule 6.2.e
-	// ReplaceAction and OptionalReplaceAction might be too granular or complex for initial implementation
+	ReplaceStep = 'ReplaceStep',
+	AddStepBefore = 'AddStepBefore',
+	AddStepAfter = 'AddStepAfter',
+}
+
+export enum AbilityType {
+	QuickAction = 'quick_action',
+	Reaction = 'reaction',
+	Passive = 'passive',
+	Support = 'support', // Rule 2.2.11.e - Support abilities work only in Reserve
+	EffectSource = 'effect_source' // For simple effects from spells etc.
 }

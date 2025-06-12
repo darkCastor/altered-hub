@@ -2,7 +2,7 @@ import type { IGameObject, IEmblemObject } from './types/objects'; // Added IEmb
 import type { GameStateManager } from './GameStateManager';
 import type { IZone } from './types/zones';
 import { ZoneIdentifier, CardType } from './types/enums'; // Added CardType
-import { AbilityType, IAbility } from './types/abilities'; // Added IAbility
+import { AbilityType, type IAbility } from './types/abilities'; // Added IAbility
 import { isGameObject } from './types/objects';
 
 

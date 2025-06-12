@@ -68,51 +68,125 @@ export class EffectProcessor {
 		currentContext: any,
 		preSelectedTargets?: any[]
 	): Promise<boolean> {
-		let stepToExecute = originalStep;
-		let stepProcessed = false;
-		let stepVerbExecuted = false;
-		let verbExecutionSuccessful = false;
-
 		const modifierContext = {
-			type: 'EFFECT_STEP',
+			type: 'EFFECT_STEP' as const,
 			step: originalStep,
-			sourceObject: sourceObjectForContext,
-			context: currentContext
+			sourceObjectOfStep: sourceObjectForContext as IGameObject, // Assuming it will be IGameObject if relevant for modifiers
+			effectContext: currentContext
 		};
+
+		// Ensure sourceObjectOfStep is valid if context relies on it.
+		// If sourceObjectForContext is null/undefined, some criteria might not evaluate correctly.
+		// This might require passing a "system" or "game" object if sourceObjectOfStep is truly null.
+		if (!modifierContext.sourceObjectOfStep && (originalStep.targets === 'self' || originalStep.targets === 'controller')) {
+			// If targets imply a source object but it's null, this step might be problematic anyway.
+			// For modifiers, if sourceObjectOfStep is needed by criteria, those would fail.
+			// console.warn(`[EffectProcessor] Modifier context created without a sourceObjectOfStep for step: ${originalStep.verb}`);
+		}
+
+
 		const activeModifiers = this.gsm.ruleAdjudicator.getActiveModifiers(modifierContext);
 
-		for (const modifier of activeModifiers) {
-			if (modifier.modifierType === ModifierType.ReplaceStep && modifier.replacementEffectStep) {
-				if (!modifier.applicationCriteria.verb || modifier.applicationCriteria.verb === originalStep.verb) {
-					const customConditionFn = modifier.applicationCriteria.customCondition;
-					if (!customConditionFn || customConditionFn(modifierContext, this.gsm)) {
-						console.log(`[EffectProcessor] Step ${originalStep.verb} from ${sourceObjectForContext?.name || 'system'} is being REPLACED by modifier ${modifier.modifierId} (Source: ${modifier.sourceObjectId}).`);
-						stepToExecute = modifier.replacementEffectStep;
-						break;
-					}
-				}
+		let stepToExecute = originalStep;
+		let stepHasBeenReplaced = false;
+		let mainStepExecutedSuccessfully = false;
+
+		// Handle canBeModified on the originalStep
+		if (originalStep.canBeModified === false) {
+			console.log(`[EffectProcessor] Original step ${originalStep.verb} cannot be modified. Executing directly.`);
+			mainStepExecutedSuccessfully = await this.executeStepLogic(originalStep, sourceObjectForContext, currentContext, preSelectedTargets);
+			currentContext._effectRuntimeValues[`step_${originalStep.verb}_processed`] = true;
+			currentContext._effectRuntimeValues[`step_${originalStep.verb}_did_execute`] = mainStepExecutedSuccessfully;
+			return mainStepExecutedSuccessfully;
+		}
+
+		// Apply Replacing Modifiers
+		const replacingModifiers = activeModifiers.filter(m => m.modifierType === ModifierType.ReplaceStep && m.replacementEffectStep);
+		if (replacingModifiers.length > 0) {
+			const replacingModifier = replacingModifiers[0]; // Already sorted by priority
+			if (replacingModifier.replacementEffectStep) { // Extra check for type safety
+				console.log(`[EffectProcessor] Step ${originalStep.verb} from ${sourceObjectForContext?.name || 'system'} is REPLACED by modifier ${replacingModifier.modifierId} (Source: ${replacingModifier.sourceObjectId}).`);
+				stepToExecute = replacingModifier.replacementEffectStep;
+				stepHasBeenReplaced = true;
+				// If the replacement step itself cannot be modified, this needs to be respected by subsequent AddStepBefore/After.
+				// The recursive call to resolveSingleStep for AddStepBefore/After will handle this naturally for the additional steps.
 			}
 		}
-		stepProcessed = true;
 
-		if (stepToExecute.isOptional) {
+		// Execute AddStepBefore Modifiers
+		const addBeforeModifiers = activeModifiers.filter(m => m.modifierType === ModifierType.AddStepBefore && m.additionalEffectStep);
+		for (const modifier of addBeforeModifiers) { // Assumes already sorted by priority
+			if (stepHasBeenReplaced) {
+				// Rule 6.2.i: If a step is replaced, additive modifiers that would have applied to the original step do not apply
+				// unless their conditions also match the replacement step.
+				// For simplicity here, if step was replaced, we skip AddStepBefore that targeted original.
+				// A more advanced implementation might re-evaluate modifier.applicationCriteria against stepToExecute.
+				console.log(`[EffectProcessor] Skipping AddStepBefore modifier ${modifier.modifierId} as original step was replaced.`);
+				continue;
+			}
+			if (modifier.additionalEffectStep) { // Extra check
+				console.log(`[EffectProcessor] Executing AddStepBefore modifier ${modifier.modifierId} (Source: ${modifier.sourceObjectId}) before step ${stepToExecute.verb}.`);
+				// The additional step's own `canBeModified` flag will be checked in its own `resolveSingleStep` call.
+				await this.resolveSingleStep(modifier.additionalEffectStep, sourceObjectForContext, currentContext, preSelectedTargets);
+			}
+		}
+
+		// Execute the Main Step (original or replacement)
+		if (stepToExecute) { // stepToExecute could potentially be made null by a future modifier type
+			// If the stepToExecute (which could be a replacement) itself cannot be modified,
+			// this was implicitly handled if it became stepToExecute *from* a replacement modifier.
+			// If originalStep was canBeModified: false, we wouldn't be here.
+			// If replacementStep is canBeModified: false, AddStepBefore/After targeting *it* would be skipped in their own recursive calls.
+			mainStepExecutedSuccessfully = await this.executeStepLogic(stepToExecute, sourceObjectForContext, currentContext, preSelectedTargets);
+		}
+
+		// Execute AddStepAfter Modifiers
+		const addAfterModifiers = activeModifiers.filter(m => m.modifierType === ModifierType.AddStepAfter && m.additionalEffectStep);
+		for (const modifier of addAfterModifiers) { // Assumes already sorted by priority
+			if (stepHasBeenReplaced) {
+				console.log(`[EffectProcessor] Skipping AddStepAfter modifier ${modifier.modifierId} as original step was replaced.`);
+				continue;
+			}
+			if (modifier.additionalEffectStep) { // Extra check
+				console.log(`[EffectProcessor] Executing AddStepAfter modifier ${modifier.modifierId} (Source: ${modifier.sourceObjectId}) after step ${stepToExecute.verb}.`);
+				await this.resolveSingleStep(modifier.additionalEffectStep, sourceObjectForContext, currentContext, preSelectedTargets);
+			}
+		}
+
+		currentContext._effectRuntimeValues[`step_${originalStep.verb}_processed`] = true; // Mark original step as processed
+		currentContext._effectRuntimeValues[`step_${originalStep.verb}_did_execute`] = mainStepExecutedSuccessfully; // Reflects if the core logic (original or replacement) ran
+
+		return mainStepExecutedSuccessfully; // Return success of the main executed step (original or replacement)
+	}
+
+	// This new method contains the original switch-case logic
+	private async executeStepLogic(
+		stepToExecute: IEffectStep,
+		sourceObjectForContext: IGameObject | undefined | null,
+		currentContext: any,
+		preSelectedTargets?: any[]
+	): Promise<boolean> {
+		let verbExecutionSuccessful = true; // Assume success, specific verbs can set to false
+
+		if (stepToExecute.isOptional && stepToExecute.canBeModified !== false) { // Re-check optional if it's a replacement step that's optional
 			const controller = sourceObjectForContext?.controllerId || this.gsm.state.currentPlayerId;
-			const shouldExecute = await this.gsm.actionHandler.promptForOptionalStepChoice(controller, stepToExecute);
-			if (!shouldExecute) {
-				console.log(`[EffectProcessor] Player ${controller} chose NOT to execute optional effect step: ${stepToExecute.verb}`);
-				currentContext._effectRuntimeValues[`step_${originalStep.verb}_processed`] = stepProcessed;
-				currentContext._effectRuntimeValues[`step_${originalStep.verb}_did_execute`] = false;
-				return false;
+			// If originalStep was optional and skipped, we wouldn't reach here for its logic.
+			// This check is for if the stepToExecute (e.g. a replacement) is itself optional.
+			const alreadyProcessedOptionalChoiceKey = `_optional_choice_made_for_${stepToExecute.verb}_${sourceObjectForContext?.objectId}`;
+			if (!currentContext[alreadyProcessedOptionalChoiceKey]) { // Avoid re-prompting for the same optional replacement step
+				const shouldExecute = await this.gsm.actionHandler.promptForOptionalStepChoice(controller, stepToExecute);
+				currentContext[alreadyProcessedOptionalChoiceKey] = true; // Mark that choice has been made for this instance
+				if (!shouldExecute) {
+					console.log(`[EffectProcessor] Player ${controller} chose NOT to execute optional (replacement/modified) effect step: ${stepToExecute.verb}`);
+					return false; // Optional step skipped
+				}
 			}
 		}
 
 		const targetsForThisStep = await this.resolveTargetsForStep(stepToExecute.targets, sourceObjectForContext, currentContext, preSelectedTargets, stepToExecute.parameters?.targetKey);
 
-		stepVerbExecuted = true;
-		verbExecutionSuccessful = true; // Assume success by default, specific verbs can set it to false
-
 		console.log(
-			`[EffectProcessor] Executing ${stepToExecute.verb} for source ${sourceObjectForContext?.name || 'system'}, targeting: ${targetsForThisStep.map(t => (isGameObject(t) ? t.name : t)).join(', ')}`
+			`[EffectProcessor - executeStepLogic] Executing ${stepToExecute.verb} for source ${sourceObjectForContext?.name || 'system'}, targeting: ${targetsForThisStep.map(t => (isGameObject(t) ? t.name : t)).join(', ')}`
 		);
 
 		switch (stepToExecute.verb.toLowerCase()) {
@@ -208,13 +282,10 @@ export class EffectProcessor {
 				await this.effectSwitchExpedition(stepToExecute, targetsForThisStep);
 				break;
 			default:
-				console.warn(`[EffectProcessor] Unknown effect verb: ${stepToExecute.verb}`);
-				stepVerbExecuted = false;
+				console.warn(`[EffectProcessor - executeStepLogic] Unknown effect verb: ${stepToExecute.verb}`);
 				verbExecutionSuccessful = false;
 		}
-		currentContext._effectRuntimeValues[`step_${originalStep.verb}_processed`] = stepProcessed;
-		currentContext._effectRuntimeValues[`step_${originalStep.verb}_did_execute`] = stepVerbExecuted && verbExecutionSuccessful;
-		return stepVerbExecuted && verbExecutionSuccessful;
+		return verbExecutionSuccessful;
 	}
 
 	private async effectChooseMode(step: IEffectStep, sourceObjectForContext: IGameObject | undefined | null, currentContext: any, preSelectedTargets?: any[]): Promise<boolean> {

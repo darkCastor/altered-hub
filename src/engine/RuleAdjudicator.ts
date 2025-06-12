@@ -808,13 +808,125 @@ export class RuleAdjudicator {
 	 *                { type: 'COST_CALCULATION', card: ICardInstance|IGameObject, playerId: string }
 	 * @returns An array of IModifier objects.
 	 */
-	public getActiveModifiers(context: any): IModifier[] {
-		// TODO: Implement logic to scan all passive abilities and emblems
-		//       that could generate modifiers.
-		//       - Check their conditions against the provided context.
-		//       - Construct IModifier objects for those that are active.
-		//       - Sort them by priority if necessary.
-		console.log('[RuleAdjudicator] getActiveModifiers called with context:', context, '- STUBBED, returns [].');
-		return [];
+	public getActiveModifiers(context: {
+		type: 'EFFECT_STEP';
+		step: IEffectStep;
+		sourceObjectOfStep: IGameObject; // Object whose effect is being modified
+		effectContext: any; // The broader runtime context of the effect (e.g., resolved targets of the original step)
+	}): IModifier[] {
+		const activeModifiers: IModifier[] = [];
+		const potentialModifierSources: (IGameObject | IEmblemObject)[] = [...this.getAllPlayObjects()];
+
+		// Add emblems if they are stored in a known, accessible location
+		// Example: if (this.gsm.state.sharedZones.emblems) { potentialModifierSources.push(...this.gsm.state.sharedZones.emblems.getAll()); }
+		// For now, assuming emblems are IGameObjects and will be found by getAllPlayObjects if in a scanned zone.
+
+		for (const source of potentialModifierSources) {
+			const abilitiesToCheck: IAbility[] = [];
+			if (source.abilities) {
+				abilitiesToCheck.push(...source.abilities.map(a => ({ ...a, sourceObjectId: source.objectId })));
+			}
+			if ('currentCharacteristics' in source && source.currentCharacteristics?.grantedAbilities) {
+				abilitiesToCheck.push(...source.currentCharacteristics.grantedAbilities.map(a => ({ ...a, sourceObjectId: source.objectId })));
+			} else if ('grantedAbilities' in source && source.grantedAbilities) { // For IEmblemObject if it has grantedAbilities directly
+				abilitiesToCheck.push(...(source.grantedAbilities as IAbility[]).map(a => ({...a, sourceObjectId: source.objectId })));
+			}
+
+			for (const ability of abilitiesToCheck) {
+				if (ability.abilityType !== AbilityType.Passive || !ability.effect || !ability.effect.steps) {
+					continue;
+				}
+				if ('currentCharacteristics' in source && source.currentCharacteristics?.negatedAbilityIds?.includes(ability.abilityId)) {
+					continue;
+				}
+
+				ability.effect.steps.forEach((step, stepIndex) => {
+					let definedModifierType: ModifierType | null = null;
+					let effectStepProperty: 'replacementEffectStep' | 'additionalEffectStep' | null = null;
+
+					switch (step.verb) {
+						case 'DEFINE_REPLACEMENT_MODIFIER':
+							definedModifierType = ModifierType.ReplaceStep;
+							effectStepProperty = 'replacementEffectStep';
+							break;
+						case 'DEFINE_ADD_STEP_BEFORE_MODIFIER':
+							definedModifierType = ModifierType.AddStepBefore;
+							effectStepProperty = 'additionalEffectStep';
+							break;
+						case 'DEFINE_ADD_STEP_AFTER_MODIFIER':
+							definedModifierType = ModifierType.AddStepAfter;
+							effectStepProperty = 'additionalEffectStep';
+							break;
+						default:
+							return; // Not a modifier definition step
+					}
+
+					const modParams = step.parameters as any;
+					if (!modParams || !modParams.criteria || !modParams[effectStepProperty!]) {
+						console.warn(`[RuleAdjudicator] Modifier definition step ${step.verb} on ${source.name} (Ability: ${ability.abilityId}) is missing critical parameters.`);
+						return;
+					}
+
+					let criteriaMet = true;
+					const criteria = modParams.criteria as IModifier['applicationCriteria'];
+
+					if (context.type === 'EFFECT_STEP') {
+						if (criteria.verb) {
+							const verbs = Array.isArray(criteria.verb) ? criteria.verb : [criteria.verb];
+							if (!verbs.includes(context.step.verb)) criteriaMet = false;
+						}
+						if (criteriaMet && criteria.sourceCardDefinitionId) {
+							if (context.sourceObjectOfStep?.definitionId !== criteria.sourceCardDefinitionId) criteriaMet = false;
+						}
+						if (criteriaMet && criteria.targetIncludesDefinitionId) {
+							const resolvedTargets = context.effectContext?.resolvedTargets as IGameObject[] | undefined;
+							if (!resolvedTargets || !resolvedTargets.some(t => t.definitionId === criteria.targetIncludesDefinitionId)) criteriaMet = false;
+						}
+						if (criteriaMet && criteria.customCondition) {
+							if (!criteria.customCondition(context.effectContext, this.gsm)) criteriaMet = false;
+						}
+					} else {
+						// Handle other context types if necessary, or assume criteria don't apply
+						// criteriaMet = false;
+					}
+
+					if (criteriaMet) {
+						let priority = source.timestamp; // Default priority
+						if (modParams.priority !== undefined) {
+							priority = modParams.priority;
+						} else if (modParams.prioritySource === 'objectTimestamp' && source.timestamp !== undefined) {
+							priority = source.timestamp;
+						}
+
+						const effectStepPayload = JSON.parse(JSON.stringify(modParams[effectStepProperty!]));
+
+						const newModifier: IModifier = {
+							modifierId: `${source.objectId}_${ability.abilityId}_${stepIndex}`,
+							sourceObjectId: source.objectId,
+							modifierType: definedModifierType!,
+							priority: priority,
+							applicationCriteria: JSON.parse(JSON.stringify(criteria)),
+							replacementEffectStep: definedModifierType === ModifierType.ReplaceStep ? effectStepPayload : undefined,
+							additionalEffectStep: (definedModifierType === ModifierType.AddStepBefore || definedModifierType === ModifierType.AddStepAfter) ? effectStepPayload : undefined,
+							canBeModified: modParams.modifierRuleCanBeModified !== undefined ? modParams.modifierRuleCanBeModified : true,
+						};
+						activeModifiers.push(newModifier);
+					}
+				});
+			}
+		}
+
+		activeModifiers.sort((a, b) => {
+			if (a.priority !== b.priority) return a.priority - b.priority;
+			const sourceA = this.gsm.getObject(a.sourceObjectId);
+			const sourceB = this.gsm.getObject(b.sourceObjectId);
+			if (sourceA && sourceB && sourceA.timestamp !== sourceB.timestamp) return sourceA.timestamp - sourceB.timestamp;
+			return 0;
+		});
+
+		if (activeModifiers.length > 0) {
+			console.log(`[RuleAdjudicator] Found ${activeModifiers.length} active modifiers for context:`, context, activeModifiers);
+		}
+		return activeModifiers;
 	}
 }

@@ -1,4 +1,4 @@
-import type { CounterType, KeywordAbility, CardType, ZoneIdentifier } from './enums';
+import type { CounterType, KeywordAbility, CardType, ZoneIdentifier, StatusType, ModifierType } from './enums';
 import type { IGameObject, ICardInstance } from './objects';
 import type { GameStateManager } from '../GameStateManager';
 
@@ -54,6 +54,7 @@ export interface IEffectStep {
 		[key: string]: any; // Allows other verb-specific parameters & ModifyPlayCostParameters
 	} | ModifyPlayCostParameters | undefined;
 	isOptional?: boolean; // For "may" effects (Rule 1.2.6.d, 6.5.c)
+	canBeModified?: boolean; // Defaults to true. If false, this step cannot be further modified.
 }
 
 /**
@@ -134,42 +135,23 @@ export interface IAbility {
 }
 
 // --- MODIFIERS --- Rule 6.2
-import { ModifierType } from './enums'; // Import the ModifierType enum
 
 export interface IModifier {
-	modifierId: string; // Unique ID for this instance of an active modifier (e.g., generated at runtime)
-	sourceAbilityId: string; // Ability that generated this modifier
-	sourceObjectId: string;  // Object that has the ability generating this modifier
-
+	modifierId: string; // Unique ID for this modifier instance
+	sourceObjectId: string; // ID of the game object or emblem generating this
 	modifierType: ModifierType;
+	priority: number; // For ordering, e.g., timestamp of source object or explicit
 
-	// Context for applicability, e.g. what specific verb, card type, player, zone this modifier applies to.
-	// This could be a structured object or a function.
-	// Example: appliesTo: { verb: 'draw_cards', targetPlayerId: 'self' }
-	// Or a function: condition: (eventContext: GameEventContext, gsm: GameStateManager) => boolean;
-	// For now, let's assume conditions are checked by RuleAdjudicator when fetching modifiers.
-	// A more structured `applicationCriteria` might be better than a generic `condition` function here
-	// to allow EffectProcessor to quickly find relevant modifiers.
 	applicationCriteria: {
-		verb?: string; // e.g., 'draw_cards', 'move_entity', 'pay_cost'
-		// Add more criteria as needed: targetPlayerId, cardType, zone, etc.
-		// Or a more generic condition function evaluated by RuleAdjudicator:
-		customCondition?: (context: any, gsm: GameStateManager) => boolean;
+		verb?: string | string[]; // Specific verb(s) this modifier applies to
+		sourceCardDefinitionId?: string; // Does it apply to effects from a specific card definition?
+		targetIncludesDefinitionId?: string; // Does it apply if a target matches this definition?
+		customCondition?: (context: any, gameStateManager: any) => boolean; // For more complex conditions
+		// Potentially add more criteria: e.g., based on player, zone, card type of source/target
 	};
 
-	// For ReplaceStep, OptionalReplaceStep
-	replacementEffectStep?: IEffectStep;
+	replacementEffectStep?: IEffectStep; // For ReplaceStep
+	additionalEffectStep?: IEffectStep;  // For AddStepBefore/AddStepAfter
 
-	// For Additive
-	addedEffectSteps?: IEffectStep[];
-
-	// For OptionalReplaceAlternative
-	alternativeEffectStep?: IEffectStep;
-
-	priority?: number; // Rule 6.2.j - Lower numbers apply first for same type
-
-	// Optional: For modifiers with limited uses or duration, if not handled by the source passive ability itself
-	// maxApplications?: number;
-	// currentApplications?: number;
-	// duration?: string; // e.g., "this_turn", "until_end_of_phase_X"
+	canBeModified?: boolean; // Defaults to true. If false, this modifier's effect step cannot be modified.
 }
