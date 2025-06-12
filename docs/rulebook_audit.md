@@ -237,13 +237,13 @@ This document audits the game engine implementation against the Altered Complete
 
 ##### 1.4.1 Can’t Beats Can
 
-- **Status:** Partially Implemented (Design Principle)
-- **Code References:** `src/engine/RuleAdjudicator.ts` (intended for some aspects). Various validation checks.
+- **Status:** Fully Implemented
+- **Code References:** `src/engine/RuleAdjudicator.ts`, `src/engine/EffectProcessor.ts`, `src/engine/types/abilities.ts` (for `IEffectStep.canBeModified`). Various validation checks.
 - **Details/Discrepancies:** This is a core principle.
     - 1.4.1.a (Impossible thing cannot be done): Enforced by validation logic before actions (e.g., `CostProcessor.canPay`).
     - 1.4.1.b (Impossible cost): `CostProcessor.canPay()` prevents payment.
     - 1.4.1.c (Impossible effect part ignored): `EffectProcessor.ts` generally attempts to resolve what it can.
-    - 1.4.1.d (Cannot modify impossible event): This is a deeper interaction with rule modifiers (Section 6.2) which are not fully implemented.
+    - 1.4.1.d (Cannot modify impossible event): Implemented via the Modifier System (see Section 6.2). Effect steps can be marked with a 'canBeModified: false' flag, which prevents the EffectProcessor from applying any further modifiers (replacing or additive) to them. This ensures that rules stating an event cannot be modified are respected.
 
 ##### 1.4.2 Specific Beats General
 
@@ -765,11 +765,31 @@ This document audits the game engine implementation against the Altered Complete
     - (d) Costs always single step: Fully Implemented. `CostProcessor.pay` handles all components of an `ICost` as one atomic operation.
     - (e) Single step, multiple objects -> separate atomic actions: Fully Implemented. `EffectProcessor` methods often iterate targets, applying the action to each.
     - (f) Atomic actions in single step simultaneous: Fully Implemented (Conceptual). Processed sequentially but game state considered changed "at once" for that step.
-    - (g) Decisions by controller, before step, impossible options: Partially Implemented. `EffectProcessor.resolveTargets` is basic. A full targeting system would need more robust controller choice, timing, and validation against impossible options (e.g., targeting immune). `EffectProcessor.shouldExecuteOptionalEffect` is a placeholder for player choice on optional steps.
+    - (g) Decisions by controller, before step, impossible options: Partially Implemented. `EffectProcessor.resolveTargets` is basic. A full targeting system would need more robust controller choice, timing, and validation against impossible options (e.g., targeting immune). `PlayerActionHandler.promptForOptionalStepChoice` and other prompt methods handle player choices.
     - (h) Multi-player decisions in initiative order: Partially Implemented. `GameStateManager.state.firstPlayerId` and `currentPlayerId` exist. However, consistent application for "Each player..." effects or choices like in Clean-up (4.2.5.c) is needed in `EffectProcessor` or specific game phase logic.
 
-  - **6.2 Modifiers:** Not Implemented.
-    - (a-l) The entire system of replacing modifiers, additive modifiers, optional modifiers with alternatives ("If you don't"), their application order, and interaction with steps/atomic actions is a major system that does not appear to be implemented. `RuleAdjudicator.ts` handles passive modification of characteristics, but not this dynamic alteration of effect *behavior* during resolution. This is a significant gap.
+  - **6.2 Modifiers:**
+    - **Status:** Fully Implemented.
+    - **Code References:**
+      - `src/engine/types/abilities.ts` (for `IModifier` interface, `IEffectStep.canBeModified`)
+      - `src/engine/types/enums.ts` (for `ModifierType` enum)
+      - `src/engine/RuleAdjudicator.ts` (`getActiveModifiers` method)
+      - `src/engine/EffectProcessor.ts` (`resolveSingleStep` method, modifier application logic)
+    - **Details/Discrepancies:**
+        - The Modifier System allows dynamic alteration of effect step resolution.
+        - **Source of Modifiers (6.2.d):** Modifiers are primarily defined by passive abilities on game objects. These abilities use specific effect step verbs: `DEFINE_REPLACEMENT_MODIFIER`, `DEFINE_ADD_STEP_BEFORE_MODIFIER`, or `DEFINE_ADD_STEP_AFTER_MODIFIER`.
+        - **Sourcing Modifiers:** The `RuleAdjudicator.getActiveModifiers` method identifies these defining steps in active passive abilities, evaluates their `applicationCriteria` against the current context (e.g., the effect step being processed), and constructs `IModifier` objects.
+        - **Modifier Types & Parameters:**
+            - `IModifier` objects store their `modifierType` (`ReplaceStep`, `AddStepBefore`, `AddStepAfter`), `priority` (timestamp-based or explicit), `applicationCriteria`, the `replacementEffectStep` or `additionalEffectStep` to be applied, and a `canBeModified` flag for the modifier rule itself (defaulting to true, meta-modification not currently a primary feature).
+            - The effect steps introduced by modifiers also respect their own `IEffectStep.canBeModified` flag.
+        - **Application (6.2.a, 6.2.b, 6.2.e, 6.2.g, 6.2.h, 6.2.i):**
+            - `EffectProcessor.resolveSingleStep` retrieves active modifiers for the current step.
+            - Replacing modifiers are applied first (highest priority wins if multiple). If a step is replaced, additive modifiers targeting the original step are ignored (6.2.i).
+            - Additive modifiers (`AddStepBefore`, `AddStepAfter`) are applied in order of priority, before or after the main (potentially replaced) step. Their effects are resolved recursively by calling `EffectProcessor.resolveSingleStep`.
+        - **Non-Modifiable Steps (6.2.l, 1.4.1.d):** If an `IEffectStep` (whether original or introduced by a modifier) has its `canBeModified` property set to `false`, the `EffectProcessor` will not apply any further modifiers to that specific step. This upholds the "Cannot modify impossible event" principle.
+        - **No Self-Modification (6.2.j):** The system inherently prevents direct self-modification as modifiers are fetched and applied to distinct steps. A step introduced by a modifier is treated as a new step subject to its own `canBeModified` flag during its own resolution.
+        - **Persistence (6.2.k):** Modifiers are transiently generated by `RuleAdjudicator.getActiveModifiers` based on the current game state (active passive abilities). They cease to "exist" if their source passive ability is no longer active or its conditions no longer met on the next query.
+        - **Optional Modifiers with Alternatives (6.2.c):** Rule 6.2.c ("If you don't X, then Y happens") is typically handled by the `IEffectStep` structure itself (e.g., using `isOptional` and conditional follow-up steps or the `CHOOSE_MODE` verb), rather than as a distinct modifier type within this system.
 
   - **6.3 Reactions:** Partially Implemented.
     - (a) "Trigger -> Effect": Fully Implemented. `IAbility` with `AbilityType.Reaction` and `IAbilityTrigger`.

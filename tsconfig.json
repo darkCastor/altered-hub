@@ -14,7 +14,7 @@
 		"incremental": true,
 		"forceConsistentCasingInFileNames": true,
 		"allowSyntheticDefaultImports": true,
-		"types": ["@sveltejs/kit"]
+		"types": ["@sveltejs/kit", "node", "bun-types"]
 	},
 	"include": [
 		"ambient.d.ts",
