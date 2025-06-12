@@ -100,18 +100,43 @@ export class ObjectFactory {
 
 	public createReactionEmblem(
 		sourceAbility: IAbility,
-		sourceObject: IGameObject,
+		sourceObject: IGameObject, // This is the object that *has* the reaction ability
 		triggerPayload: unknown
 	): IEmblemObject {
-		if (!sourceAbility.sourceObjectId) {
-			throw new Error('Cannot create emblem from an ability not bound to an object.');
+		if (!sourceObject.objectId) { // Changed from sourceAbility.sourceObjectId for clarity
+			throw new Error('Cannot create emblem from an ability not bound to a valid object.');
 		}
 
-		// Bind the trigger payload and original source to the effect for later resolution
+		// Capture LKI: Create a snapshot of the sourceObject
+		// IMPORTANT: JSON.parse(JSON.stringify(...)) is a simple deep clone but has limitations.
+		// It won't correctly clone Maps, Sets, Dates, functions, or undefined values.
+		// For IGameObject, `statuses` (Set) and `counters` (Map), abilityActivationsToday (Map)
+		// will not be cloned correctly by this method.
+		// A more robust deep cloning utility or manual selective cloning of essential LKI properties is needed.
+		// For this subtask, we will proceed with a shallow copy of key LKI properties
+		// and acknowledge the need for a better deep clone if complex state is required from LKI.
+
+		const lkiSnapshot: Partial<Readonly<IGameObject>> = {
+			objectId: sourceObject.objectId,
+			definitionId: sourceObject.definitionId,
+			name: sourceObject.name,
+			type: sourceObject.type,
+			subTypes: sourceObject.subTypes ? [...sourceObject.subTypes] : undefined,
+			// Snapshot currentCharacteristics, as these are most likely to be needed for LKI
+			currentCharacteristics: JSON.parse(JSON.stringify(sourceObject.currentCharacteristics)),
+			ownerId: sourceObject.ownerId,
+			controllerId: sourceObject.controllerId,
+			// Last known statuses and counters might be important
+			statuses: new Set(sourceObject.statuses), // Shallow copy of set content
+			counters: new Map(sourceObject.counters), // Shallow copy of map content
+			// Zone information is not directly on IGameObject, but could be passed via triggerPayload if needed
+		};
+
 		const boundEffect: IEffect = {
 			...sourceAbility.effect,
-			sourceObjectId: sourceObject.objectId,
-			_triggerPayload: triggerPayload
+			sourceObjectId: sourceObject.objectId, // Still the ID of the original object
+			_triggerPayload: triggerPayload,
+			_lkiSourceObject: lkiSnapshot as Readonly<IGameObject> // Store the snapshot
 		};
 
 		const emblem: IEmblemObject = {
@@ -119,7 +144,7 @@ export class ObjectFactory {
 			definitionId: `emblem-reaction-${sourceAbility.abilityId}`,
 			name: `Reaction: ${sourceAbility.text}`,
 			type: CardType.Emblem,
-			emblemSubType: 'Reaction', // Rule 2.2.2.m
+			emblemSubType: 'Reaction',
 			baseCharacteristics: {},
 			currentCharacteristics: {},
 			ownerId: sourceObject.ownerId,
@@ -128,7 +153,8 @@ export class ObjectFactory {
 			statuses: new Set(),
 			counters: new Map(),
 			abilities: [],
-			boundEffect: boundEffect
+			boundEffect: boundEffect,
+			// abilityActivationsToday can be omitted for emblems as they don't have abilities to activate
 		};
 
 		return emblem;

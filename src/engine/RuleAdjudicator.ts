@@ -51,9 +51,9 @@ export class RuleAdjudicator {
 		if (!abilityA.sourceObjectId || !abilityB.sourceObjectId) return false;
 
 		const sourceA = this.gsm.getObject(abilityA.sourceObjectId);
-		// const sourceB = this.gsm.getObject(abilityB.sourceObjectId); // Not always needed directly
 		if (!sourceA) return false;
 
+		// Rule 2.3.2.d: B removes or negates A
 		for (const stepB of abilityB.effect.steps) {
 			const targetIdsOfB = this.gsm.effectProcessor.resolveTargetsForDependency(
 				stepB.targets,
@@ -61,59 +61,169 @@ export class RuleAdjudicator {
 				abilityB._triggerPayload
 			);
 
-			// 2.3.2.d: B removes or negates A
+			// Check if ability B has an effect step that `lose_ability` or `loseAbility`.
 			if (stepB.verb === 'lose_ability' || stepB.verb === 'loseAbility') {
+				// If the source object of ability A is among B's targets:
 				if (targetIdsOfB.includes(sourceA.objectId)) {
+					// Check if B's parameters specify losing the exact `abilityId` of A, or if `allAbilities` is true.
 					if (
 						stepB.parameters?.abilityId === abilityA.abilityId ||
 						stepB.parameters?.allAbilities === true
 					) {
-						return true; // B removes A
+						return true; // A depends on B because B removes A.
 					}
 				}
 			}
+
+			// Check if ability B has an effect step that `moveTo` or `move_to`.
 			if (stepB.verb === 'moveTo' || stepB.verb === 'move_to') {
-				// B causes A's source to leave play
+				// If the source object of ability A is among B's targets:
 				if (targetIdsOfB.includes(sourceA.objectId)) {
-					const destZone = this.gsm.effectProcessor.findZoneByTypeForDependency(
-						sourceA.controllerId,
+					// Determine the destination zone.
+					const destinationZone = this.gsm.effectProcessor.findZoneByTypeForDependency(
+						sourceA.controllerId, // Assuming controller of sourceA is relevant for zone lookup
 						stepB.parameters?.zone
 					);
-					if (destZone && destZone.visibility === 'hidden') return true; // B moves source of A out of play
-				}
-			}
 
-			// 2.3.2.e: B changes what A applies to (characteristics like type/subtype, or zone)
-			// This is complex. Simple case: B changes type, A targets that type.
-			if (abilityA.effect.targetCriteria?.type && stepB.verb === 'set_characteristic') {
-				// e.g. A targets 'Goblin'
-				if (targetIdsOfB.some((id) => id !== sourceA.objectId)) {
-					// B affects objects other than A's source
-					if (
-						stepB.parameters?.characteristic === 'type' &&
-						stepB.parameters?.value === abilityA.effect.targetCriteria.type
-					) {
-						// If B changes an object to become type X, and A targets type X.
-						// Or if B changes an object from type X to something else.
-						return true;
+					// If the destination zone is a hidden zone or would cause the object to cease to exist.
+					// For simplicity, we'll consider hidden zones.
+					// Checking for "cease to exist" (e.g. token moving from expedition not to play) is more complex
+					// and might require more information about object types (token vs. card) and zone properties.
+					// Rule 4.2.1: Hidden zones are hand and deck.
+					if (destinationZone) {
+						if (destinationZone.type === 'hand' || destinationZone.type === 'deck') {
+							return true; // A depends on B because B moves A's source to a hidden zone.
+						}
+						// Add more specific "cease to exist" conditions if possible, e.g. for tokens
+						const objectA = this.gsm.getObject(abilityA.sourceObjectId);
+						if (
+							objectA?.isToken &&
+							destinationZone.type !== 'expedition' &&
+							destinationZone.type !== 'landmarkZone' // Assuming these are the only valid "play" zones for tokens
+						) {
+							// This is a simplified check. A more robust check might involve knowing if the destination
+							// is explicitly "out of play" or "graveyard" and if the object is a token.
+							// For now, if a token moves to a non-play zone (other than expedition/landmark), assume it ceases to exist for dependency.
+							return true; // A depends on B because B moves A's token source to a zone where it might cease to exist.
+						}
 					}
 				}
 			}
 
-			// 2.3.2.f: B changes what A does (modifies characteristics A's condition/effect relies on)
-			if (targetIdsOfB.includes(sourceA.objectId)) {
-				// B affects source of A
-				if (stepB.verb === 'modify_statistics' || stepB.verb === 'set_characteristic') {
-					// Example: A's condition: "if power >= 5". B modifies power.
-					// Example: A's effect: "draw X cards where X is power". B modifies power.
-					// This requires knowing what characteristics A *reads*. For now, assume any stat/char change is a potential dependency.
-					if (
-						stepB.parameters?.power ||
-						stepB.parameters?.health ||
-						(stepB.parameters?.characteristic &&
-							abilityA.text.includes(stepB.parameters.characteristic))
-					) {
-						return true;
+			// Rule 2.3.2.e: B changes what A applies to
+			if (abilityA.effect.targetCriteria) {
+				const criteria = abilityA.effect.targetCriteria;
+				// Check if ability B has an effect step like `set_characteristic`, `add_subtype`, or `remove_subtype`.
+				if (
+					stepB.verb === 'set_characteristic' ||
+					stepB.verb === 'setCharacteristic' ||
+					stepB.verb === 'add_subtype' ||
+					stepB.verb === 'addSubtype' ||
+					stepB.verb === 'remove_subtype' ||
+					stepB.verb === 'removeSubtype'
+				) {
+					// If B's effect targets objects other than A's source:
+					if (targetIdsOfB.some((id) => id !== sourceA.objectId)) {
+						let characteristicChanged: string | undefined = undefined;
+						let changedValue: any = undefined;
+						let previousValue: any = undefined; // For remove_subtype or set_characteristic that overwrites
+
+						if (stepB.verb === 'set_characteristic' || stepB.verb === 'setCharacteristic') {
+							characteristicChanged = stepB.parameters?.characteristic;
+							changedValue = stepB.parameters?.value;
+							// To check if a relevant characteristic was changed *from* what A cares about,
+							// we'd need to inspect the target object's state *before* B applies.
+							// This is complex for dependency checking. We'll focus on B changing *to* what A cares about,
+							// or changing a characteristic that A generally cares about.
+						} else if (stepB.verb === 'add_subtype' || stepB.verb === 'addSubtype') {
+							characteristicChanged = 'subType'; // Assuming subtype is the characteristic affected
+							changedValue = stepB.parameters?.subType;
+						} else if (stepB.verb === 'remove_subtype' || stepB.verb === 'removeSubtype') {
+							characteristicChanged = 'subType'; // Assuming subtype is the characteristic affected
+							previousValue = stepB.parameters?.subType; // B removes this subtype
+						}
+
+						// If B changes a characteristic (e.g., type, subType) that A's `targetCriteria` depends on
+						if (characteristicChanged) {
+							if (
+								criteria.type &&
+								characteristicChanged === 'type' &&
+								(changedValue === criteria.type || previousValue === criteria.type)
+							) {
+								return true; // B changes type to/from what A targets
+							}
+							if (
+								criteria.subType &&
+								characteristicChanged === 'subType' &&
+								(changedValue === criteria.subType || previousValue === criteria.subType)
+							) {
+								return true; // B changes subType to/from what A targets
+							}
+							// Add checks for other characteristics if `targetCriteria` can depend on them
+							// e.g., power, health, specific keywords, if A targets based on those.
+							// For now, type and subType are common.
+						}
+					}
+				}
+			}
+
+			// Rule 2.3.2.f: B changes what A does
+			// This requires understanding what characteristics ability A's conditions or effects depend on.
+			// This is a heuristic-based approach. A more robust system would require abilities to declare their dependencies.
+
+			if (stepB.verb === 'modify_statistics' || stepB.verb === 'set_characteristic') {
+				// Check if B modifies characteristics of A's source object that A might depend on.
+				if (targetIdsOfB.includes(sourceA.objectId)) {
+					if (stepB.verb === 'modify_statistics') {
+						// If B modifies power/health, and A potentially reads any power/health (heuristic).
+						// A more precise check would involve parsing A's effect/condition text or structure.
+						if (stepB.parameters?.power && abilityA.text.match(/\bpower\b/i)) {
+							return true; // B modifies power, A's text mentions power
+						}
+						if (stepB.parameters?.health && abilityA.text.match(/\bhealth\b/i)) {
+							return true; // B modifies health, A's text mentions health
+						}
+						// Add other stats if they become relevant and checkable
+					} else if (stepB.verb === 'set_characteristic') {
+						const charModifiedByB = stepB.parameters?.characteristic;
+						if (charModifiedByB) {
+							// Create a regex to check for the characteristic as a whole word.
+							const characteristicRegex = new RegExp(`\\b${charModifiedByB}\\b`, 'i');
+							if (abilityA.text.match(characteristicRegex)) {
+								return true; // B sets a characteristic, A's text mentions it.
+							}
+						}
+					}
+				}
+
+				// Check if B modifies characteristics of *other* objects that A's condition or effect might read.
+				// This is even more complex as it requires knowing A's targeting and what it reads from those targets.
+				// Example: A is "Creatures you control get +1/+1". B changes a creature's type. (This is partly covered by 2.3.2.e)
+				// Example: A is "Draw cards equal to the number of Goblins you control". B makes something a Goblin.
+				// For now, this part is difficult to implement generically without more structured ability definitions.
+				// The existing 2.3.2.e covers some cases where B changes a target's characteristics that A's *targeting* depends on.
+				// This part would be about characteristics A *reads* from objects it already knows it interacts with.
+				// Consider a simplified check: if B modifies any object (not sourceA) and A's text contains common terms.
+				if (targetIdsOfB.some((id) => id !== sourceA.objectId)) {
+					if (stepB.verb === 'modify_statistics') {
+						if (stepB.parameters?.power && abilityA.text.match(/\bpower\b/i)) {
+							// B modifies power of another object, A might care about other objects' power
+							// (e.g. "total power of creatures you control")
+							return true;
+						}
+						if (stepB.parameters?.health && abilityA.text.match(/\bhealth\b/i)) {
+							return true;
+						}
+					} else if (stepB.verb === 'set_characteristic') {
+						const charModifiedByB = stepB.parameters?.characteristic;
+						// If B changes a characteristic on another object that A's text mentions, assume potential dependency.
+						// This is broad and might lead to false positives.
+						if (charModifiedByB) {
+							const characteristicRegex = new RegExp(`\\b${charModifiedByB}\\b`, 'i');
+							if (abilityA.text.match(characteristicRegex)) {
+								return true;
+							}
+						}
 					}
 				}
 			}
@@ -165,39 +275,52 @@ export class RuleAdjudicator {
 			// Handle ties using Rule 2.3.3.d (already applied abilities' timestamps) - this is complex.
 			// For now, a simple timestamp sort.
 			freeAbilities.sort((a, b) => {
-				const objA = this.gsm.getObject(a.sourceObjectId || '');
-				const objB = this.gsm.getObject(b.sourceObjectId || '');
-				if (!objA || !objB) return 0;
-				if (objA.timestamp === objB.timestamp) {
-					// Rule 2.3.3.d - if timestamps are equal, check if one source object's abilities
-					// have already been applied. This part is tricky and might need more state.
-					// For now, a simple secondary sort or arbitrary pick is fine.
-					// A truly compliant solution would need to track which object's abilities
-					// (even if different specific abilities) were chosen in previous steps.
-					// This simplified version might not fully comply with 2.3.3.d for tie-breaking.
-					return 0; // Keep original order for now on ties, or implement a more robust tie-breaker
+				const objA = this.gsm.getObject(a.sourceObjectId || ''); // sourceObjectId should be guaranteed by this stage
+				const objB = this.gsm.getObject(b.sourceObjectId || ''); // sourceObjectId should be guaranteed by this stage
+				if (!objA || !objB) {
+					// This case should ideally not be reached if sourceObjectIds are always valid.
+					// If it occurs, treat their timestamps as equal for sorting stability regarding these items.
+					console.warn('[RuleAdjudicator] Could not find source object for one or more abilities during sorting:', a.abilityId, b.abilityId);
+					return 0;
 				}
-				return objA.timestamp - objB.timestamp;
+				if (objA.timestamp === objB.timestamp) {
+					// Rule 2.3.3.c specifies timestamp as the primary sort key.
+					// Rule 2.3.3.d (old version, for complex tie-breaking) would involve checking
+					// if one source object's other abilities have already been applied.
+					// That level of tie-breaking is not implemented here.
+					// Returning 0 preserves the original relative order of elements with equal timestamps (stable sort behavior).
+					return 0;
+				}
+				return objA.timestamp - objB.timestamp; // Sort by smallest timestamp first.
 			});
 
 			if (freeAbilities.length > 0) {
 				const nextAbility = freeAbilities[0];
 				sortedAbilities.push(nextAbility);
 				unappliedAbilities = unappliedAbilities.filter((a) => a !== nextAbility);
-				const sourceObject = this.gsm.getObject(nextAbility.sourceObjectId || '');
+				const sourceObject = this.gsm.getObject(nextAbility.sourceObjectId || ''); // sourceObjectId should be valid
 				if (sourceObject) {
-					appliedTimestamps.add(sourceObject.timestamp);
+					appliedTimestamps.add(sourceObject.timestamp); // Track timestamp of applied ability's source
 				}
 			} else if (unappliedAbilities.length > 0) {
-				// If no ability was selected (e.g. freeAbilities was empty or became empty after filtering)
-				// and there are still unapplied abilities, this indicates a potential issue
-				// or a state where the current simplified dependency logic cannot proceed.
-				// Fallback: Add the one with the smallest timestamp from remaining unapplied to prevent infinite loop.
+				// This block handles cases where no abilities are "free" according to doesADependOnB,
+				// potentially due to complex circular dependencies not resolved by the isFree logic,
+				// or an issue in dependency detection.
+				// As a fallback to prevent infinite loops, sort the remaining abilities by timestamp.
+				console.warn(
+					'[RuleAdjudicator] Fallback: No strictly free abilities found, sorting remaining by timestamp.',
+					unappliedAbilities.map(a => a.abilityId)
+				);
 				unappliedAbilities.sort((a, b) => {
 					const objA = this.gsm.getObject(a.sourceObjectId || '');
 					const objB = this.gsm.getObject(b.sourceObjectId || '');
-					if (!objA || !objB) return 0;
-					return objA.timestamp - objB.timestamp;
+					if (!objA || !objB) {
+						console.warn('[RuleAdjudicator] Fallback sort: Could not find source object for one or more abilities:', a.abilityId, b.abilityId);
+						return 0;
+					}
+					// Primary sort by timestamp for the fallback scenario as well.
+					// Tie-breaking here also defaults to stable sort behavior.
+					return objA.timestamp === objB.timestamp ? 0 : objA.timestamp - objB.timestamp;
 				});
 				const fallbackAbility = unappliedAbilities.shift();
 				if (fallbackAbility) {
