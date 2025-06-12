@@ -7,10 +7,13 @@ import type { Deck } from './state/deckMachine'; // Assuming Deck is the type fo
 // Type Hinting for Collections and Database
 export type CardCollection = RxCollection<AlteredCard>;
 export type DeckCollection = RxCollection<Deck>;
+// TODO: Define UserCollection and CredentialCollection types based on their schemas
 
 export type MyDatabaseCollections = {
 	cards: CardCollection;
 	decks: DeckCollection;
+	// users: UserCollection; // Will be added when schema is implemented
+	// credentials: CredentialCollection; // Will be added when schema is implemented
 };
 
 export type MyDatabase = RxDatabase<MyDatabaseCollections>;
@@ -45,7 +48,13 @@ async function initializeDb(): Promise<MyDatabase> {
 			},
 			decks: {
 				schema: deckSchema
-			}
+			},
+			// users: { // Will be added when schema is implemented
+			// 	schema: userSchema
+			// },
+			// credentials: { // Will be added when schema is implemented
+			// 	schema: credentialSchema
+			// }
 		});
 		console.log('[RxDB] Database initialized successfully with collections!');
 		dbInstance = db;
@@ -134,3 +143,44 @@ export const deckSchema = {
 	required: ['id', 'name', 'description', 'cards', 'format', 'isValid', 'createdAt', 'updatedAt'],
 	indexes: ['name', 'format', 'updatedAt']
 };
+
+// TODO: Implement User Schema
+// export const userSchema = {
+// title: 'user schema',
+// version: 0,
+// description: 'describes a user',
+// primaryKey: 'id',
+// type: 'object',
+// properties: {
+// id: { type: 'string', maxLength: 100 }, // e.g., UUID
+// username: { type: 'string', unique: true }, // For login identification
+// },
+// required: ['id', 'username'],
+// indexes: ['username']
+// };
+
+// TODO: Implement Credential Schema
+// export const credentialSchema = {
+// title: 'credential schema',
+// version: 0,
+// description: 'describes a user credential for WebAuthn',
+// primaryKey: 'id',
+// type: 'object',
+// properties: {
+// id: { type: 'string', maxLength: 255 }, // credential ID from authenticator, URL-safe base64
+// userId: { type: 'string', ref: 'users', maxLength: 100 }, // Foreign key to User table
+// publicKey: { type: 'string' }, // COSE public key (encoded as base64 or hex string for JSON compatibility)
+// counter: { type: 'integer' }, // Signature counter
+// transports: { // Optional: Information about how the authenticator can be reached
+// type: 'array',
+// items: { type: 'string' } // e.g., ['internal', 'usb', 'nfc', 'ble']
+// },
+// backedUp: { type: 'boolean' }, // Indicates if the credential is backed up
+// algorithms: { // COSE algorithm identifiers
+// type: 'array',
+// items: { type: 'integer' } // e.g., [-7 (ES256), -257 (RS256)]
+// }
+// },
+// required: ['id', 'userId', 'publicKey', 'counter'],
+// indexes: ['userId']
+// };
