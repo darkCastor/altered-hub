@@ -373,40 +373,78 @@ export class GameStateManager {
 			finalDestinationZone = correctZone;
 		}
 
-		// --- REPLACE THIS ENTIRE BLOCK ---
+		// --- Refined Counter Handling Logic ---
 		const countersToKeep = new Map<CounterType, number>();
 		const sourceGameObject = isGameObject(sourceEntity) ? sourceEntity : undefined;
-		const isMovingToLosingZone =
-			finalDestinationZone.zoneType === ZoneIdentifier.DiscardPile ||
-			finalDestinationZone.visibility === 'hidden';
 
-		if (sourceGameObject && !isMovingToLosingZone) {
-			const fromZoneIsExpeditionOrLandmark = [
-				ZoneIdentifier.Expedition,
-				ZoneIdentifier.Landmark
-			].includes(fromZone.zoneType);
-			const fromZoneIsReserveOrLimbo = [ZoneIdentifier.Reserve, ZoneIdentifier.Limbo].includes(
-				fromZone.zoneType
-			);
+		if (sourceGameObject) {
+			const isMovingToDiscardPile = finalDestinationZone.zoneType === ZoneIdentifier.DiscardPile;
+			const isMovingToHiddenZone = finalDestinationZone.visibility === 'hidden'; // e.g., Hand or Deck
 
-			if (fromZoneIsReserveOrLimbo) {
-				// Rule 2.5.k: Objects from Reserve/Limbo keep counters (unless going to discard/hidden)
-				for (const [type, amount] of sourceGameObject.counters.entries()) {
-					countersToKeep.set(type, amount);
-				}
-			} else if (fromZoneIsExpeditionOrLandmark) {
-				const isMovingToReserve = finalDestinationZone.zoneType === ZoneIdentifier.Reserve;
-				// Rule 7.4.6.b: Check for Seasoned keyword when moving to Reserve
-				const isSeasoned = sourceGameObject.abilities.some((a) => a.keyword === 'Seasoned');
+			// Rule 2.5.j: "Unless specified otherwise, objects lose all their counters when they leave play zones."
+			// "Play zones" are Expedition and Landmark zones.
+			// Rule 2.5.k: "Objects moving from Reserve or Limbo to another zone keep their counters unless they are moved to a discard pile."
+			// Rule 7.4.6.b (Seasoned): "When a Seasoned Character moves from an expedition to its owner’s Reserve, it keeps all its Boost counters."
 
-				if (isSeasoned && isMovingToReserve) {
-					const boostCount = sourceGameObject.counters.get(CounterType.Boost);
-					if (boostCount && boostCount > 0) {
-						countersToKeep.set(CounterType.Boost, boostCount);
+			if (isMovingToDiscardPile || isMovingToHiddenZone) {
+				// No counters are kept if moving to Discard Pile or a hidden zone (Hand/Deck).
+				// This covers the exception in 2.5.k and general behavior for hidden zones.
+				console.log(`[GSM.moveEntity] ${sourceGameObject.name} moving to Discard/Hidden zone, all counters lost.`);
+			} else {
+				// Not moving to Discard Pile or a Hidden Zone, so counters might be kept.
+				const fromReserve = fromZone.zoneType === ZoneIdentifier.Reserve;
+				const fromLimbo = fromZone.zoneType === ZoneIdentifier.Limbo;
+				const fromExpedition = fromZone.zoneType === ZoneIdentifier.Expedition;
+				const fromLandmark = fromZone.zoneType === ZoneIdentifier.Landmark; // Typically objects don't move *from* Landmark with counters other than by effects
+
+				const toReserve = finalDestinationZone.zoneType === ZoneIdentifier.Reserve;
+
+				if (fromReserve || fromLimbo) {
+					// Rule 2.5.k: Objects from Reserve/Limbo keep counters (unless going to discard/hidden - handled above)
+					for (const [type, amount] of sourceGameObject.counters.entries()) {
+						countersToKeep.set(type, amount);
 					}
+					console.log(`[GSM.moveEntity] ${sourceGameObject.name} moving from Reserve/Limbo, keeping all ${countersToKeep.size} types of counters.`);
+				} else if (fromExpedition || fromLandmark) {
+					// Generally, counters are lost (Rule 2.5.j) unless an exception applies.
+					if (toReserve) {
+						// Check for Seasoned (Rule 7.4.6.b)
+						// Assuming currentCharacteristics.keywords is populated by RuleAdjudicator if available
+						const isSeasoned = sourceGameObject.currentCharacteristics?.keywords?.has(KeywordAbility.Seasoned) ||
+										   sourceGameObject.abilities.some(a => a.keyword === KeywordAbility.Seasoned);
+
+						if (isSeasoned) {
+							const boostCount = sourceGameObject.counters.get(CounterType.Boost);
+							if (boostCount && boostCount > 0) {
+								countersToKeep.set(CounterType.Boost, boostCount);
+								console.log(`[GSM.moveEntity] Seasoned ${sourceGameObject.name} moving to Reserve, keeping ${boostCount} Boost counters.`);
+							} else {
+								console.log(`[GSM.moveEntity] Seasoned ${sourceGameObject.name} moving to Reserve, but has no Boost counters to keep.`);
+							}
+							// Other counters on a Seasoned character are lost unless another rule saves them.
+						} else {
+							console.log(`[GSM.moveEntity] Non-Seasoned ${sourceGameObject.name} moving from Expedition/Landmark to Reserve, losing all counters.`);
+						}
+					} else {
+						// Moving from Expedition/Landmark to a zone other than Reserve, Discard, or Hidden (e.g., another visible zone via an effect)
+						// Rule 2.5.j implies counters are lost unless specified otherwise.
+						// If moving to Limbo, they *should* keep counters based on typical interpretations,
+						// but 2.5.j is about leaving "play zones". Limbo isn't strictly a play zone.
+						// However, if Limbo is a temporary holding, keeping counters makes sense.
+						// For now, stick to explicit rules: if not to Reserve (Seasoned) or from Reserve/Limbo (general keep), counters are lost.
+						console.log(`[GSM.moveEntity] ${sourceGameObject.name} moving from Expedition/Landmark to ${finalDestinationZone.zoneType}, losing all counters (Rule 2.5.j).`);
+					}
+				} else {
+					// Moving from other zones like Mana, Hero zone, etc.
+					// Generally, these are not "play zones" in the context of Rule 2.5.j (Expedition/Landmark).
+					// And not Reserve/Limbo for 2.5.k.
+					// Default behavior here would be to lose counters unless a specific effect or rule states otherwise.
+					// This path is less common for objects with counters that are moving.
+					console.log(`[GSM.moveEntity] ${sourceGameObject.name} moving from ${fromZone.zoneType}, losing counters by default.`);
 				}
 			}
 		}
+		// --- End of Refined Counter Handling Logic ---
 
 		let newEntity: ZoneEntity;
 		if (finalDestinationZone.visibility === 'visible') {
@@ -805,52 +843,95 @@ export class GameStateManager {
 		// Note on simultaneity: True simultaneity is hard in code. Here, actions are sequential per player.
 		// TODO: Implement player choice for selecting which cards to discard/sacrifice.
 		// The current implementation uses a deterministic approach (e.g., removing the last item added to the zone).
-		// TODO: Process choices in initiative order if >2 players. For 2 players, current player then opponent is fine.
-
+		// Rule 1.4.5.a / 6.1.h: Choices are made in initiative order.
 		console.log('[GSM] Beginning Clean-up phase.');
-		// For simplicity in a 2-player game context, iterating through players directly is okay.
-		// For >2 players, an explicit initiative order would be needed for choices.
-		for (const player of this.state.players.values()) {
-			const hero = player.zones.heroZone.getAll()[0] as IGameObject | undefined;
+
+		const playerIdsInOrder = this.getPlayerIdsInInitiativeOrder(this.state.firstPlayerId);
+
+		for (const playerId of playerIdsInOrder) {
+			const player = this.getPlayer(playerId);
+			if (!player) continue;
+
+			const hero = player.zones.heroZone.getAll().find(obj => isGameObject(obj) && obj.type === CardType.Hero) as IGameObject | undefined;
 			const reserveLimit = hero?.baseCharacteristics.reserveLimit ?? 2;
 			const landmarkLimit = hero?.baseCharacteristics.landmarkLimit ?? 2;
 
-			// Clean-up Reserve
+			// --- Reserve Clean-up ---
 			const reserveZone = player.zones.reserveZone;
-			while (reserveZone.getCount() > reserveLimit) {
-				// TODO: Add player choice. For now, discard the last card.
-				const cardToDiscard = reserveZone.getAll().pop() as IGameObject;
-				if (cardToDiscard) {
+			const reserveObjects = reserveZone.getAll().filter(isGameObject);
+
+			if (reserveObjects.length > reserveLimit) {
+				console.log(`[GSM] Player ${playerId} Reserve: ${reserveObjects.length} cards, limit: ${reserveLimit}. Starting cleanup.`);
+				// Sort by reserve cost (desc), then by timestamp (asc - older first)
+				reserveObjects.sort((a, b) => {
+					const defA = this.getCardDefinition(a.definitionId);
+					const defB = this.getCardDefinition(b.definitionId);
+					const costA = defA?.reserveCost ?? 0;
+					const costB = defB?.reserveCost ?? 0;
+
+					if (costB !== costA) {
+						return costB - costA; // Higher cost first
+					}
+					return (a.timestamp ?? Infinity) - (b.timestamp ?? Infinity); // Older (smaller timestamp) first
+				});
+
+				const cardsToKeep = reserveObjects.slice(0, reserveLimit);
+				const cardsToDiscard = reserveObjects.slice(reserveLimit);
+
+				console.log(`[GSM] Player ${playerId} keeping in Reserve: ${cardsToKeep.map(c => `${c.name}(${c.definitionId})`).join(', ')}`);
+				for (const cardToDiscard of cardsToDiscard) {
 					console.log(
-						`[GSM] ${player.id} is over reserve limit, discarding ${cardToDiscard.name}.`
+						`[GSM] Player ${playerId} is over reserve limit, discarding ${cardToDiscard.name} (${cardToDiscard.definitionId}) from Reserve.`
 					);
 					this.moveEntity(
 						cardToDiscard.objectId,
 						reserveZone,
 						player.zones.discardPileZone,
-						player.id
+						playerId
 					);
+					// Note: moveEntity should trigger relevant events/reactions if any.
 				}
 			}
 
-			// Clean-up Landmarks (Sacrifice)
+			// --- Landmark Clean-up ---
 			const landmarkZone = player.zones.landmarkZone;
-			while (landmarkZone.getCount() > landmarkLimit) {
-				// TODO: Add player choice. For now, sacrifice the last card.
-				const cardToSacrifice = landmarkZone.getAll().pop() as IGameObject;
-				if (cardToSacrifice) {
+			const landmarkObjects = landmarkZone.getAll().filter(isGameObject);
+
+			if (landmarkObjects.length > landmarkLimit) {
+				console.log(`[GSM] Player ${playerId} Landmark: ${landmarkObjects.length} cards, limit: ${landmarkLimit}. Starting cleanup.`);
+				// Sort by hand cost (desc), then by timestamp (asc - older first)
+				// Using handCost as a proxy for value if reserveCost isn't applicable to landmarks.
+				landmarkObjects.sort((a, b) => {
+					const defA = this.getCardDefinition(a.definitionId);
+					const defB = this.getCardDefinition(b.definitionId);
+					const costA = defA?.handCost ?? 0; // Or another relevant cost if landmarks have specific ones
+					const costB = defB?.handCost ?? 0;
+
+					if (costB !== costA) {
+						return costB - costA; // Higher cost first
+					}
+					return (a.timestamp ?? Infinity) - (b.timestamp ?? Infinity); // Older (smaller timestamp) first
+				});
+
+				const cardsToKeep = landmarkObjects.slice(0, landmarkLimit);
+				const cardsToSacrifice = landmarkObjects.slice(landmarkLimit);
+
+				console.log(`[GSM] Player ${playerId} keeping in Landmark: ${cardsToKeep.map(c => `${c.name}(${c.definitionId})`).join(', ')}`);
+				for (const cardToSacrifice of cardsToSacrifice) {
 					console.log(
-						`[GSM] ${player.id} is over landmark limit, sacrificing ${cardToSacrifice.name}.`
+						`[GSM] Player ${playerId} is over landmark limit, sacrificing ${cardToSacrifice.name} (${cardToSacrifice.definitionId}) from Landmark.`
 					);
+					// Rule 7.3.25.a: "sacrifice ... they have to discard an object in play they control"
 					this.moveEntity(
 						cardToSacrifice.objectId,
 						landmarkZone,
-						player.zones.discardPileZone,
-						player.id
+						player.zones.discardPileZone, // Sacrificed cards go to discard pile
+						playerId
 					);
 				}
 			}
 		}
+		console.log('[GSM] Clean-up phase finished.');
 	}
 
 	/**

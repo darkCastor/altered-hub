@@ -10,6 +10,7 @@ export interface ICost {
 	mana?: number;
 	discard?: { count: number; criteria?: unknown }; // criteria can be further defined
 	exhaustSelf?: boolean;
+	discardSelfFromReserve?: boolean; // Added for quick actions that discard the source card from reserve
 	sacrifice?: { count: number; criteria?: unknown };
 	spendCounters?: { type: CounterType; amount: number };
 }
