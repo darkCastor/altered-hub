@@ -167,6 +167,20 @@ export class CardPlaySystem {
 			`[CardPlaySystem] Card ${cardDefinition.name} (Limbo ID: ${limboCardObject.id}) moved to Limbo.`
 		);
 
+		await this.gsm.resolveReactions(); // Check reactions after moving to Limbo
+		// It's important to check if the card still exists in Limbo after these reactions
+		if (!this.gsm.state.sharedZones.limbo.findById(limboCardObject.id)) {
+			console.log(`[CardPlaySystem] Card ${limboCardObject.name} was removed from Limbo by a reaction. Aborting play.`);
+			this.eventBus.publish('cardPlayFailed', {
+				playerId,
+				cardInstanceId,
+				definitionId: cardDefinition.id,
+				options,
+				error: `Card ${limboCardObject.name} left Limbo due to a reaction.`
+			});
+			return; // Abort if the card is no longer in Limbo
+		}
+
 		// Fleeting Status Application (Rules 5.2.1.b, 5.2.2.b, 5.2.3 remark, 5.2.4.a)
 		let appliedFleeting = false;
 		if (options.fromZone === ZoneIdentifier.Reserve) {
@@ -235,6 +249,10 @@ export class CardPlaySystem {
 		// TODO: Rule 5.1.2.h: Pay Costs
 		console.log(`[CardPlaySystem] TODO: Implement Pay Costs for ${limboCardObject.name}.`);
 
+		// After costs are successfully paid:
+		// await this.gsm.resolveReactions(); // Check reactions after paying costs
+		// // Also check if the card still exists in Limbo and if costs are still payable
+
 		// TODO: Rule 5.1.2.i: Resolve Card (Move to final zone, process effects)
 		// Placeholder for card resolution logic
 		// This is where the card would be moved from Limbo to its final zone (e.g., expedition, landmark)
@@ -292,6 +310,8 @@ export class CardPlaySystem {
 
 		console.log(`[CardPlaySystem] Card ${cardDefinition.name} resolution process completed (actual effects might be asynchronous).`);
 
+		// After card is in its final zone and its main effects resolved:
+		// await this.gsm.resolveReactions(); // Check reactions after card resolution
 
 		// For now, publish a generic event. This will be refined once costs/resolution are added.
 		this.eventBus.publish('cardPlayed', {
