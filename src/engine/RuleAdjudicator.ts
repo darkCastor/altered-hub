@@ -799,4 +799,22 @@ export class RuleAdjudicator {
 		// Potentially add other zones like "global" or "neutral" if they can contain objects with passive abilities
 		return objects;
 	}
+
+	/**
+	 * Gets all active modifiers relevant to the current game context/event.
+	 * Rule 6.2
+	 * @param context An object describing the current action/event, e.g.,
+	 *                { type: 'EFFECT_STEP', step: IEffectStep, sourceObject: IGameObject }
+	 *                { type: 'COST_CALCULATION', card: ICardInstance|IGameObject, playerId: string }
+	 * @returns An array of IModifier objects.
+	 */
+	public getActiveModifiers(context: any): IModifier[] {
+		// TODO: Implement logic to scan all passive abilities and emblems
+		//       that could generate modifiers.
+		//       - Check their conditions against the provided context.
+		//       - Construct IModifier objects for those that are active.
+		//       - Sort them by priority if necessary.
+		console.log('[RuleAdjudicator] getActiveModifiers called with context:', context, '- STUBBED, returns [].');
+		return [];
+	}
 }

@@ -23,6 +23,36 @@ export enum CardType {
 	Foiler = 'Foiler'
 }
 
+export enum CardSubType {
+	// Character SubTypes (Rule 2.2.2.d)
+	Soldier = 'Soldier',
+	Animal = 'Animal',
+	Sorcerer = 'Sorcerer',
+	Spirit = 'Spirit', // Example, add as needed from actual card data
+	Machine = 'Machine', // Example
+
+	// Permanent SubTypes (Rule 2.2.2.e)
+	// These are often tied to zone (Landmark, Expedition) but can be sub-types.
+	// Using PermanentZoneType for zone, but sub-type can be distinct if needed.
+	// For now, these might overlap with PermanentZoneType or specific card types.
+
+	// Region SubTypes (Rule 2.2.2.f) - Handled by TerrainType
+
+	// Spell SubTypes (Rule 2.2.2.g)
+	Attack = 'Attack',
+	Skill = 'Skill',
+	Event = 'Event', // "Evènement" in French rules
+	Chant = 'Chant',
+
+	// Emblem SubTypes (Rule 2.2.2.h) - Handled by IEmblemObject.emblemSubType
+	// Reaction = 'Reaction', // Covered by IEmblemObject
+	// Ongoing = 'Ongoing',   // Covered by IEmblemObject
+
+	// Other specific sub-types if they arise
+	Gear = 'Gear', // For Permanents that are Gear
+	Trap = 'Trap'  // For Permanents that are Traps
+}
+
 export enum PermanentZoneType {
 	Expedition = 'Expedition',
 	Landmark = 'Landmark'
@@ -95,4 +125,12 @@ export enum ZoneIdentifier {
 	Reserve = 'Reserve',
 	Landmark = 'Landmark',
 	Hero = 'Hero'
+}
+
+export enum ModifierType {
+	ReplaceStep = 'ReplaceStep', // Rule 6.2.b
+	Additive = 'Additive',       // Rule 6.2.c
+	OptionalReplaceStep = 'OptionalReplaceStep', // Rule 6.2.d
+	OptionalReplaceAlternative = 'OptionalReplaceAlternative' // Rule 6.2.e
+	// ReplaceAction and OptionalReplaceAction might be too granular or complex for initial implementation
 }
