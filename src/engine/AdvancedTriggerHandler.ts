@@ -1,63 +1,94 @@
-import type { IGameObject } from './types/objects';
+import type { IGameObject, IEmblemObject } from './types/objects'; // Added IEmblemObject
 import type { GameStateManager } from './GameStateManager';
 import type { IZone } from './types/zones';
-import { ZoneIdentifier } from './types/enums';
-import { AbilityType } from './types/abilities';
+import { ZoneIdentifier, CardType } from './types/enums'; // Added CardType
+import { AbilityType, IAbility } from './types/abilities'; // Added IAbility
 import { isGameObject } from './types/objects';
+
 
 /**
  * Handles advanced trigger symbols and timing
  * Rule 7.1.1 - Trigger Symbols: ⚇ ⚈ ⚁ At [Phase]
+ * Rule 6.3 - Reactions
  */
 export class AdvancedTriggerHandler {
 	constructor(private gsm: GameStateManager) {}
+
+	/**
+	 * Centralized method to create and queue a reaction emblem if NIF limits allow.
+	 * Rule 6.3.l, Rule 1.4.6.c
+	 */
+	private createEmblemForTriggeredAbility(
+		triggeredAbility: IAbility,
+		sourceObject: IGameObject,
+		eventPayload: any
+	): IEmblemObject | null {
+		// Initialize reactionActivationsToday if it's undefined
+		if (triggeredAbility.reactionActivationsToday === undefined) {
+			triggeredAbility.reactionActivationsToday = 0;
+		}
+
+		const activationLimit = (this.gsm.config as any)?.nothingIsForeverReactionLimit ?? 100; // Default to 100
+
+		if (triggeredAbility.reactionActivationsToday >= activationLimit) {
+			console.log(
+				`[TriggerHandler] Reaction NIF limit reached for ability ${triggeredAbility.abilityId} on ${sourceObject.name} (ID: ${sourceObject.objectId}). Not creating emblem.`
+			);
+			return null;
+		}
+
+		triggeredAbility.reactionActivationsToday++;
+		console.log(
+			`[TriggerHandler] Incrementing reaction count for ability ${triggeredAbility.abilityId} on ${sourceObject.name} to ${triggeredAbility.reactionActivationsToday}.`
+		);
+
+		// Create LKI of the source object at the time of triggering
+		// This should be a deep enough copy to capture relevant state for the effect.
+		// For simplicity, a shallow spread might be used, but be wary of nested objects/arrays.
+		const lkiSourceObject = { ...sourceObject, abilities: [...sourceObject.abilities] }; // Example shallow copy, may need deep clone
+
+		const emblem = this.gsm.objectFactory.createReactionEmblem(
+			triggeredAbility,
+			sourceObject, // The original sourceObject for context like controllerId, ownerId
+			eventPayload,
+			lkiSourceObject // Pass LKI to be stored on the emblem's effect
+		);
+
+		const limboZone = this.gsm.state.sharedZones.limbo;
+		limboZone.add(emblem);
+		console.log(
+			`[TriggerHandler] Created reaction emblem ${emblem.name} (ID: ${emblem.objectId}) for ${sourceObject.name} and added to Limbo.`
+		);
+		this.gsm.eventBus.publish('reactionEmblemCreated', { emblem, sourceAbility: triggeredAbility, sourceObject, eventPayload });
+		return emblem;
+	}
+
 
 	/**
 	 * Processes ⚇ "When entering play" triggers
 	 * Rule 7.1.1.a - Triggers when an object enters a visible zone
 	 */
 	public processEnterPlayTriggers(object: IGameObject, zone: IZone): void {
-		console.log(`[TriggerHandler] Processing enter play triggers for ${object.name}`);
+		console.log(`[TriggerHandler] Processing enter play triggers for ${object.name} in zone ${zone.id}`);
 
-		for (const ability of object.abilities) {
+		// Combine base and granted abilities for trigger checking
+		const allAbilities = [...object.abilities, ...(object.currentCharacteristics.grantedAbilities || [])];
+
+		for (const ability of allAbilities) {
 			if (
 				ability.abilityType === AbilityType.Reaction &&
-				ability.trigger?.eventType === 'enterPlay'
+				ability.trigger?.eventType === 'enterPlay' // Specific to this handler
 			) {
-				// Check "Nothing is Forever" limit for reactions (Rule 1.4.6.c)
-				const activationLimit = 100;
-				const currentActivations = object.abilityActivationsToday?.get(ability.abilityId) || 0;
-
-				if (currentActivations >= activationLimit) {
-					console.log(`[TriggerHandler] Reaction limit reached for ability ${ability.abilityId} on ${object.name} (ID: ${object.objectId}). Not activating.`);
-					continue; // Skip this ability
+				const triggerPayload = { object, zone }; // object is the one entering play
+				// Conditional Triggers (Rule 6.3.b, 6.3.k)
+				if (ability.trigger.condition && !ability.trigger.condition(triggerPayload, object, this.gsm)) {
+					console.log(`[TriggerHandler] Condition not met for ability ${ability.abilityId} on ${object.name}.`);
+					continue;
 				}
-
-				// Check if trigger condition is met
-				const triggerPayload = { object, zone };
-				if (ability.trigger.condition(triggerPayload, object, this.gsm)) {
-					// If condition met, increment count *before* creating emblem
-					object.abilityActivationsToday?.set(ability.abilityId, currentActivations + 1);
-					console.log(`[TriggerHandler] Incrementing reaction count for ${ability.abilityId} on ${object.name} to ${currentActivations + 1}`);
-
-					console.log(
-						`[TriggerHandler] Triggering enter play ability on ${object.name}: ${ability.text}`
-					);
-					const emblem = this.gsm.objectFactory.createReactionEmblem(
-						ability,
-						object,
-						triggerPayload
-					);
-					const limboZone = this.gsm.state.sharedZones.limbo;
-					limboZone.add(emblem);
-					console.log(
-						`[TriggerHandler] Created reaction emblem ${emblem.name} (${emblem.id}) for ${object.name} and added to Limbo.`
-					);
-				}
+				this.createEmblemForTriggeredAbility(ability, object, triggerPayload);
 			}
 		}
-
-		// Also check for keyword triggers
+		// Also check for keyword triggers that might be simpler than full reaction abilities
 		this.gsm.keywordHandler.processKeywordOnEnterPlay(object, zone);
 	}
 
@@ -66,42 +97,19 @@ export class AdvancedTriggerHandler {
 	 * Rule 7.1.1.b - Triggers when an object leaves a visible zone
 	 */
 	public processLeavePlayTriggers(object: IGameObject, fromZone: IZone, toZone: IZone): void {
-		console.log(`[TriggerHandler] Processing leave play triggers for ${object.name}`);
-
-		for (const ability of object.abilities) {
+		console.log(`[TriggerHandler] Processing leave play triggers for ${object.name} from ${fromZone.id} to ${toZone.id}`);
+		const allAbilities = [...object.abilities, ...(object.currentCharacteristics.grantedAbilities || [])];
+		for (const ability of allAbilities) {
 			if (
 				ability.abilityType === AbilityType.Reaction &&
 				ability.trigger?.eventType === 'leavePlay'
 			) {
-				// Check "Nothing is Forever" limit for reactions (Rule 1.4.6.c)
-				const activationLimit = 100;
-				const currentActivations = object.abilityActivationsToday?.get(ability.abilityId) || 0;
-
-				if (currentActivations >= activationLimit) {
-					console.log(`[TriggerHandler] Reaction limit reached for ability ${ability.abilityId} on ${object.name} (ID: ${object.objectId}). Not activating.`);
-					continue; // Skip this ability
-				}
-
 				const triggerPayload = { object, fromZone, toZone };
-				if (ability.trigger.condition(triggerPayload, object, this.gsm)) {
-					// If condition met, increment count *before* creating emblem
-					object.abilityActivationsToday?.set(ability.abilityId, currentActivations + 1);
-					console.log(`[TriggerHandler] Incrementing reaction count for ${ability.abilityId} on ${object.name} to ${currentActivations + 1}`);
-
-					console.log(
-						`[TriggerHandler] Triggering leave play ability on ${object.name}: ${ability.text}`
-					);
-					const emblem = this.gsm.objectFactory.createReactionEmblem(
-						ability,
-						object,
-						triggerPayload
-					);
-					const limboZone = this.gsm.state.sharedZones.limbo;
-					limboZone.add(emblem);
-					console.log(
-						`[TriggerHandler] Created reaction emblem ${emblem.name} (${emblem.id}) for ${object.name} and added to Limbo.`
-					);
+				if (ability.trigger.condition && !ability.trigger.condition(triggerPayload, object, this.gsm)) {
+					console.log(`[TriggerHandler] Condition not met for ability ${ability.abilityId} on ${object.name}.`);
+					continue;
 				}
+				this.createEmblemForTriggeredAbility(ability, object, triggerPayload);
 			}
 		}
 	}
@@ -111,42 +119,19 @@ export class AdvancedTriggerHandler {
 	 * Rule 7.1.1.c - Triggers specifically when moving to Reserve zone
 	 */
 	public processGoToReserveTriggers(object: IGameObject, fromZone: IZone): void {
-		console.log(`[TriggerHandler] Processing go to reserve triggers for ${object.name}`);
-
-		for (const ability of object.abilities) {
+		console.log(`[TriggerHandler] Processing go to reserve triggers for ${object.name} from zone ${fromZone.id}`);
+		const allAbilities = [...object.abilities, ...(object.currentCharacteristics.grantedAbilities || [])];
+		for (const ability of allAbilities) {
 			if (
 				ability.abilityType === AbilityType.Reaction &&
 				ability.trigger?.eventType === 'goToReserve'
 			) {
-				// Check "Nothing is Forever" limit for reactions (Rule 1.4.6.c)
-				const activationLimit = 100;
-				const currentActivations = object.abilityActivationsToday?.get(ability.abilityId) || 0;
-
-				if (currentActivations >= activationLimit) {
-					console.log(`[TriggerHandler] Reaction limit reached for ability ${ability.abilityId} on ${object.name} (ID: ${object.objectId}). Not activating.`);
-					continue; // Skip this ability
-				}
-
 				const triggerPayload = { object, fromZone };
-				if (ability.trigger.condition(triggerPayload, object, this.gsm)) {
-					// If condition met, increment count *before* creating emblem
-					object.abilityActivationsToday?.set(ability.abilityId, currentActivations + 1);
-					console.log(`[TriggerHandler] Incrementing reaction count for ${ability.abilityId} on ${object.name} to ${currentActivations + 1}`);
-
-					console.log(
-						`[TriggerHandler] Triggering go to reserve ability on ${object.name}: ${ability.text}`
-					);
-					const emblem = this.gsm.objectFactory.createReactionEmblem(
-						ability,
-						object,
-						triggerPayload
-					);
-					const limboZone = this.gsm.state.sharedZones.limbo;
-					limboZone.add(emblem);
-					console.log(
-						`[TriggerHandler] Created reaction emblem ${emblem.name} (${emblem.id}) for ${object.name} and added to Limbo.`
-					);
+				if (ability.trigger.condition && !ability.trigger.condition(triggerPayload, object, this.gsm)) {
+					console.log(`[TriggerHandler] Condition not met for ability ${ability.abilityId} on ${object.name}.`);
+					continue;
 				}
+				this.createEmblemForTriggeredAbility(ability, object, triggerPayload);
 			}
 		}
 	}
@@ -172,39 +157,43 @@ export class AdvancedTriggerHandler {
 	 * Processes phase triggers for a specific object
 	 */
 	private processObjectPhaseTriggersForPhase(object: IGameObject, phaseName: string): void {
-		for (const ability of object.abilities) {
+		const allAbilities = [...object.abilities, ...(object.currentCharacteristics.grantedAbilities || [])];
+		for (const ability of allAbilities) {
 			if (
 				ability.abilityType === AbilityType.Reaction &&
-				ability.trigger?.eventType === `at${phaseName}`
+				ability.trigger?.eventType === `at${phaseName}` // e.g., "atMorning", "atNoon"
 			) {
-				// Check "Nothing is Forever" limit for reactions (Rule 1.4.6.c)
-				const activationLimit = 100;
-				const currentActivations = object.abilityActivationsToday?.get(ability.abilityId) || 0;
-
-				if (currentActivations >= activationLimit) {
-					console.log(`[TriggerHandler] Reaction limit reached for ability ${ability.abilityId} on ${object.name} (ID: ${object.objectId}) for phase ${phaseName}. Not activating.`);
-					continue; // Skip this ability
+				const triggerPayload = { phase: phaseName, objectId: object.objectId };
+				if (ability.trigger.condition && !ability.trigger.condition(triggerPayload, object, this.gsm)) {
+					console.log(`[TriggerHandler] Condition not met for ability ${ability.abilityId} on ${object.name} for phase ${phaseName}.`);
+					continue;
 				}
+				this.createEmblemForTriggeredAbility(ability, object, triggerPayload);
+			}
+		}
+	}
 
-				const triggerPayload = { phase: phaseName, object };
-				if (ability.trigger.condition(triggerPayload, object, this.gsm)) {
-					// If condition met, increment count *before* creating emblem
-					object.abilityActivationsToday?.set(ability.abilityId, currentActivations + 1);
-					console.log(`[TriggerHandler] Incrementing reaction count for ${ability.abilityId} on ${object.name} (At ${phaseName}) to ${currentActivations + 1}`);
-
-					console.log(
-						`[TriggerHandler] Triggering 'At ${phaseName}' ability from ${object.name}: ${ability.text}`
-					);
-					const emblem = this.gsm.objectFactory.createReactionEmblem(
-						ability,
-						object,
-						triggerPayload
-					);
-					const limboZone = this.gsm.state.sharedZones.limbo;
-					limboZone.add(emblem);
-					console.log(
-						`[TriggerHandler] Created reaction emblem ${emblem.name} (${emblem.id}) for ${object.name} (At ${phaseName}) and added to Limbo.`
-					);
+	/**
+	 * A generic handler for any event type published on the EventBus.
+	 * Iterates all objects and their abilities to find matching triggers.
+	 * Rule 6.3.e - Reactions must exist and be working before the event.
+	 * This can be connected to an event bus listener that catches all events or specific ones.
+	 */
+	public processGenericEventTriggers(eventType: string, eventPayload: any): void {
+		console.log(`[TriggerHandler] Processing generic event: ${eventType}`, eventPayload);
+		for (const zone of this.getAllVisibleZones()) {
+			for (const entity of zone.getAll()) {
+				if (isGameObject(entity)) {
+					const allAbilities = [...entity.abilities, ...(entity.currentCharacteristics.grantedAbilities || [])];
+					for (const ability of allAbilities) {
+						if (ability.abilityType === AbilityType.Reaction && ability.trigger?.eventType === eventType) {
+							if (ability.trigger.condition && !ability.trigger.condition(eventPayload, entity, this.gsm)) {
+								console.log(`[TriggerHandler] Condition not met for ability ${ability.abilityId} on ${entity.name} for event ${eventType}.`);
+								continue;
+							}
+							this.createEmblemForTriggeredAbility(ability, entity, eventPayload);
+						}
+					}
 				}
 			}
 		}
@@ -237,14 +226,16 @@ export class AdvancedTriggerHandler {
 	 */
 	private *getAllVisibleZones(): Generator<IZone> {
 		for (const player of this.gsm.state.players.values()) {
-			yield player.zones.discardPile;
+			yield player.zones.discardPileZone;
 			yield player.zones.manaZone;
-			yield player.zones.reserve;
+			yield player.zones.reserveZone;
 			yield player.zones.landmarkZone;
 			yield player.zones.heroZone;
-			yield player.zones.expedition;
+			// Expedition zone is shared, so yield it once after players.
 		}
+		yield this.gsm.state.sharedZones.expedition; // Shared expedition zone
 		yield this.gsm.state.sharedZones.adventure;
 		yield this.gsm.state.sharedZones.limbo;
+		// Potentially other shared zones if they can contain objects with reactions
 	}
 }

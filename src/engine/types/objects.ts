@@ -22,7 +22,7 @@ export interface IGameObject {
 
 	// Characteristics
 	baseCharacteristics: Partial<ICardDefinition>;
-	currentCharacteristics: Partial<ICardDefinition>;
+	currentCharacteristics: ICurrentCharacteristics;
 
 	ownerId: string;
 	controllerId: string;
@@ -39,6 +39,26 @@ export interface IGameObject {
 	expeditionAssignment?: { playerId: string; type: 'Hero' | 'Companion' };
 	terrains?: string[]; // Optional field for region-like entities that are GameObjects
 	abilityActivationsToday?: Map<string, number>; // Key: abilityId, Value: count
+}
+
+/**
+ * Extends ICardDefinition with dynamic properties that can change during gameplay.
+ */
+export interface ICurrentCharacteristics extends Partial<ICardDefinition> {
+	// Dynamically granted abilities
+	grantedAbilities?: IAbility[];
+	// IDs of abilities (both base and granted) that are currently negated for this object
+	negatedAbilityIds?: string[];
+
+	// Existing dynamic keyword properties (examples, ensure they are covered if not already)
+	isEternal?: boolean;
+	hasDefender?: boolean;
+	isGigantic?: boolean;
+	isSeasoned?: boolean;
+	isTough?: number | boolean; // Store the tough value if it's like "Tough N"
+	scoutValue?: number;
+	isFleeting?: boolean;
+	// other dynamic characteristics can be added here
 }
 
 // Rule 2.2.1.g, 6.3.g

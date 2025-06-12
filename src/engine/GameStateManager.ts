@@ -42,33 +42,52 @@ export class GameStateManager {
 	public ruleAdjudicator: RuleAdjudicator;
 	public turnManager?: TurnManager; // Will be set by TurnManager
 	public phaseManager?: PhaseManager; // Will be set by PhaseManager
-	private cardDefinitions: Map<string, ICardDefinition>;
+	private playerDeckDefinitions: Map<string, ICardDefinition[]>; // PlayerID to their chosen deck
+	private allCardDefinitions: Map<string, ICardDefinition>; // All unique definitions for ObjectFactory
 
-	constructor(playerIds: string[], cardDefinitions: ICardDefinition[], eventBus: EventBus) {
-		this.cardDefinitions = new Map(cardDefinitions.map((def) => [def.id, def]));
-		this.objectFactory = new ObjectFactory(this.cardDefinitions);
+	constructor(playerDeckDefinitions: Map<string, ICardDefinition[]>, eventBus: EventBus) {
+		this.playerDeckDefinitions = playerDeckDefinitions;
+
+		// Create a flat list of all unique card definitions for ObjectFactory
+		const allDefsList: ICardDefinition[] = [];
+		const seenDefIds = new Set<string>();
+		for (const deck of playerDeckDefinitions.values()) {
+			for (const cardDef of deck) {
+				if (!seenDefIds.has(cardDef.id)) {
+					allDefsList.push(cardDef);
+					seenDefIds.add(cardDef.id);
+				}
+			}
+		}
+		this.allCardDefinitions = new Map(allDefsList.map((def) => [def.id, def]));
+
+		this.objectFactory = new ObjectFactory(this.allCardDefinitions);
 		this.eventBus = eventBus;
 		this.keywordHandler = new KeywordAbilityHandler(this);
 		this.supportHandler = new SupportAbilityHandler(this);
 		this.triggerHandler = new AdvancedTriggerHandler(this);
 		this.actionHandler = new PlayerActionHandler(this);
 		this.effectProcessor = new EffectProcessor(this);
-		this.effectExecutionManager = this.effectProcessor; // Alias for test compatibility
+		this.effectExecutionManager = this.effectProcessor;
 		this.statusHandler = new StatusEffectHandler(this);
 		this.manaSystem = new ManaSystem(this);
-		this.cardPlaySystem = new CardPlaySystem(this); // Assuming CardPlaySystem constructor takes (gsm, eventBus)
+		this.cardPlaySystem = new CardPlaySystem(this);
 		this.tiebreakerSystem = new TiebreakerSystem(this);
-		// this.passiveManager = new PassiveAbilityManager(this); // Removed
 		this.ruleAdjudicator = new RuleAdjudicator(this);
-		this.state = this.initializeGameState(playerIds);
+
+		const playerIds = Array.from(playerDeckDefinitions.keys());
+		this.state = this.initializeGameState(playerIds); // Pass playerIds derived from the map
 	}
 
 	/**
 	 * Rule 4.1: Game Setup Phase - Initialize game according to Altered rules
 	 */
 	public async initializeGame(): Promise<void> {
-		if (this.cardDefinitions.size === 0) {
-			throw new Error('No card definitions available');
+		if (this.playerDeckDefinitions.size === 0) {
+			throw new Error('No player deck definitions available for game initialization.');
+		}
+		if (this.allCardDefinitions.size === 0) {
+			throw new Error('No card definitions available for ObjectFactory.');
 		}
 
 		// Rule 4.1.l: Start on Day 1, skip first Morning phase
@@ -79,17 +98,27 @@ export class GameStateManager {
 		// Rule 4.1.a-c: Initialize adventure zones and regions
 		this.initializeAdventureZones();
 
-		// Initialize each player's game state
+		// Initialize each player's game state using their specific deck
 		for (const [playerId, player] of this.state.players) {
-			await this.initializePlayerState(playerId, player);
+			const deckDefs = this.playerDeckDefinitions.get(playerId);
+			if (!deckDefs) {
+				throw new Error(`Deck definitions not found for player ${playerId} during game initialization.`);
+			}
+			await this.initializePlayerState(playerId, player, deckDefs);
 		}
 
-		// Rule 4.1: Determine first player (simplified for testing)
-		this.state.firstPlayerId = Array.from(this.state.players.keys())[0];
-		this.state.currentPlayerId = this.state.firstPlayerId;
+		// Rule 4.1.g: Determine first player randomly
+		const playerIds = Array.from(this.state.players.keys());
+		if (playerIds.length > 0) {
+			const randomIndex = Math.floor(Math.random() * playerIds.length);
+			this.state.firstPlayerId = playerIds[randomIndex];
+			this.state.currentPlayerId = this.state.firstPlayerId;
+			console.log(`[GSM] Randomly selected first player: ${this.state.firstPlayerId}`);
+		} else {
+			throw new Error("Cannot determine first player: No players in game.");
+		}
 
-		// Note: gameInitialized event not in EventPayloads, so skip for now
-		console.log('[GSM] Game initialized with players:', Array.from(this.state.players.keys()));
+		console.log('[GSM] Game initialized with players:', playerIds);
 	}
 
 	private initializeAdventureZones(): void {
@@ -135,15 +164,19 @@ export class GameStateManager {
 
 	private async initializePlayerState(playerId: string, player: IPlayer): Promise<void> {
 		// Rule 4.1.h: Heroes should be revealed and placed in Hero zones
-		this.placeHeroInZone(playerId);
+		// This now uses the specific player's deck definitions.
+		const heroDefinition = this.placeHeroInZone(playerId, deckDefs);
 
-		// Rule 4.1.i: Shuffle deck
-		this.initializePlayerDeck(playerId);
+		// Rule 4.1.i: Shuffle deck (with remaining cards)
+		this.initializePlayerDeck(playerId, deckDefs, heroDefinition);
 
 		// Rule 4.1.j: Draw 6 cards
 		await this.drawCards(playerId, 6);
 
 		// Rule 4.1.k: Start with 3 Mana Orbs face-down and ready
+		// The current initializeManaOrbs picks a generic card. This could be improved
+		// to use specific Mana Orb cards if they exist, or continue as is if Mana Orbs
+		// are just represented by any card face down. For now, keep existing logic.
 		this.initializeManaOrbs(playerId);
 
 		// Rule 4.1: Initialize expedition state
@@ -159,35 +192,43 @@ export class GameStateManager {
 		};
 	}
 
-	private placeHeroInZone(playerId: string): void {
+	private placeHeroInZone(playerId: string, deckDefs: ICardDefinition[]): ICardDefinition {
 		const player = this.getPlayer(playerId);
-		if (!player) return;
+		if (!player) throw new Error(`Player ${playerId} not found for hero placement.`);
 
-		// Find a hero card definition
-		const heroDefinition = Array.from(this.cardDefinitions.values()).find(
-			(def) => def.type === CardType.Hero
-		);
-
-		if (heroDefinition) {
-			const hero = this.objectFactory.createCard(heroDefinition.id, playerId);
-			hero.faceDown = false; // Heroes are revealed
-			player.zones.heroZone.add(hero);
+		const heroDefinition = deckDefs.find(def => def.type === CardType.Hero);
+		if (!heroDefinition) {
+			throw new Error(`No Hero card found in deck for player ${playerId}.`);
 		}
+
+		// Create and place the hero object
+		const heroObject = this.objectFactory.createGameObjectFromDefinition(heroDefinition, playerId);
+		// heroObject.faceDown = false; // Heroes are revealed (ObjectFactory should handle this based on card type)
+		player.zones.heroZone.add(heroObject);
+		console.log(`[GSM] Placed Hero ${heroDefinition.name} for player ${playerId}.`);
+		return heroDefinition; // Return the definition so it can be excluded from the deck
 	}
 
-	private initializePlayerDeck(playerId: string): void {
+	private initializePlayerDeck(playerId: string, deckDefs: ICardDefinition[], heroToExclude?: ICardDefinition): void {
 		const player = this.getPlayer(playerId);
-		if (!player) return;
+		if (!player) throw new Error(`Player ${playerId} not found for deck initialization.`);
 
-		// Add some cards to deck for testing
-		const cardDefinitions = Array.from(this.cardDefinitions.values())
-			.filter((def) => def.type !== CardType.Hero)
-			.slice(0, 30); // Take first 30 non-hero cards
+		const deckZone = player.zones.deckZone as DeckZone;
+		deckZone.clear(); // Clear any existing cards (e.g., from previous test setups)
 
-		cardDefinitions.forEach((def) => {
+		const cardsForDeck = deckDefs.filter(def => def !== heroToExclude && def.type !== CardType.Hero);
+
+		if (cardsForDeck.length === 0) {
+			console.warn(`[GSM] Player ${playerId} has no non-hero cards in their deck list.`);
+		}
+
+		cardsForDeck.forEach((def) => {
 			const cardInstance = this.objectFactory.createCardInstance(def.id, playerId);
-			player.zones.deckZone.add(cardInstance);
+			deckZone.add(cardInstance);
 		});
+
+		deckZone.shuffle();
+		console.log(`[GSM] Initialized and shuffled deck for player ${playerId} with ${deckZone.getCount()} cards.`);
 	}
 
 	private initializeManaOrbs(playerId: string): void {
@@ -735,20 +776,35 @@ export class GameStateManager {
 		this.statusHandler.processStatusEffectsDuringPhase('morning'); // Readies objects etc.
 
 		// Reset ability activation counts for "Nothing is Forever" rule (Rule 1.4.6)
-		console.log('[GSM] Resetting daily ability activation counts.');
+		console.log('[GSM] Resetting daily ability activation counts for QuickActions and Reactions.');
 		for (const zone of this.getAllVisibleZones()) {
 			for (const entity of zone.getAll()) {
 				if (isGameObject(entity)) {
+					// Reset QuickAction activations (Rule 1.4.6.b)
 					if (entity.abilityActivationsToday) {
 						entity.abilityActivationsToday.clear();
 					} else {
-						// Initialize if it somehow wasn't during creation
 						entity.abilityActivationsToday = new Map<string, number>();
+					}
+
+					// Reset Reaction activations (Rule 1.4.6.c) for base abilities
+					if (entity.abilities) {
+						for (const ability of entity.abilities) {
+							ability.reactionActivationsToday = 0;
+						}
+					}
+					// Reset Reaction activations for granted abilities
+					if (entity.currentCharacteristics?.grantedAbilities) {
+						for (const grantedAbility of entity.currentCharacteristics.grantedAbilities) {
+							grantedAbility.reactionActivationsToday = 0;
+						}
 					}
 				}
 			}
 		}
 		// Note: The original duplicate preparePhase method at the end of the file should be reviewed/removed if redundant.
+		// Also, ensure RuleAdjudicator applies passives *after* this reset if any passives affect activation limits.
+		// For now, this direct reset is done first.
 	}
 
 	/**
@@ -757,23 +813,19 @@ export class GameStateManager {
 	 */
 	public async restPhase() {
 		console.log('[GSM] Beginning Rest phase.');
-		const expeditionZone = this.state.sharedZones.expedition; // Use shared expedition zone
+		const expeditionZone = this.state.sharedZones.expedition;
 
 		for (const player of this.state.players.values()) {
-			// Filter entities for the current player and relevant types
-			const entitiesToProcess = expeditionZone.getAll().filter((e): e is IGameObject => {
-				if (!isGameObject(e)) return false;
-				// Ensure the entity belongs to the player currently being processed in the restPhase loop
-				if (e.controllerId !== player.id) return false;
-				return e.type === CardType.Character || e.type === CardType.Gear;
-			});
+			const playerEntitiesInExpedition = expeditionZone.getAll().filter((e): e is IGameObject =>
+				isGameObject(e) && e.controllerId === player.id &&
+				(e.type === CardType.Character || e.type === CardType.Gear) // Assuming Gear can also be in expeditions
+			);
 
-			for (const entity of entitiesToProcess) {
+			for (const entity of playerEntitiesInExpedition) {
 				let isAffectedByMovingExpedition = false;
-				// Rule 7.4.4.a for Gigantic check, or check characteristics if adjudicated
-				const isGigantic =
-					entity.currentCharacteristics.isGigantic === true ||
-					entity.abilities.some((ability) => ability.keyword === KeywordAbility.Gigantic);
+				// Rule 7.4.4: Gigantic characters are affected if EITHER expedition moved.
+				// isGigantic should be reliably set by RuleAdjudicator on currentCharacteristics.
+				const isGigantic = entity.currentCharacteristics.isGigantic === true;
 
 				if (isGigantic) {
 					if (player.heroExpedition.hasMoved || player.companionExpedition.hasMoved) {
@@ -847,17 +899,8 @@ export class GameStateManager {
 	 * Rule 4.2.5.c: Players discard/sacrifice down to their limits.
 	 */
 	public async cleanupPhase(): Promise<void> {
-		// Rule 4.2.5.c: Clean-up - Each player chooses as many objects in their Reserve as
-		// their Hero's reserve limit and as many objects in their landmarks as their Hero's
-		// landmark limit. All non-selected objects in Reserve are discarded and all non-selected
-		// objects in landmarks are sacrificed, simultaneously.
-		// Rule 1.4.5.a / 6.1.h: Choices are made in initiative order (current player first, then others).
-		// Note on simultaneity: True simultaneity is hard in code. Here, actions are sequential per player.
-		// TODO: Implement player choice for selecting which cards to discard/sacrifice.
-		// The current implementation uses a deterministic approach (e.g., removing the last item added to the zone).
-		// Rule 1.4.5.a / 6.1.h: Choices are made in initiative order.
 		console.log('[GSM] Beginning Clean-up phase.');
-
+		// Rule 1.4.5.a / 6.1.h: Choices are made in initiative order.
 		const playerIdsInOrder = this.getPlayerIdsInInitiativeOrder(this.state.firstPlayerId);
 
 		for (const playerId of playerIdsInOrder) {
@@ -865,43 +908,37 @@ export class GameStateManager {
 			if (!player) continue;
 
 			const hero = player.zones.heroZone.getAll().find(obj => isGameObject(obj) && obj.type === CardType.Hero) as IGameObject | undefined;
-			const reserveLimit = hero?.baseCharacteristics.reserveLimit ?? 2;
-			const landmarkLimit = hero?.baseCharacteristics.landmarkLimit ?? 2;
+			// Rule 4.2.5.c: Default limits if hero not found or hero has no specified limits.
+			// These defaults (2 for reserve, 2 for landmark) are common, but could also be game constants.
+			const reserveLimit = hero?.currentCharacteristics.reserveLimit ?? hero?.baseCharacteristics.reserveLimit ?? 2;
+			const landmarkLimit = hero?.currentCharacteristics.landmarkLimit ?? hero?.baseCharacteristics.landmarkLimit ?? 2;
 
 			// --- Reserve Clean-up ---
 			const reserveZone = player.zones.reserveZone;
 			const reserveObjects = reserveZone.getAll().filter(isGameObject);
 
 			if (reserveObjects.length > reserveLimit) {
-				console.log(`[GSM] Player ${playerId} Reserve: ${reserveObjects.length} cards, limit: ${reserveLimit}. Starting cleanup.`);
-				// Sort by reserve cost (desc), then by timestamp (asc - older first)
-				reserveObjects.sort((a, b) => {
-					const defA = this.getCardDefinition(a.definitionId);
-					const defB = this.getCardDefinition(b.definitionId);
-					const costA = defA?.reserveCost ?? 0;
-					const costB = defB?.reserveCost ?? 0;
-
-					if (costB !== costA) {
-						return costB - costA; // Higher cost first
+				console.log(`[GSM] Player ${playerId} Reserve: ${reserveObjects.length}/${reserveLimit}. Choosing objects to keep.`);
+				// PlayerActionHandler returns IDs of objects TO DISCARD
+				const objectsToDiscardIds = await this.actionHandler.playerChoosesObjectsToKeep(
+					playerId,
+					reserveObjects,
+					reserveLimit,
+					'reserve'
+				);
+				for (const objectIdToDiscard of objectsToDiscardIds) {
+					const objectToDiscard = reserveObjects.find(obj => obj.objectId === objectIdToDiscard);
+					if (objectToDiscard) {
+						console.log(
+							`[GSM] Player ${playerId} discarding ${objectToDiscard.name} (${objectToDiscard.definitionId}) from Reserve.`
+						);
+						this.moveEntity(
+							objectToDiscard.objectId,
+							reserveZone,
+							player.zones.discardPileZone,
+							playerId
+						);
 					}
-					return (a.timestamp ?? Infinity) - (b.timestamp ?? Infinity); // Older (smaller timestamp) first
-				});
-
-				const cardsToKeep = reserveObjects.slice(0, reserveLimit);
-				const cardsToDiscard = reserveObjects.slice(reserveLimit);
-
-				console.log(`[GSM] Player ${playerId} keeping in Reserve: ${cardsToKeep.map(c => `${c.name}(${c.definitionId})`).join(', ')}`);
-				for (const cardToDiscard of cardsToDiscard) {
-					console.log(
-						`[GSM] Player ${playerId} is over reserve limit, discarding ${cardToDiscard.name} (${cardToDiscard.definitionId}) from Reserve.`
-					);
-					this.moveEntity(
-						cardToDiscard.objectId,
-						reserveZone,
-						player.zones.discardPileZone,
-						playerId
-					);
-					// Note: moveEntity should trigger relevant events/reactions if any.
 				}
 			}
 
@@ -910,36 +947,28 @@ export class GameStateManager {
 			const landmarkObjects = landmarkZone.getAll().filter(isGameObject);
 
 			if (landmarkObjects.length > landmarkLimit) {
-				console.log(`[GSM] Player ${playerId} Landmark: ${landmarkObjects.length} cards, limit: ${landmarkLimit}. Starting cleanup.`);
-				// Sort by hand cost (desc), then by timestamp (asc - older first)
-				// Using handCost as a proxy for value if reserveCost isn't applicable to landmarks.
-				landmarkObjects.sort((a, b) => {
-					const defA = this.getCardDefinition(a.definitionId);
-					const defB = this.getCardDefinition(b.definitionId);
-					const costA = defA?.handCost ?? 0; // Or another relevant cost if landmarks have specific ones
-					const costB = defB?.handCost ?? 0;
-
-					if (costB !== costA) {
-						return costB - costA; // Higher cost first
+				console.log(`[GSM] Player ${playerId} Landmark: ${landmarkObjects.length}/${landmarkLimit}. Choosing objects to keep.`);
+				// PlayerActionHandler returns IDs of objects TO SACRIFICE (which means discard)
+				const objectsToSacrificeIds = await this.actionHandler.playerChoosesObjectsToKeep(
+					playerId,
+					landmarkObjects,
+					landmarkLimit,
+					'landmark'
+				);
+				for (const objectIdToSacrifice of objectsToSacrificeIds) {
+					const objectToSacrifice = landmarkObjects.find(obj => obj.objectId === objectIdToSacrifice);
+					if (objectToSacrifice) {
+						console.log(
+							`[GSM] Player ${playerId} sacrificing ${objectToSacrifice.name} (${objectToSacrifice.definitionId}) from Landmark.`
+						);
+						// Rule 7.3.25.a: "sacrifice ... they have to discard an object in play they control"
+						this.moveEntity(
+							objectToSacrifice.objectId,
+							landmarkZone,
+							player.zones.discardPileZone, // Sacrificed cards go to discard pile
+							playerId
+						);
 					}
-					return (a.timestamp ?? Infinity) - (b.timestamp ?? Infinity); // Older (smaller timestamp) first
-				});
-
-				const cardsToKeep = landmarkObjects.slice(0, landmarkLimit);
-				const cardsToSacrifice = landmarkObjects.slice(landmarkLimit);
-
-				console.log(`[GSM] Player ${playerId} keeping in Landmark: ${cardsToKeep.map(c => `${c.name}(${c.definitionId})`).join(', ')}`);
-				for (const cardToSacrifice of cardsToSacrifice) {
-					console.log(
-						`[GSM] Player ${playerId} is over landmark limit, sacrificing ${cardToSacrifice.name} (${cardToSacrifice.definitionId}) from Landmark.`
-					);
-					// Rule 7.3.25.a: "sacrifice ... they have to discard an object in play they control"
-					this.moveEntity(
-						cardToSacrifice.objectId,
-						landmarkZone,
-						player.zones.discardPileZone, // Sacrificed cards go to discard pile
-						playerId
-					);
 				}
 			}
 		}
@@ -952,44 +981,64 @@ export class GameStateManager {
 	 */
 	public calculateExpeditionStats(
 		playerId: string,
-		_expeditionType: 'hero' | 'companion'
+		expeditionType: 'hero' | 'companion' // Renamed _expeditionType
 	): ITerrainStats {
 		const player = this.getPlayer(playerId);
 		if (!player) return { forest: 0, mountain: 0, water: 0 };
 
-		const expeditionZone = this.state.sharedZones.expedition; // Use shared expedition zone
+		const expeditionZone = this.state.sharedZones.expedition;
 		const stats: ITerrainStats = { forest: 0, mountain: 0, water: 0 };
 
-		const expeditionEntities = expeditionZone.getAll().filter(entity => {
-			if (!isGameObject(entity)) return false;
-			// Ensure correct typing for _expeditionType if it can be 'Hero' or 'Companion'
-			const typeComparison = _expeditionType === 'hero' ? 'Hero' : 'Companion';
-			return entity.expeditionAssignment?.playerId === playerId &&
-				   entity.expeditionAssignment?.type === typeComparison;
-		});
+		const allPlayerCharactersInExpedition = expeditionZone.getAll().filter(
+			(e): e is IGameObject =>
+				isGameObject(e) &&
+				e.controllerId === playerId &&
+				e.type === CardType.Character
+		);
 
-		for (const entity of expeditionEntities) {
-			if (isGameObject(entity) && entity.type === CardType.Character) {
-				// Skip if Character has Asleep status during Progress (Rule 2.4.3)
-				// This check is still relevant for the filtered entities.
-				if (entity.statuses.has(StatusType.Asleep)) continue;
+		for (const entity of allPlayerCharactersInExpedition) {
+			// Rule 2.4.3.a: Asleep characters' stats are not counted.
+			// Check currentCharacteristics for asleep status if RuleAdjudicator sets it there,
+			// otherwise entity.statuses is fine. Assuming entity.statuses is up-to-date.
+			if (entity.statuses.has(StatusType.Asleep)) {
+				continue;
+			}
 
-				// Get base statistics
-				const entityStats = entity.currentCharacteristics.statistics;
+			const characteristics = entity.currentCharacteristics;
+			const isGigantic = characteristics.isGigantic === true; // Rule 7.4.4.e
+
+			let countThisEntity = false;
+			if (isGigantic) {
+				// Gigantic characters count in EACH of their controller's expeditions.
+				// So, they are always included if this function is called for their controller.
+				countThisEntity = true;
+			} else {
+				// Non-Gigantic characters count only if assigned to the specific expeditionType.
+				if (
+					entity.expeditionAssignment?.playerId === playerId &&
+					entity.expeditionAssignment?.type === expeditionType
+				) {
+					countThisEntity = true;
+				}
+			}
+
+			if (countThisEntity) {
+				const entityStats = characteristics.statistics;
 				if (entityStats) {
 					stats.forest += entityStats.forest || 0;
 					stats.mountain += entityStats.mountain || 0;
 					stats.water += entityStats.water || 0;
 				}
 
-				// Add boost counters (Rule 2.5.1.b)
+				// Rule 2.5.1.b: Add boost counters
 				const boostCount = entity.counters.get(CounterType.Boost) || 0;
-				stats.forest += boostCount;
-				stats.mountain += boostCount;
-				stats.water += boostCount;
+				if (boostCount > 0) { // Only add if there are boost counters
+					stats.forest += boostCount;
+					stats.mountain += boostCount;
+					stats.water += boostCount;
+				}
 			}
 		}
-
 		return stats;
 	}
 
@@ -1167,61 +1216,7 @@ export class GameStateManager {
 		return this.tiebreakerSystem.checkForTiebreaker();
 	}
 
-	/**
-	 * Calculate expedition statistics for progress phase
-	 * Rule 7.5.2 - Ahead, Behind, Tied
-	 */
-	public calculateExpeditionStats(playerId: string, expeditionType: 'hero' | 'companion'): { forest: number; mountain: number; water: number } {
-		const player = this.getPlayer(playerId);
-		if (!player) {
-			return { forest: 0, mountain: 0, water: 0 };
-		}
-
-		let totalStats = { forest: 0, mountain: 0, water: 0 };
-		const expeditionZone = this.state.sharedZones.expedition; // Use shared expedition zone
-
-		// Get all characters in the shared expedition zone, filtered by playerId and expeditionType.
-		const expeditionEntities = expeditionZone.getAll().filter(entity => {
-			if (!isGameObject(entity)) return false;
-			// Ensure correct typing for expeditionType if it can be 'Hero' or 'Companion'
-			const typeComparison = expeditionType === 'hero' ? 'Hero' : 'Companion';
-			return entity.expeditionAssignment?.playerId === playerId &&
-				   entity.expeditionAssignment?.type === typeComparison;
-		});
-		
-		for (const entity of expeditionEntities) {
-			if (isGameObject(entity) && entity.type === CardType.Character) {
-				// Rule 2.4.3.a: Asleep characters' stats are not counted during Progress
-				// This check is still relevant for the filtered entities.
-				if (entity.statuses.has(StatusType.Asleep)) {
-					continue;
-				}
-
-				// Include base statistics
-				if (entity.baseCharacteristics.statistics) {
-					totalStats.forest += entity.baseCharacteristics.statistics.forest;
-					totalStats.mountain += entity.baseCharacteristics.statistics.mountain;
-					totalStats.water += entity.baseCharacteristics.statistics.water;
-				}
-
-				// Rule 2.4.4: Add boost counters if object is Boosted
-				const boostCounters = entity.counters.get(CounterType.Boost) || 0;
-				if (boostCounters > 0) {
-					totalStats.forest += boostCounters;
-					totalStats.mountain += boostCounters;
-					totalStats.water += boostCounters;
-				}
-
-				// Rule 7.4.4.e: Gigantic characters count in both expeditions
-				if ((entity.currentCharacteristics as any).isGigantic) {
-					// Character already counted once above, no need to double count here
-					// The calling logic should handle Gigantic appropriately
-				}
-			}
-		}
-
-		return totalStats;
-	}
+	// Removed the duplicate calculateExpeditionStats method. The one above is now the consolidated version.
 
 	/**
 	 * Find a card in any zone by instance ID
@@ -1357,26 +1352,7 @@ export class GameStateManager {
 	 * Prepare phase - ready all exhausted cards
 	 * Rule 4.2.1.c
 	 */
-	public async preparePhase(): Promise<void> {
-		console.log('[GSM] Prepare phase - readying exhausted cards');
-		const expeditionZone = this.state.sharedZones.expedition; // Use shared expedition zone
-		
-		// Ready cards in the shared expedition zone
-		for (const entity of expeditionZone.getAll()) {
-			if (isGameObject(entity) && entity.statuses.has(StatusType.Exhausted)) {
-				entity.statuses.delete(StatusType.Exhausted);
-			}
-		}
-
-		for (const player of this.state.players.values()) {
-			// Ready cards in player-specific reserve
-			for (const entity of player.zones.reserveZone.getAll()) {
-				if (isGameObject(entity) && entity.statuses.has(StatusType.Exhausted)) {
-					entity.statuses.delete(StatusType.Exhausted);
-				}
-			}
-		}
-	}
+	// Removed duplicate preparePhase method, the one earlier in the file is primary.
 
 	/**
 	 * Add missing properties that tests expect
@@ -1395,5 +1371,89 @@ export class GameStateManager {
 
 	public set activePlayerId(playerId: string) {
 		this.state.currentPlayerId = playerId;
+	}
+
+	/**
+	 * Gets the maximum valid position index for an expedition on the adventure track.
+	 * This depends on the number of regions in the adventure zone.
+	 * E.g., if 5 regions (H, T1, T2, T3, C), max position is 4.
+	 * An expedition at position 'p' means it has cleared 'p' regions.
+	 * The next region it would enter is at index 'p' of the adventureRegions array.
+	 * So, if it has cleared all regions, its position would be adventureRegions.length.
+	 * However, "position" might be better interpreted as the index of the region it is *about to enter* or *is currently in after moving*.
+	 * If position is 0-indexed current region, then max position is length-1.
+	 * If position means "slots moved", then it can go up to length.
+	 * Based on current `progressPhase` logic: `adventureRegions[currentHeroPos]`,
+	 * if currentHeroPos can go up to `totalRegions -1` to enter the last region, then maxPos should be `totalRegions -1`.
+	 * If an expedition has position `totalRegions -1`, it means it's in the last region.
+	 * Let's assume position is the index of the region an expedition is currently in or has last entered.
+	 * So, for 5 regions (indices 0-4), max position is 4.
+	 */
+	public getAdventureMaxPosition(): number {
+		// Assuming adventureRegions are ordered and represent the track.
+		// If there are N regions, valid positions are 0 to N-1.
+		const adventureRegions = this.state.sharedZones.adventure.getAll();
+		return Math.max(0, adventureRegions.length - 1);
+	}
+
+	/**
+	 * Handles the Resupply keyword action for a player.
+	 * Moves the top card of the deck to reserve. If deck is empty, shuffles discard into deck first.
+	 * Returns the IGameObject moved to reserve, or null if no card could be moved.
+	 * Rule 7.3.22
+	 */
+	public async resupplyPlayer(playerId: string): Promise<IGameObject | null> {
+		const player = this.getPlayer(playerId);
+		if (!player) {
+			console.warn(`[GSM.resupplyPlayer] Player ${playerId} not found.`);
+			return null;
+		}
+
+		const deckZone = player.zones.deckZone as DeckZone; // Cast to DeckZone for shuffle method
+		const discardPileZone = player.zones.discardPileZone;
+		const reserveZone = player.zones.reserveZone;
+
+		if (deckZone.getCount() === 0) {
+			if (discardPileZone.getCount() > 0) {
+				console.log(`[GSM.resupplyPlayer] Player ${playerId} deck empty. Reshuffling discard pile.`);
+				const discardedEntities = discardPileZone.getAll();
+				// Important: Clear the discard pile *before* adding cards back to deck,
+				// especially if createCardInstance might refer to the original entity temporarily.
+				discardedEntities.forEach(e => discardPileZone.remove(isGameObject(e) ? e.objectId : e.instanceId));
+
+				const cardsToReshuffle: ICardInstance[] = discardedEntities.map(e => {
+					// Ensure we're creating fresh instances for the deck
+					return this.objectFactory.createCardInstance(e.definitionId, e.ownerId);
+				});
+
+				deckZone.addBottom(cardsToReshuffle); // Add to bottom then shuffle
+				deckZone.shuffle();
+				this.eventBus.publish('deckReshuffled', { playerId, count: cardsToReshuffle.length });
+				console.log(`[GSM.resupplyPlayer] Player ${playerId} reshuffled ${cardsToReshuffle.length} cards from discard to deck.`);
+			}
+		}
+
+		if (deckZone.getCount() === 0) {
+			console.log(`[GSM.resupplyPlayer] Player ${playerId} deck is still empty after attempting reshuffle. Cannot resupply.`);
+			return null;
+		}
+
+		const cardToMoveInstance = deckZone.removeTop(); // removeTop should return ICardInstance
+		if (!cardToMoveInstance) {
+			// Should not happen if getCount() > 0, but as a safeguard.
+			console.warn(`[GSM.resupplyPlayer] Deck was not empty but failed to remove top card for player ${playerId}.`);
+			return null;
+		}
+
+		// moveEntity will convert ICardInstance to IGameObject when moving to a visible zone like Reserve.
+		const movedObject = this.moveEntity(cardToMoveInstance.instanceId, deckZone, reserveZone, playerId) as IGameObject | null;
+
+		if (movedObject) {
+			console.log(`[GSM.resupplyPlayer] Player ${playerId} resupplied ${movedObject.name} (ID: ${movedObject.objectId}) to Reserve.`);
+			// Event for card moving to reserve is handled by moveEntity's 'entityMoved'
+			// Specific 'cardResupplied' event might be useful if more specific data is needed.
+			// this.eventBus.publish('cardResupplied', { playerId, card: movedObject });
+		}
+		return movedObject;
 	}
 }
