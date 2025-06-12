@@ -1,7 +1,9 @@
 import { describe, test, expect, beforeEach } from 'bun:test';
 import { GameStateManager } from '../../src/engine/GameStateManager';
 import { EventBus } from '../../src/engine/EventBus';
-import { GamePhase, ZoneIdentifier, CardType, StatusType, CounterType } from '../../src/engine/types/enums';
+import { ObjectFactory } from '../../src/engine/ObjectFactory'; // Added ObjectFactory import
+import { HandZone, GenericZone, DiscardPileZone, LimboZone, DeckZone } from '../../src/engine/Zone'; // Added Zone imports
+import { GamePhase, ZoneIdentifier, CardType, StatusType, CounterType, KeywordAbility, AbilityType } from '../../src/engine/types/enums'; // Explicitly ensuring AbilityType and KeywordAbility
 import type { ICardDefinition } from '../../src/engine/types/cards';
 import type { IGameObject } from '../../src/engine/types/objects';
 import { isGameObject } from '../../src/engine/types/objects';
@@ -13,79 +15,36 @@ import { isGameObject } from '../../src/engine/types/objects';
 describe('GameStateManager - Rule Compliance Tests', () => {
 	let gameStateManager: GameStateManager;
 	let eventBus: EventBus;
-	let mockCardDefinitions: ICardDefinition[];
+	// mockCardDefinitions will be part of playerDecks map now
+	// let mockCardDefinitions: ICardDefinition[];
 
 	beforeEach(() => {
 		eventBus = new EventBus();
-		mockCardDefinitions = [
-			{
-				id: 'hero-001',
-				name: 'Test Hero',
-				type: CardType.Hero,
-				subTypes: [],
-				handCost: { total: 0, forest: 0, mountain: 0, water: 0 },
-				reserveCost: { total: 0, forest: 0, mountain: 0, water: 0 },
-				faction: 'Neutral',
-				statistics: { forest: 2, mountain: 1, water: 1 },
-				abilities: [],
-				rarity: 'Common',
-				version: '1.0'
-			},
-			{
-				id: 'companion-001',
-				name: 'Test Companion',
-				type: CardType.Character,
-				subTypes: ['Companion'],
-				handCost: { total: 2, forest: 1, mountain: 0, water: 1 },
-				reserveCost: { total: 1, forest: 0, mountain: 0, water: 1 },
-				faction: 'Neutral',
-				statistics: { forest: 1, mountain: 2, water: 0 },
-				abilities: [],
-				rarity: 'Common',
-				version: '1.0'
-			},
-			// Expedition Test Characters
-			{
-				id: 'char-p1-hero', name: 'P1 Hero Char', type: CardType.Character, subTypes: [], faction: 'Neutral',
-				statistics: { forest: 1, mountain: 0, water: 0 }, abilities: [], rarity: 'Common', version: '1.0',
-				handCost: { total: 1, forest: 0, mountain: 0, water: 0 }, reserveCost: { total: 1, forest: 0, mountain: 0, water: 0 },
-			},
-			{
-				id: 'char-p1-comp', name: 'P1 Comp Char', type: CardType.Character, subTypes: [], faction: 'Neutral',
-				statistics: { forest: 0, mountain: 1, water: 0 }, abilities: [], rarity: 'Common', version: '1.0',
-				handCost: { total: 1, forest: 0, mountain: 0, water: 0 }, reserveCost: { total: 1, forest: 0, mountain: 0, water: 0 },
-			},
-			{
-				id: 'char-p2-hero', name: 'P2 Hero Char', type: CardType.Character, subTypes: [], faction: 'Neutral',
-				statistics: { forest: 0, mountain: 0, water: 1 }, abilities: [], rarity: 'Common', version: '1.0',
-				handCost: { total: 1, forest: 0, mountain: 0, water: 0 }, reserveCost: { total: 1, forest: 0, mountain: 0, water: 0 },
-			},
-			{
-				id: 'char-p1-hero-boost', name: 'P1 Hero Boost Char', type: CardType.Character, subTypes: [], faction: 'Neutral',
-				statistics: { forest: 1, mountain: 1, water: 0 }, abilities: [], rarity: 'Common', version: '1.0',
-				handCost: { total: 1, forest: 0, mountain: 0, water: 0 }, reserveCost: { total: 1, forest: 0, mountain: 0, water: 0 },
-			}
-		];
 
-		// Add enough cards for deck construction (need at least 6 for drawing)
-		// Ensure we have enough unique IDs if we add more specific test cards above.
-		for (let i = mockCardDefinitions.length; i <= 10; i++) { // Start i from current length
-			mockCardDefinitions.push({
-				id: `spell-card-${i}`, // Differentiate from other test cards
-				name: `Test Card ${i}`,
-				type: CardType.Spell,
-				subTypes: [],
-				handCost: { total: 1, forest: 0, mountain: 0, water: 0 },
-				reserveCost: { total: 1, forest: 0, mountain: 0, water: 0 },
-				faction: 'Neutral',
-				statistics: { forest: 0, mountain: 0, water: 0 },
-				abilities: [],
-				rarity: 'Common',
-				version: '1.0'
-			});
+		// Simplified and explicit deck definitions for testing
+		const heroP1: ICardDefinition = { id: 'hero-001', name: 'Test Hero P1', type: CardType.Hero, subTypes: [], handCost: { total: 0, forest: 0, mountain: 0, water: 0 }, reserveCost: {total:0, forest: 0, mountain: 0, water: 0}, faction: 'Neutral', statistics: { forest: 1, mountain: 1, water: 1 }, abilities: [], rarity: 'Common', version: '1.0' };
+		const cardP1_1: ICardDefinition = { id: 'card-p1-001', name: 'Test Card P1-1', type: CardType.Spell, subTypes: [], handCost: { total: 1, forest: 0, mountain: 0, water: 0 }, reserveCost: {total:1, forest: 0, mountain: 0, water: 0}, faction: 'Neutral', statistics: {}, abilities: [], rarity: 'Common', version: '1.0' };
+		const heroP2: ICardDefinition = { id: 'hero-002', name: 'Test Hero P2', type: CardType.Hero, subTypes: [], handCost: { total: 0, forest: 0, mountain: 0, water: 0 }, reserveCost: {total:0, forest: 0, mountain: 0, water: 0}, faction: 'Neutral', statistics: { forest: 1, mountain: 1, water: 1 }, abilities: [], rarity: 'Common', version: '1.0' };
+		const cardP2_1: ICardDefinition = { id: 'card-p2-001', name: 'Test Card P2-1', type: CardType.Spell, subTypes: [], handCost: { total: 1, forest: 0, mountain: 0, water: 0 }, reserveCost: {total:1, forest: 0, mountain: 0, water: 0}, faction: 'Neutral', statistics: {}, abilities: [], rarity: 'Common', version: '1.0' };
+
+		const player1Deck: ICardDefinition[] = [heroP1, cardP1_1];
+		const player2Deck: ICardDefinition[] = [heroP2, cardP2_1];
+
+		// Add enough filler cards to meet minimum deck size if initializeGame requires it (e.g., for drawing cards)
+		// Assuming a small number for tests to pass initialization, e.g., 6 cards to draw + some for mana.
+		// Actual game rules are 39 non-hero + 1 hero. For testing GameStateManager construction and basic init, 10 might be enough.
+		for(let i = player1Deck.length; i < 10; i++) { // Ensure enough cards
+			player1Deck.push({id: `p1-filler-${i}`, name: `P1 Filler ${i}`, type: CardType.Spell, subTypes: [], handCost: {total:1, forest:0,mountain:0,water:0}, reserveCost: {total:1, forest:0,mountain:0,water:0}, faction:'Neutral', abilities:[], rarity:'Common', version:'1.0', statistics: {}});
+		}
+		for(let i = player2Deck.length; i < 10; i++) { // Ensure enough cards
+			player2Deck.push({id: `p2-filler-${i}`, name: `P2 Filler ${i}`, type: CardType.Spell, subTypes: [], handCost: {total:1, forest:0,mountain:0,water:0}, reserveCost: {total:1, forest:0,mountain:0,water:0}, faction:'Neutral', abilities:[], rarity:'Common', version:'1.0', statistics: {}});
 		}
 
-		gameStateManager = new GameStateManager(['player1', 'player2'], mockCardDefinitions, eventBus);
+		const playerDeckDefinitions = new Map<string, ICardDefinition[]>();
+		playerDeckDefinitions.set('player1', player1Deck);
+		playerDeckDefinitions.set('player2', player2Deck);
+
+		gameStateManager = new GameStateManager(playerDeckDefinitions, eventBus);
 	});
 
 	describe('Rule 4.1: Game Setup Phase', () => {
@@ -829,5 +788,237 @@ describe('GameStateManager - Rule Compliance Tests', () => {
 			expect(p1.zones.reserveZone.getCount()).toBe(1);
 			expect(p1.zones.discardPileZone.getCount()).toBe(3); // r2, r3, l2
 		});
+	});
+});
+
+describe('moveEntity - Counter Handling (Rule 2.5.j & related)', () => {
+	let gsm: GameStateManager;
+	let eventBusLocal: EventBus;
+	let testPlayerId: string;
+	let testCardDefs: ICardDefinition[];
+
+	const charDefId = 'test-char-counters';
+	const seasonedCharDefId = 'seasoned-char-counters';
+	const landmarkDefId = 'test-landmark-counters';
+	const seasonedLandmarkDefId = 'seasoned-landmark-counters';
+
+	beforeEach(() => { // Removed async
+		eventBusLocal = new EventBus();
+		testPlayerId = 'player1';
+
+		// Define card definitions specifically for this test suite
+		testCardDefs = [
+			// No hero needed for these specific tests if not running full initializeGame
+			{
+				id: charDefId, name: 'Test Character', type: CardType.Character, subTypes: [],
+				handCost: 1, // Keep simple handCost/reserveCost as numbers for ICardDefinition
+				reserveCost: 1, faction: 'Neutral', statistics: { forest: 1, mountain: 1, water: 1 },
+				abilities: [], rarity: 'Common', version: '1.0'
+			},
+			{
+				id: seasonedCharDefId, name: 'Seasoned Character', type: CardType.Character, subTypes: [],
+				handCost: 1, reserveCost: 1, faction: 'Neutral', statistics: { forest: 1, mountain: 1, water: 1 },
+				abilities: [{ abilityId: 'seasonedAb', type: AbilityType.Passive, keyword: KeywordAbility.Seasoned, effect: {steps: []} }], // Using KeywordAbility directly
+				rarity: 'Common', version: '1.0'
+			},
+			{
+				id: landmarkDefId, name: 'Test Landmark', type: CardType.LandmarkPermanent, subTypes: [],
+				handCost: 1, reserveCost: 1, faction: 'Neutral', statistics: {},
+				abilities: [], rarity: 'Common', version: '1.0'
+			},
+			{
+				id: seasonedLandmarkDefId, name: 'Seasoned Landmark', type: CardType.LandmarkPermanent, subTypes: [],
+				handCost: 1, reserveCost: 1, faction: 'Neutral', statistics: {},
+				abilities: [{ abilityId: 'seasonedLandAb',type: AbilityType.Passive, keyword: KeywordAbility.Seasoned, effect: {steps: []} }], // Using KeywordAbility directly
+				rarity: 'Common', version: '1.0'
+			},
+		];
+
+		// Minimal playerDeckDefinitions for GameStateManager constructor, may not be strictly needed if not calling initializeGame
+		const playerDeckDefinitions = new Map<string, ICardDefinition[]>();
+		playerDeckDefinitions.set(testPlayerId, []); // Empty deck for player1
+		playerDeckDefinitions.set('player2', []);    // Empty deck for player2
+
+		gsm = new GameStateManager(playerDeckDefinitions, eventBusLocal);
+
+		// Manually setup ObjectFactory with definitions needed for these tests
+		const cardDefinitionsForFactory = new Map<string, ICardDefinition>(testCardDefs.map(def => [def.id, def]));
+		gsm.objectFactory = new ObjectFactory(cardDefinitionsForFactory);
+		// Ensure allCardDefinitions is also set on gsm if other parts of GSM use it directly
+		(gsm as any).allCardDefinitions = cardDefinitionsForFactory;
+
+
+		// Manually setup basic player state and zones, bypassing full initializeGame
+		const player1Zones = {
+			handZone: new HandZone(`${testPlayerId}-hand`, testPlayerId),
+			reserveZone: new GenericZone(`${testPlayerId}-reserve`, ZoneIdentifier.Reserve, 'visible', testPlayerId),
+			discardPileZone: new DiscardPileZone(`${testPlayerId}-discard`, testPlayerId),
+			landmarkZone: new GenericZone(`${testPlayerId}-landmark`, ZoneIdentifier.Landmark, 'visible', testPlayerId),
+			// other zones as needed by tests
+		};
+		gsm.state.players.set(testPlayerId, {
+			id: testPlayerId,
+			zones: player1Zones,
+			// ... other minimal player properties
+		} as any);
+
+		// Setup shared zones if they are used directly by moveEntity or createAndPlaceObject
+		gsm.state.sharedZones.expedition = new GenericZone('shared-expedition', ZoneIdentifier.Expedition, 'visible', 'shared');
+		gsm.state.sharedZones.limbo = new LimboZone(); // LimboZone might have specific logic
+
+		// Ensure ruleAdjudicator is present if applyAllPassiveAbilities is called
+		// gsm.ruleAdjudicator = new RuleAdjudicator(gsm); // Already created in GSM constructor
+
+	});
+
+	// Adjusted createAndPlaceObject to use the manually set up gsm and its objectFactory
+	const createAndPlaceObject = (defId: string, zoneIdentifier: ZoneIdentifier, initialCounters?: Map<CounterType, number>): IGameObject => {
+		const player = gsm.getPlayer(testPlayerId)!;
+		expect(player).toBeDefined(); // Ensure player setup worked
+
+		// Use the gsm.objectFactory that was manually set up
+		const object = gsm.objectFactory.createCard(defId, testPlayerId);
+		expect(object).toBeDefined();
+		if(!object) throw new Error(`Failed to create object for defId: ${defId}`);
+
+
+		if (initialCounters) {
+			object.counters = new Map(initialCounters);
+		}
+
+		// Apply passives to ensure currentCharacteristics (like keywords) are populated
+		// This is crucial for Seasoned keyword to be recognized by moveEntity
+		gsm.ruleAdjudicator.applyAllPassiveAbilities();
+
+		let targetZone;
+		if (zoneIdentifier === ZoneIdentifier.Expedition) {
+			targetZone = gsm.state.sharedZones.expedition;
+		} else if (zoneIdentifier === ZoneIdentifier.Limbo) {
+			targetZone = gsm.state.sharedZones.limbo;
+		} else if (zoneIdentifier === ZoneIdentifier.Landmark) {
+			targetZone = player.zones.landmarkZone;
+		} else if (zoneIdentifier === ZoneIdentifier.Reserve) {
+			targetZone = player.zones.reserveZone;
+		} else if (zoneIdentifier === ZoneIdentifier.Hand) {
+			targetZone = player.zones.handZone;
+		} else if (zoneIdentifier === ZoneIdentifier.DiscardPile) {
+			targetZone = player.zones.discardPileZone;
+		} else {
+			throw new Error(`Test setup: Target zone ${zoneIdentifier} not handled in createAndPlaceObject`);
+		}
+
+		expect(targetZone).toBeDefined();
+		targetZone.add(object);
+		return object;
+	};
+
+	test('a. Expedition to Reserve (Non-Seasoned): Loses all counters', () => {
+		const initialCounters = new Map<CounterType, number>([
+			[CounterType.Boost, 2],
+			[CounterType.Kelon, 3]
+		]);
+		const char = createAndPlaceObject(charDefId, ZoneIdentifier.Expedition, initialCounters);
+
+		const fromZone = gsm.state.sharedZones.expedition;
+		const toZone = gsm.getPlayer(testPlayerId)!.zones.reserveZone;
+
+		const movedChar = gsm.moveEntity(char.objectId, fromZone, toZone, testPlayerId) as IGameObject;
+
+		expect(movedChar).toBeDefined();
+		expect(isGameObject(movedChar)).toBe(true);
+		expect(movedChar.counters.size).toBe(0);
+		expect(movedChar.counters.get(CounterType.Boost)).toBeUndefined();
+		expect(movedChar.counters.get(CounterType.Kelon)).toBeUndefined();
+	});
+
+	test('b. Expedition to Reserve (Seasoned): Keeps Boost, loses Kelon', () => {
+		const initialCounters = new Map<CounterType, number>([
+			[CounterType.Boost, 2],
+			[CounterType.Kelon, 3]
+		]);
+		const char = createAndPlaceObject(seasonedCharDefId, ZoneIdentifier.Expedition, initialCounters);
+		// Manually ensure the Seasoned keyword is on currentCharacteristics for the test
+		// This should ideally be handled by RuleAdjudicator + ObjectFactory from card def abilities
+		if (char.currentCharacteristics.keywords) char.currentCharacteristics.keywords.add(KeywordAbility.Seasoned);
+		else char.currentCharacteristics.keywords = new Set([KeywordAbility.Seasoned]);
+
+
+		const fromZone = gsm.state.sharedZones.expedition;
+		const toZone = gsm.getPlayer(testPlayerId)!.zones.reserveZone;
+
+		const movedChar = gsm.moveEntity(char.objectId, fromZone, toZone, testPlayerId) as IGameObject;
+
+		expect(movedChar).toBeDefined();
+		expect(isGameObject(movedChar)).toBe(true);
+		expect(movedChar.counters.get(CounterType.Boost)).toBe(2);
+		expect(movedChar.counters.has(CounterType.Kelon)).toBe(false);
+		expect(movedChar.counters.size).toBe(1);
+	});
+
+	test('c. Landmark to Reserve (Seasoned Permanent): Keeps Boost, loses Kelon', () => {
+		const initialCounters = new Map<CounterType, number>([
+			[CounterType.Boost, 2],
+			[CounterType.Kelon, 3]
+		]);
+		const landmark = createAndPlaceObject(seasonedLandmarkDefId, ZoneIdentifier.Landmark, initialCounters);
+		// Manually ensure the Seasoned keyword
+		if (landmark.currentCharacteristics.keywords) landmark.currentCharacteristics.keywords.add(KeywordAbility.Seasoned);
+		else landmark.currentCharacteristics.keywords = new Set([KeywordAbility.Seasoned]);
+
+		const fromZone = gsm.getPlayer(testPlayerId)!.zones.landmarkZone;
+		const toZone = gsm.getPlayer(testPlayerId)!.zones.reserveZone;
+
+		const movedLandmark = gsm.moveEntity(landmark.objectId, fromZone, toZone, testPlayerId) as IGameObject;
+
+		expect(movedLandmark).toBeDefined();
+		expect(isGameObject(movedLandmark)).toBe(true);
+		expect(movedLandmark.counters.get(CounterType.Boost)).toBe(2);
+		expect(movedLandmark.counters.has(CounterType.Kelon)).toBe(false);
+		expect(movedLandmark.counters.size).toBe(1);
+	});
+
+	test('d. Expedition to Hand: Loses all counters (becomes CardInstance)', () => {
+		const initialCounters = new Map<CounterType, number>([[CounterType.Boost, 2]]);
+		const char = createAndPlaceObject(charDefId, ZoneIdentifier.Expedition, initialCounters);
+
+		const fromZone = gsm.state.sharedZones.expedition;
+		const toZone = gsm.getPlayer(testPlayerId)!.zones.handZone;
+
+		const movedEntity = gsm.moveEntity(char.objectId, fromZone, toZone, testPlayerId);
+
+		expect(movedEntity).toBeDefined();
+		// Entity in hand should be an ICardInstance, which doesn't have a 'counters' property
+		expect(isGameObject(movedEntity)).toBe(false);
+		expect((movedEntity as any).counters).toBeUndefined();
+	});
+
+	test('e. Expedition to Limbo: Loses all counters', () => {
+		const initialCounters = new Map<CounterType, number>([[CounterType.Boost, 2]]);
+		const char = createAndPlaceObject(charDefId, ZoneIdentifier.Expedition, initialCounters);
+
+		const fromZone = gsm.state.sharedZones.expedition;
+		const toZone = gsm.state.sharedZones.limbo;
+
+		const movedChar = gsm.moveEntity(char.objectId, fromZone, toZone, testPlayerId) as IGameObject;
+
+		expect(movedChar).toBeDefined();
+		expect(isGameObject(movedChar)).toBe(true);
+		expect(movedChar.counters.size).toBe(0);
+		expect(movedChar.counters.get(CounterType.Boost)).toBeUndefined();
+	});
+
+	test('f. Expedition to Discard: Loses all counters', () => {
+		const initialCounters = new Map<CounterType, number>([[CounterType.Boost, 2]]);
+		const char = createAndPlaceObject(charDefId, ZoneIdentifier.Expedition, initialCounters);
+
+		const fromZone = gsm.state.sharedZones.expedition;
+		const toZone = gsm.getPlayer(testPlayerId)!.zones.discardPileZone;
+
+		const movedChar = gsm.moveEntity(char.objectId, fromZone, toZone, testPlayerId) as IGameObject;
+
+		expect(movedChar).toBeDefined();
+		expect(isGameObject(movedChar)).toBe(true);
+		expect(movedChar.counters.size).toBe(0);
+		expect(movedChar.counters.get(CounterType.Boost)).toBeUndefined();
 	});
 });

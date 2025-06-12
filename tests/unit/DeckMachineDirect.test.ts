@@ -126,7 +126,7 @@ vi.mock('../../src/data/cards', async (importOriginal) => {
 
 	return {
 		...actual,
-		getCardById: vi.fn((cardId: string) => {
+		getCardById: vi.fn((cardId: string) => { // Using vi.fn here as it was in the original error log context
 			if (mockCardsDb.has(cardId)) {
 				return Promise.resolve(mockCardsDb.get(cardId) ?? null);
 			}

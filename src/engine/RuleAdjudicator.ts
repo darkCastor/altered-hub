@@ -413,9 +413,9 @@ export class RuleAdjudicator {
 							const objectRef = parts[0]; // "source", "target"
 							const charRef = parts[1];   // "power", "health"
 
-							let objectIdA ReadsFrom: string | undefined = undefined;
+							let objectIdAReadsFrom: string | undefined = undefined;
 							if (objectRef === 'source' || objectRef === 'self') {
-								objectIdA ReadsFrom = abilityA.sourceObjectId;
+								objectIdAReadsFrom = abilityA.sourceObjectId;
 							} else if (objectRef === 'target') {
 								// This is hard. Which target? If stepA has multiple targets, or if target is chosen.
 								// For now, assume if B modifies this char on *any* of its targets, and A reads this char from *its* target.
@@ -429,8 +429,8 @@ export class RuleAdjudicator {
 								const modifiedCharByStepB = this.getCharacteristicModifiedByStepB(stepB);
 								if (modifiedCharByStepB && modifiedCharByStepB.characteristic === charRef) {
 									// Now check if B's targets include the object A reads from
-									if (objectIdA ReadsFrom && targetIdsOfB.includes(objectIdA ReadsFrom)) {
-										console.log(`Dependency (Effect Magnitude): ${abilityA.abilityId} (reads ${charRef} from ${objectIdA ReadsFrom}) depends on ${abilityB.abilityId} (modifies ${charRef} on ${objectIdA ReadsFrom})`);
+									if (objectIdAReadsFrom && targetIdsOfB.includes(objectIdAReadsFrom)) {
+										console.log(`Dependency (Effect Magnitude): ${abilityA.abilityId} (reads ${charRef} from ${objectIdAReadsFrom}) depends on ${abilityB.abilityId} (modifies ${charRef} on ${objectIdAReadsFrom})`);
 										return true;
 									}
 									// If A reads from 'target' and B modifies that characteristic on one of its targets,
@@ -510,6 +510,10 @@ export class RuleAdjudicator {
 		} else if (verb === 'moveTo' || verb === 'move_to' || verb === 'put_in_zone' || verb === 'putinzone') {
 			return { characteristic: 'zone', modificationType: 'zone' }; // Object's zone changes
 		}
+		// The following block was identified as misplaced and refers to variables (abilityA, targetIdsOfB) not in this scope.
+		// It seems like a copy-paste error from the doesADependOnB method or a similar context.
+		// Removing this block to fix syntax and scope errors within getCharacteristicModifiedByStepB.
+		/*
 			// This applies if B targets *any* object, and A's criteria might now match or unmatch.
 			if (abilityA.effect.targetCriteria) { // Assuming targetCriteria holds conditions for A's targets
 				const criteria = abilityA.effect.targetCriteria as any; // Cast to any for dynamic property access
@@ -521,7 +525,7 @@ export class RuleAdjudicator {
 					if (stepB.verb === 'set_characteristic' || stepB.verb === 'setCharacteristic') {
 						const char = stepB.parameters?.characteristic as string;
 						const val = stepB.parameters?.value;
-						if (criteria.type && char === 'type' && (val === criteria.type /* becomes relevant */ || this.gsm.getObject(targetIdOfB)?.currentCharacteristics.type === criteria.type /* was relevant */)) return true;
+						if (criteria.type && char === 'type' && (val === criteria.type || this.gsm.getObject(targetIdOfB)?.currentCharacteristics.type === criteria.type)) return true;
 						if (criteria.subType && char === 'subType' && (val === criteria.subType || this.gsm.getObject(targetIdOfB)?.currentCharacteristics.subTypes?.includes(criteria.subType))) return true;
 						if (criteria.controller && char === 'controllerId' && (val === criteria.controller || this.gsm.getObject(targetIdOfB)?.controllerId === criteria.controller )) return true;
 						// Add other characteristics like power, health if criteria can use them.
@@ -564,12 +568,12 @@ export class RuleAdjudicator {
 			// Rule 2.3.2.f (What A Does): B changes a characteristic that A's *effect* relies on.
 			// This is about the *magnitude* or *nature* of A's effect changing.
 			// Heuristic: Check if B modifies a characteristic that A's text mentions.
-			const characteristicModifiedByBInStep = this.getCharacteristicModifiedByStepB(stepB);
+			const characteristicModifiedByBInStep = this.getCharacteristicModifiedByStepB(stepB); // Recursive call here, ensure base case or guard
 
-			if (characteristicModifiedByBInStep) {
+			if (characteristicModifiedByBInStep) { // characteristicModifiedByBInStep is an object, not a string here due to previous fix
 				// 2.3.2.f.i: B changes a characteristic of A's source object that A's effect relies on.
-				if (targetIdsOfB.includes(sourceA.objectId)) {
-					const characteristicRegex = new RegExp(`\\b${characteristicModifiedByBInStep}\\b`, 'i');
+				if (targetIdsOfB.includes(sourceA.objectId)) { // sourceA not in scope
+					const characteristicRegex = new RegExp(`\\b${characteristicModifiedByBInStep.characteristic}\\b`, 'i');
 					if (abilityA.text.match(characteristicRegex)) {
 						// Example: A says "Draw cards equal to my power", B changes sourceA's power.
 						return true;
@@ -583,8 +587,8 @@ export class RuleAdjudicator {
 				// Heuristic: If B changes a characteristic on *any* object, and A's text mentions that characteristic,
 				// and A's effect *could* plausibly read that characteristic from an object it affects or queries.
 				// This is a broad heuristic and might cause over-dependency.
-				if (targetIdsOfB.some((id) => id !== sourceA.objectId)) {
-					const characteristicRegex = new RegExp(`\\b${characteristicModifiedByBInStep}\\b`, 'i');
+				if (targetIdsOfB.some((id) => id !== sourceA.objectId)) { // sourceA not in scope
+					const characteristicRegex = new RegExp(`\\b${characteristicModifiedByBInStep.characteristic}\\b`, 'i');
 					if (abilityA.text.match(characteristicRegex)) {
 						// Example: A is "All Goblins get +1/+1 for each artifact you control".
 						// B changes an artifact's characteristic (e.g. makes it not an artifact, or changes a count).
@@ -593,30 +597,12 @@ export class RuleAdjudicator {
 					}
 				}
 			}
-		}
-		return false;
+		*/
+		return null; // Default return for getCharacteristicModifiedByStepB
 	}
 
-	/**
-	 * Helper to identify what characteristic a step of B might modify.
-	 * Used for Rule 2.3.2.f heuristics.
-	 */
-	private getCharacteristicModifiedByStepB(stepB: IEffectStep): string | null {
-		if (stepB.verb === 'modify_statistics' || stepB.verb === 'modifyStatistics') {
-			if (stepB.parameters?.power) return 'power';
-			if (stepB.parameters?.health) return 'health';
-			// Add other stats if they are distinct characteristics mentioned in text
-		} else if (stepB.verb === 'set_characteristic' || stepB.verb === 'setCharacteristic') {
-			return stepB.parameters?.characteristic as string;
-		} else if (stepB.verb === 'add_subtype' || stepB.verb === 'addSubtype' || stepB.verb === 'remove_subtype' || stepB.verb === 'removeSubtype') {
-			return 'subType'; // Or 'subTypes'
-		} else if (stepB.verb === 'grant_keyword' || stepB.verb === 'grantKeyword' || stepB.verb === 'lose_keyword' || stepB.verb === 'loseKeyword') {
-			return stepB.parameters?.keyword as string; // e.g. "Eternal", "Defender"
-		}
-		// Other verbs like 'change_controller', 'set_zone' could also be here.
-		return null;
-	}
-
+	// Removed duplicate/simpler getCharacteristicModifiedByStepB method
+	// The more detailed one returning an object is kept above.
 
 	private sortAbilitiesByDependency(abilities: IAbility[]): IAbility[] {
 		let unappliedAbilities = [...abilities];
