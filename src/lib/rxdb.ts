@@ -90,7 +90,7 @@ export const cardSchema = {
 	type: 'object',
 	properties: {
 		id: { type: 'string', maxLength: 100 }, // Example maxLength, adjust if needed
-		name: { type: 'string' },
+		name: { type: 'string', maxLength: 255 },
 		imageUrl: { type: 'string' },
 		qrUrl: { type: 'string' },
 		type: { type: 'string' },
