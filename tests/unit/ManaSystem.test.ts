@@ -122,7 +122,78 @@ describe('ManaSystem - Mana and Terrain Rules', () => {
 			expect(conversionResult).toBe(true);
 			expect(manaOrbs[0].statuses.has(StatusType.Exhausted)).toBe(true);
 			expect(manaOrbs[1].statuses.has(StatusType.Exhausted)).toBe(false);
+
+			// Check for event publication
+			expect(eventBus.publish).toHaveBeenCalledWith('manaOrbConverted', {
+				playerId: 'player1',
+				exhaustedOrbId: manaOrbs[0].objectId,
+				readiedOrbId: manaOrbs[1].objectId
+			});
 		});
+
+		test('convertMana: Fail if Source Orb is Already Exhausted', () => {
+			const player = gameStateManager.getPlayer('player1');
+			if (!player) throw new Error('Player not found');
+			const manaOrbs = player.zones.manaZone.getAll().filter(isGameObject);
+			if (manaOrbs.length < 2) throw new Error('Not enough mana orbs for test');
+
+			const sourceOrb = manaOrbs[0];
+			const targetOrb = manaOrbs[1];
+
+			sourceOrb.statuses.add(StatusType.Exhausted); // Source is exhausted
+			targetOrb.statuses.add(StatusType.Exhausted); // Target is exhausted
+
+			const conversionResult = manaSystem.convertMana(player.id, sourceOrb.objectId, targetOrb.objectId);
+
+			expect(conversionResult).toBe(false);
+			expect(sourceOrb.statuses.has(StatusType.Exhausted)).toBe(true); // Remains exhausted
+			expect(targetOrb.statuses.has(StatusType.Exhausted)).toBe(true); // Remains exhausted
+		});
+
+		test('convertMana: Fail if Target Orb is Already Ready', () => {
+			const player = gameStateManager.getPlayer('player1');
+			if (!player) throw new Error('Player not found');
+			const manaOrbs = player.zones.manaZone.getAll().filter(isGameObject);
+			if (manaOrbs.length < 2) throw new Error('Not enough mana orbs for test');
+
+			const sourceOrb = manaOrbs[0];
+			const targetOrb = manaOrbs[1];
+
+			sourceOrb.statuses.delete(StatusType.Exhausted); // Source is ready
+			targetOrb.statuses.delete(StatusType.Exhausted); // Target is ready
+
+			const conversionResult = manaSystem.convertMana(player.id, sourceOrb.objectId, targetOrb.objectId);
+
+			expect(conversionResult).toBe(false);
+			expect(sourceOrb.statuses.has(StatusType.Exhausted)).toBe(false); // Remains ready
+			expect(targetOrb.statuses.has(StatusType.Exhausted)).toBe(false); // Remains ready
+		});
+
+		test('convertMana: Fail with invalid orb IDs', () => {
+			const player = gameStateManager.getPlayer('player1');
+			if (!player) throw new Error('Player not found');
+			const manaOrbs = player.zones.manaZone.getAll().filter(isGameObject);
+			if (manaOrbs.length < 1) throw new Error('Not enough mana orbs for test');
+
+			const validOrb = manaOrbs[0];
+			validOrb.statuses.delete(StatusType.Exhausted); // Make it ready
+
+			// Test 1: Invalid source ID
+			let conversionResult = manaSystem.convertMana(player.id, 'invalid-source-id', validOrb.objectId);
+			expect(conversionResult).toBe(false);
+
+			// Test 2: Invalid target ID (source needs to be valid and ready, target exhausted)
+			const sourceOrbForTargetTest = manaOrbs[0]; // A valid orb
+			sourceOrbForTargetTest.statuses.delete(StatusType.Exhausted); // ensure ready
+
+			// Need an exhausted orb to attempt to ready an invalid one, if not already present.
+			// This part of the test is tricky because the target must be exhausted.
+			// If we use a valid orb as source, and an invalid as target, the target won't be found.
+			// The function should return false early.
+			conversionResult = manaSystem.convertMana(player.id, sourceOrbForTargetTest.objectId, 'invalid-target-id');
+			expect(conversionResult).toBe(false);
+		});
+
 
 		test('Rule 3.2.9.f: Should pay X mana by exhausting X Mana Orbs', () => {
 			const player = gameStateManager.getPlayer('player1');

@@ -167,13 +167,15 @@ describe('GameStateManager - Status Rule Compliance (Rule 2.4)', () => {
 			P1
 		);
 		sleepyChar.statuses.add(StatusType.Asleep);
-		player.zones.expeditionZone.add(sleepyChar);
+		sleepyChar.expeditionAssignment = { playerId: P1, type: 'hero' }; // Assign for calculateExpeditionStats
+		gsm.state.sharedZones.expedition.add(sleepyChar);
 
 		const normalChar = gsm.objectFactory.createGameObject(
 			gsm.objectFactory.createCardInstance(cardDef_NormalChar.id, P1),
 			P1
 		);
-		player.zones.expeditionZone.add(normalChar);
+		normalChar.expeditionAssignment = { playerId: P1, type: 'hero' }; // Assign for calculateExpeditionStats
+		gsm.state.sharedZones.expedition.add(normalChar);
 
 		// Manually trigger stat calculation for P1's hero expedition (assuming it's one of them)
 		const stats = gsm.calculateExpeditionStats(P1, 'hero');
@@ -185,7 +187,7 @@ describe('GameStateManager - Status Rule Compliance (Rule 2.4)', () => {
 	// Rule 2.4.3.b & 2.4.2.b: During Rest, Asleep/Anchored Characters are not sent to Reserve and lose Asleep/Anchored.
 	test('Rule 2.4.3.b / 2.4.2.b: Asleep/Anchored characters are not sent to Reserve and lose status during Rest', async () => {
 		const player = gsm.getPlayer(P1)!;
-		const expeditionZone = player.zones.expeditionZone;
+		const sharedExpeditionZone = gsm.state.sharedZones.expedition;
 		const reserveZone = player.zones.reserveZone;
 
 		const sleepyChar = gsm.objectFactory.createGameObject(
@@ -193,41 +195,43 @@ describe('GameStateManager - Status Rule Compliance (Rule 2.4)', () => {
 			P1
 		);
 		sleepyChar.statuses.add(StatusType.Asleep);
-		expeditionZone.add(sleepyChar);
+		sleepyChar.expeditionAssignment = { playerId: P1, type: 'hero' };
+		sharedExpeditionZone.add(sleepyChar);
 		const sleepyCharId = sleepyChar.objectId;
 
 		const anchoredChar = gsm.objectFactory.createGameObject(
 			gsm.objectFactory.createCardInstance(cardDef_AsleepAnchoredChar.id, P1),
 			P1 // Use same def for simplicity
 		);
-		anchoredChar.instanceId = 'anchoredCharInst'; // different instance
+		// anchoredChar.instanceId = 'anchoredCharInst'; // objectId will be unique
 		anchoredChar.statuses.add(StatusType.Anchored);
-		expeditionZone.add(anchoredChar);
+		anchoredChar.expeditionAssignment = { playerId: P1, type: 'hero' };
+		sharedExpeditionZone.add(anchoredChar);
 		const anchoredCharId = anchoredChar.objectId;
 
 		const normalChar = gsm.objectFactory.createGameObject(
 			gsm.objectFactory.createCardInstance(cardDef_NormalChar.id, P1),
 			P1
 		);
-		expeditionZone.add(normalChar);
+		normalChar.expeditionAssignment = { playerId: P1, type: 'hero' };
+		sharedExpeditionZone.add(normalChar);
 		const normalCharId = normalChar.objectId;
 
 		// Simulate that the player's expeditions moved forward to trigger Rest actions
 		player.heroExpedition.hasMoved = true;
-		player.companionExpedition.hasMoved = true;
+		// player.companionExpedition.hasMoved = true; // Not needed if all are hero assigned
 
 		await gsm.restPhase();
 
-		expect(expeditionZone.findById(sleepyCharId)).toBeDefined(); // Stays in expedition
-		expect(reserveZone.findById(sleepyCharId)).toBeUndefined();
+		expect(sharedExpeditionZone.findById(sleepyCharId)).toBeDefined(); // Stays in expedition
+		expect(reserveZone.findById(sleepyCharId)).toBeUndefined(); // Object ID would change on move anyway
 		expect(gsm.getObject(sleepyCharId)?.statuses.has(StatusType.Asleep)).toBe(false); // Loses Asleep
 
-		expect(expeditionZone.findById(anchoredCharId)).toBeDefined(); // Stays in expedition
+		expect(sharedExpeditionZone.findById(anchoredCharId)).toBeDefined(); // Stays in expedition
 		expect(reserveZone.findById(anchoredCharId)).toBeUndefined();
 		expect(gsm.getObject(anchoredCharId)?.statuses.has(StatusType.Anchored)).toBe(false); // Loses Anchored
 
-		expect(expeditionZone.findById(normalCharId)).toBeUndefined(); // Normal char goes to reserve
-		// Find by definitionId as objectId changes on move
+		expect(sharedExpeditionZone.findById(normalCharId)).toBeUndefined(); // Normal char goes to reserve
 		const normalCharInReserve = reserveZone
 			.getAll()
 			.find((o) => isGameObject(o) && o.definitionId === cardDef_NormalChar.id);
@@ -237,7 +241,7 @@ describe('GameStateManager - Status Rule Compliance (Rule 2.4)', () => {
 	// Rule 2.4.6.d: If a Fleeting Character or Expedition Permanent would go to the Reserve from the Expedition zone, it is discarded instead.
 	test('Rule 2.4.6.d: Fleeting character is discarded instead of going to Reserve during Rest', async () => {
 		const player = gsm.getPlayer(P1)!;
-		const expeditionZone = player.zones.expeditionZone;
+		const sharedExpeditionZone = gsm.state.sharedZones.expedition;
 		const reserveZone = player.zones.reserveZone;
 		const discardPile = player.zones.discardPileZone;
 
@@ -245,20 +249,17 @@ describe('GameStateManager - Status Rule Compliance (Rule 2.4)', () => {
 			gsm.objectFactory.createCardInstance(cardDef_FleetingChar.id, P1),
 			P1
 		);
-		// Fleeting is typically applied on play from reserve. Here, we simulate it being active.
-		// The StatusEffectHandler or game logic should correctly apply Fleeting.
-		// For this test, we'll manually add it.
 		fleetingChar.statuses.add(StatusType.Fleeting);
-		expeditionZone.add(fleetingChar);
+		fleetingChar.expeditionAssignment = { playerId: P1, type: 'hero' };
+		sharedExpeditionZone.add(fleetingChar);
 		const fleetingCharId = fleetingChar.objectId;
 
 		player.heroExpedition.hasMoved = true; // Simulate expedition moved
 
 		await gsm.restPhase();
 
-		expect(expeditionZone.findById(fleetingCharId)).toBeUndefined();
-		expect(reserveZone.findById(fleetingCharId)).toBeUndefined();
-		// Find by definitionId as objectId changes on move
+		expect(sharedExpeditionZone.findById(fleetingCharId)).toBeUndefined();
+		expect(reserveZone.getAll().find(o => isGameObject(o) && o.definitionId === cardDef_FleetingChar.id)).toBeUndefined();
 		const fleetingCharInDiscard = discardPile
 			.getAll()
 			.find((o) => isGameObject(o) && o.definitionId === cardDef_FleetingChar.id);
@@ -272,11 +273,11 @@ describe('GameStateManager - Status Rule Compliance (Rule 2.4)', () => {
 			gsm.objectFactory.createCardInstance(cardDef_NormalChar.id, P1),
 			P1
 		);
-		player.zones.expeditionZone.add(normalCharObj);
+		normalCharObj.expeditionAssignment = { playerId: P1, type: 'hero' };
+		gsm.state.sharedZones.expedition.add(normalCharObj);
 
 		// Initial state: no boost counters, no Boosted status
-		// Explicitly call status update after adding to zone to ensure initial state is clean
-		await gsm.statusUpdater.updateObjectStatusBasedOnCounters(normalCharObj); // Hypothetical method
+		gsm.statusHandler.updateBoostedStatus(normalCharObj); // Use actual handler
 		expect(normalCharObj.counters.get(CounterType.Boost) || 0).toBe(0);
 		expect(normalCharObj.statuses.has(StatusType.Boosted)).toBe(false);
 		let stats = gsm.calculateExpeditionStats(P1, 'hero'); // Assumes normalCharObj is part of hero expedition
@@ -397,10 +398,11 @@ describe('GameStateManager - Status Rule Compliance (Rule 2.4)', () => {
 
 		test('Rule 2.4.5.a (T-cost): Character becomes Exhausted after paying a T (Exhaust me) cost', async () => {
 			const player = gsm.getPlayer(P1)!;
-			const charInst = gsm.objectFactory.createCardInstance(cardDef_CharWithTapAbility.id, P1);
+		const charInst = gsm.objectFactory.createCardInstance(cardDef_CharWithTapAbility.id, P1);
 			const charObject = gsm.objectFactory.createGameObject(charInst, P1);
-			player.zones.expeditionZone.add(charObject);
-			gsm.ruleAdjudicator.applyAllPassiveAbilities(); // Apply any initial passives
+		charObject.expeditionAssignment = { playerId: P1, type: 'hero' };
+		gsm.state.sharedZones.expedition.add(charObject);
+		// gsm.ruleAdjudicator.applyAllPassiveAbilities(); // Not strictly needed if abilities are on def
 
 			expect(charObject.statuses.has(StatusType.Exhausted)).toBe(false); // Starts ready
 
@@ -429,7 +431,8 @@ describe('GameStateManager - Status Rule Compliance (Rule 2.4)', () => {
 				gsm.objectFactory.createCardInstance(cardDef_NormalChar.id, P1),
 				P1
 			);
-			player.zones.expeditionZone.add(charObject);
+		charObject.expeditionAssignment = { playerId: P1, type: 'hero' };
+		gsm.state.sharedZones.expedition.add(charObject);
 			charObject.statuses.add(StatusType.Asleep); // Pre-set Asleep status
 			expect(charObject.statuses.has(StatusType.Asleep)).toBe(true);
 
@@ -459,7 +462,8 @@ describe('GameStateManager - Status Rule Compliance (Rule 2.4)', () => {
 				gsm.objectFactory.createCardInstance(cardDef_NormalChar.id, P1),
 				P1
 			);
-			player.zones.expeditionZone.add(charObject);
+		charObject.expeditionAssignment = { playerId: P1, type: 'hero' };
+		gsm.state.sharedZones.expedition.add(charObject);
 			expect(charObject.statuses.has(StatusType.Asleep)).toBe(false); // Not Asleep
 
 			// Action: Apply an effect that removes StatusType.Asleep.
@@ -539,7 +543,8 @@ describe('GameStateManager - Status Rule Compliance (Rule 2.4)', () => {
 			const charInExpInst = gsm.objectFactory.createCardInstance(cardDef_NormalChar.id, P1);
 			const exhaustedCharInExp = gsm.objectFactory.createGameObject(charInExpInst, P1);
 			exhaustedCharInExp.statuses.add(StatusType.Exhausted);
-			player.zones.expeditionZone.add(exhaustedCharInExp);
+			exhaustedCharInExp.expeditionAssignment = { playerId: P1, type: 'hero' };
+			gsm.state.sharedZones.expedition.add(exhaustedCharInExp);
 			expect(exhaustedCharInExp.statuses.has(StatusType.Exhausted)).toBe(true);
 
 			// Setup Exhausted card (as object to hold status) in Reserve
@@ -558,7 +563,9 @@ describe('GameStateManager - Status Rule Compliance (Rule 2.4)', () => {
 			await gsm.preparePhase(); // This method should iterate and remove Exhausted status
 
 			// Assertion
-			const charAfterPrepare = player.zones.expeditionZone.findById(exhaustedCharInExp.objectId);
+			const charAfterPrepare = gsm.state.sharedZones.expedition.getAll().find(
+				o => isGameObject(o) && o.objectId === exhaustedCharInExp.objectId && o.controllerId === P1
+			);
 			expect(charAfterPrepare).toBeDefined();
 			expect(charAfterPrepare?.statuses.has(StatusType.Exhausted)).toBe(false);
 

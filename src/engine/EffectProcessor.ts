@@ -990,40 +990,53 @@ export class EffectProcessor {
 					return [];
 				case 'objects_matching_criteria':
 				case 'select':
-					console.log(`[EffectProcessor] Complex target selection for type '${spec.type}' with criteria '${JSON.stringify(spec.criteria)}' not yet fully implemented. Requires player choice or advanced filtering.`);
-					if (sourceObjectForContext && spec.criteria?.zone === 'self_hero_expedition' && spec.criteria?.cardType === 'Character') {
+					// console.log(`[EffectProcessor] Complex target selection for type '${spec.type}' with criteria '${JSON.stringify(spec.criteria)}'.`);
+					if (sourceObjectForContext && spec.criteria?.zone === 'self_hero_expedition' && spec.criteria?.cardType === CardType.Character) {
 						return this.gsm.getObjectsInExpedition(sourceObjectForContext.controllerId, 'hero')
-				.filter(obj => obj.type === CardType.Character);
+							.filter(obj => obj.type === CardType.Character);
 					}
-		if (sourceObjectForContext && spec.criteria?.zone) {
-			const targetCardType = spec.criteria.cardType as CardType | undefined;
-			let resolvedTargets: IGameObject[] = [];
-			let contexts: { playerId: string, type: 'hero' | 'companion' }[] = [];
+					if (sourceObjectForContext && spec.criteria?.zone === 'self_companion_expedition' && spec.criteria?.cardType === CardType.Character) {
+						return this.gsm.getObjectsInExpedition(sourceObjectForContext.controllerId, 'companion')
+							.filter(obj => obj.type === CardType.Character);
+					}
 
-			if (spec.criteria.zone === 'source_expeditions') {
-				contexts = this._getEffectiveExpeditionContexts(sourceObjectForContext, 'self');
-			} else if (spec.criteria.zone === 'opposing_expeditions_to_source') {
-				contexts = this._getEffectiveExpeditionContexts(sourceObjectForContext, 'opponent');
-			}
+					if (sourceObjectForContext && spec.criteria?.zone) {
+						const targetCardType = spec.criteria.cardType as CardType | undefined;
+						let resolvedTargets: IGameObject[] = [];
+						let contexts: { playerId: string, type: 'hero' | 'companion' }[] = [];
 
-			for (const ctx of contexts) {
-				const objectsInExpedition = this.gsm.getObjectsInExpedition(ctx.playerId, ctx.type);
-				objectsInExpedition.forEach(obj => {
-					if (!targetCardType || obj.type === targetCardType) {
-						if (!resolvedTargets.some(rt => rt.objectId === obj.objectId)) {
-							resolvedTargets.push(obj);
+						if (spec.criteria.zone === 'source_expeditions') { // Player's own hero and/or companion based on source
+							contexts = this._getEffectiveExpeditionContexts(sourceObjectForContext, 'self');
+						} else if (spec.criteria.zone === 'opposing_expeditions_to_source') { // Opponent's expeditions relative to source
+							contexts = this._getEffectiveExpeditionContexts(sourceObjectForContext, 'opponent');
+						} else if (spec.criteria.zone === 'all_expeditions') { // All expeditions of all players
+							this.gsm.getPlayerIds().forEach(pid => {
+								contexts.push({ playerId: pid, type: 'hero' });
+								contexts.push({ playerId: pid, type: 'companion' });
+							});
+						}
+						// Add more specific zone contexts if needed, e.g., 'controller_hero_expedition'
+
+						for (const ctx of contexts) {
+							const objectsInExpedition = this.gsm.getObjectsInExpedition(ctx.playerId, ctx.type);
+							objectsInExpedition.forEach(obj => {
+								if (!targetCardType || obj.type === targetCardType) {
+									// Ensure not to add duplicates if a Gigantic character matches multiple contexts
+									if (!resolvedTargets.some(rt => rt.objectId === obj.objectId)) {
+										resolvedTargets.push(obj);
+									}
+								}
+							});
+						}
+						if (contexts.length > 0) {
+							// TODO: Further filtering based on spec.criteria (e.g. specific keywords, stats, etc.)
+							// For now, just returning based on zone and card type.
+							return resolvedTargets;
 						}
 					}
-				});
-			}
-			if (contexts.length > 0) return resolvedTargets;
-		}
 
-		if (sourceObjectForContext?.currentCharacteristics.isGigantic && spec.criteria?.zone === 'source_other_expedition') {
-			return [];
-		}
-
-		console.warn(`[EffectProcessor] Complex target selection for type '${spec.type}' with criteria '${JSON.stringify(spec.criteria)}' partially unhandled or fell through.`);
+					// Fallback for unhandled or more complex criteria
+					console.warn(`[EffectProcessor] Complex target selection for type '${spec.type}' with criteria '${JSON.stringify(spec.criteria)}' requires player choice or more specific unhandled logic.`);
 					return [];
 				default:
 					console.warn(`[EffectProcessor] Unknown target object type: ${spec.type}`);

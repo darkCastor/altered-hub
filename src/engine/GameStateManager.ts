@@ -281,19 +281,13 @@ export class GameStateManager {
 		// Create shared zones first
 		const sharedZones = {
 			adventure: new GenericZone('shared-adventure', ZoneIdentifier.Adventure, 'visible'),
-			expedition: new GenericZone('shared-expedition', ZoneIdentifier.Expedition, 'visible'), // Changed ID, removed 'deprecated'
+			expedition: new GenericZone('shared-expedition', ZoneIdentifier.Expedition, 'visible'),
 			limbo: new LimboZone()
 		};
 
 		playerIds.forEach((pid) => {
 			const handZone = new HandZone(`${pid}-hand`, pid);
 			const reserveZone = new GenericZone(`${pid}-reserve`, ZoneIdentifier.Reserve, 'visible', pid);
-			// const expeditionZone = new GenericZone( // Removed: expedition zone is shared
-			// 	`${pid}-expedition`,
-			// 	ZoneIdentifier.Expedition,
-			// 	'visible',
-			// 	pid
-			// );
 			const discardPileZone = new DiscardPileZone(`${pid}-discard`, pid);
 
 			players.set(pid, {
@@ -306,11 +300,9 @@ export class GameStateManager {
 					reserveZone: reserveZone,
 					landmarkZone: new GenericZone(`${pid}-landmark`, ZoneIdentifier.Landmark, 'visible', pid),
 					heroZone: new GenericZone(`${pid}-hero`, ZoneIdentifier.Hero, 'visible', pid),
-					// expeditionZone: expeditionZone, // Removed
 					limboZone: sharedZones.limbo, // Reference to shared limbo zone
 					hand: handZone, // Alias for test compatibility
 					reserve: reserveZone, // Alias for test compatibility
-					// expedition: expeditionZone, // Alias removed
 					discardPile: discardPileZone // Alias for test compatibility
 				},
 				heroExpedition: { position: 0, canMove: true, hasMoved: false },
@@ -391,8 +383,12 @@ export class GameStateManager {
 					playerId
 				) as IGameObject;
 
-				if (manaObject && manaObject.statuses.has(StatusType.Exhausted)) {
-					manaObject.statuses.delete(StatusType.Exhausted);
+				if (manaObject) {
+					manaObject.faceDown = true; // Should be face-down
+					manaObject.type = CardType.ManaOrb; // Should become ManaOrb type
+					if (manaObject.statuses.has(StatusType.Exhausted)) {
+						manaObject.statuses.delete(StatusType.Exhausted); // Initial orbs start ready
+					}
 				}
 			}
 
@@ -571,10 +567,9 @@ export class GameStateManager {
 			yield player.zones.reserveZone;    // Corrected: reserve -> reserveZone (using the primary, not alias)
 			yield player.zones.landmarkZone;
 			yield player.zones.heroZone;
-			// yield player.zones.expeditionZone; // Removed: expedition zone is shared
 		}
 		yield this.state.sharedZones.adventure;
-		yield this.state.sharedZones.expedition; // Added shared expedition zone
+		yield this.state.sharedZones.expedition;
 		yield this.state.sharedZones.limbo;
 	}
 
@@ -784,7 +779,7 @@ export class GameStateManager {
 			case ZoneIdentifier.Hero:
 				return player.zones.heroZone;
 			case ZoneIdentifier.Expedition:
-				return this.state.sharedZones.expedition; // Changed to shared expedition zone
+				return this.state.sharedZones.expedition;
 			case ZoneIdentifier.Limbo:
 				return this.state.sharedZones.limbo;
 			case ZoneIdentifier.Adventure:
@@ -1280,6 +1275,29 @@ export class GameStateManager {
 	}
 
 	/**
+	 * Retrieves all game objects within a specific conceptual expedition (hero or companion) for a given player.
+	 * This includes Gigantic characters of that player, as they are considered part of both.
+	 * @param playerId The ID of the player.
+	 * @param type The type of expedition ('hero' or 'companion').
+	 * @returns An array of IGameObject arrays.
+	 */
+	public getObjectsInExpedition(playerId: string, type: 'hero' | 'companion'): IGameObject[] {
+		const expeditionZone = this.state.sharedZones.expedition;
+		return expeditionZone.getAll().filter((obj): obj is IGameObject => {
+			if (!isGameObject(obj) || obj.controllerId !== playerId) {
+				return false;
+			}
+			// Gigantic characters count for both hero and companion expeditions of their controller.
+			// Rule 7.4.4.a: "A Gigantic Character is considered to be in both its controller’s Hero expedition and Companion expedition simultaneously."
+			if (obj.currentCharacteristics?.isGigantic) {
+				return true;
+			}
+			// Non-Gigantic characters must match the specified expedition type.
+			return obj.expeditionAssignment?.type === type;
+		});
+	}
+
+	/**
 	 * Get zone by identifier for a player
 	 */
 	private getZoneByIdentifier(player: IPlayer, zoneId: ZoneIdentifier): IZone | undefined {
@@ -1289,7 +1307,7 @@ export class GameStateManager {
 			case ZoneIdentifier.Reserve:
 				return player.zones.reserveZone;
 			case ZoneIdentifier.Expedition:
-				return this.state.sharedZones.expedition; // Changed to shared expedition zone
+				return this.state.sharedZones.expedition;
 			case ZoneIdentifier.DiscardPile:
 				return player.zones.discardPileZone;
 			case ZoneIdentifier.Mana:

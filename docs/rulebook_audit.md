@@ -107,21 +107,21 @@ This document audits the game engine implementation against the Altered Complete
 
 ##### 1.2.3 Zones
 
-- **Status:** Partially Implemented (Expedition Zone discrepancy)
+- **Status:** Fully Implemented
 - **Code References:**
   - `src/engine/Zone.ts`: Defines zone classes like `GenericZone`, `DeckZone`, `HandZone`.
-  - `src/engine/GameStateManager.ts`: Initializes and manages zones.
+  - `src/engine/GameStateManager.ts`: Initializes and manages zones (`state.sharedZones.expedition`).
   - `src/engine/types/zones.ts`: Defines `IZone`, `ZoneIdentifier`.
   - `src/engine/types/enums.ts`: `ZoneIdentifier` enum.
 - **Details/Discrepancies:**
     - 1.2.3.a (Sets of cards/objects): `IZone.entities`.
     - 1.2.3.b (Ten zone types): `ZoneIdentifier` enum lists them.
-    - 1.2.3.c (Expedition sub-zones): These are conceptual (Hero/Companion for each player) rather than distinct `IZone` instances. Logic like `IPlayer.expeditionState` or targeting differentiates them.
+    - 1.2.3.c (Expedition sub-zones): These are conceptual (Hero/Companion for each player) rather than distinct `IZone` instances. Logic like `IPlayer.expeditionState` or `IGameObject.expeditionAssignment` differentiates them within the shared expedition zone.
     - 1.2.3.d (Shared zones: Adventure, Expedition zone, Limbo):
         - Adventure, Limbo: Correctly implemented as shared in `GameStateManager.state.sharedZones`.
-        - **Discrepancy:** Expedition zone is defined as shared in the rulebook. The engine implements per-player expedition zones (`player.zones.expeditionZone`) and marks `sharedZones.expedition` as deprecated.
+        - Expedition zone: Now correctly implemented as a single shared zone (`GameStateManager.state.sharedZones.expedition`). Player-specific views are achieved by filtering its contents by `controllerId`.
     - 1.2.3.e (Personal zones): `Deck, DiscardPile, Hand, HeroZone, LandmarkZone, ManaZone, Reserve` are correctly per-player.
-    - 1.2.3.f (Visible zones): Adventure, DiscardPile, (Player)ExpeditionZone, HeroZone, LandmarkZone, Limbo, ManaZone, Reserve have `visibility: 'visible'`.
+    - 1.2.3.f (Visible zones): Adventure, DiscardPile, ExpeditionZone, HeroZone, LandmarkZone, Limbo, ManaZone, Reserve have `visibility: 'visible'`.
     - 1.2.3.g (Hidden zones): Deck, Hand have `visibility: 'hidden'`.
 
 ##### 1.2.4 Abilities
@@ -496,9 +496,9 @@ This document audits the game engine implementation against the Altered Complete
     - **3.1.1.b (Zones always exist, even if empty):** Fully Implemented. Zones are properties of `IPlayer` or `IGameState.sharedZones`, initialized and persistent.
     - **3.1.1.c (Ten kinds of zones):** Fully Implemented. `ZoneIdentifier` enum matches the list.
   - **3.1.2 Shared or Personal:**
-    - **3.1.2.a (Shared zones: Adventure, Expedition zone, Limbo):** Partially Implemented.
+    - **3.1.2.a (Shared zones: Adventure, Expedition zone, Limbo):** Fully Implemented.
         - Adventure, Limbo: Correctly in `GameStateManager.state.sharedZones`.
-        - **Discrepancy (Persistent):** Expedition Zone is defined as shared in Rule 1.2.3.d and reinforced here. Engine implements `player.zones.expeditionZone` (personal) and `sharedZones.expedition` is deprecated. This remains a key difference.
+        - Expedition Zone: Now correctly implemented as a single shared zone (`GameStateManager.state.sharedZones.expedition`).
     - **3.1.2.b (Personal zones):** Fully Implemented. `Deck, Hand, HeroZone, LandmarkZone, ManaZone, Reserve, DiscardPile` are properties of `IPlayer.zones`.
     - **3.1.2.c (Card to owner's zone if sent to other's personal zone):** Fully Implemented. `GameStateManager.moveEntity` handles redirection to the owner's correct personal zone.
   - **3.1.3 Visible or Hidden:**
@@ -532,13 +532,13 @@ This document audits the game engine implementation against the Altered Complete
   - **Code References:** `src/engine/Zone.ts` (`DiscardPileZone`), `player.zones.discardPileZone`.
   - (a) Personal, visible: Yes.
 
-- **3.2.4 Expedition Zone:** Partially Implemented (Due to shared/personal discrepancy).
-  - **Code References:** `player.zones.expeditionZone` (`GenericZone`) in `GameStateManager.ts`.
-  - (a) Shared, visible: **Discrepancy (Reconfirmed).** Rulebook states shared. Engine implements per-player expedition zones. This impacts how "Expedition zone" is interpreted by effects and rules.
-  - (b) Sub-zones (Hero/Companion Expeditions): These are conceptual divisions within the player's expedition zone, differentiated by card properties (e.g., Hero card type, Companion sub-type) or effect targeting, not by distinct `IZone` instances. `IPlayer.expeditionState` tracks positions for Hero and Companion expeditions.
-  - (c) Expeditions always exist: The per-player zones are initialized.
-  - (d) Object moving from one Expedition to another does not change zones: Within a player's current implementation of *their own* `expeditionZone` (which conceptually holds both their Hero and Companion characters), moving a character (e.g. via "Switch Expeditions" if it means from Hero path to Companion path for the *same player*) would mean the character stays within that player's `expeditionZone`. If "Expedition Zone" was truly shared, moving between player's expeditions would be more complex. The current model simplifies this to entities within a player's specific `expeditionZone`.
-  - (e) Player knows in which Expedition: Game state tracks object locations.
+- **3.2.4 Expedition Zone:** Fully Implemented.
+  - **Code References:** `GameStateManager.state.sharedZones.expedition` (`GenericZone`).
+  - (a) Shared, visible: Fully Implemented. The Expedition Zone is a single shared, visible zone.
+  - (b) Sub-zones (Hero/Companion Expeditions): These are conceptual divisions within the shared Expedition Zone. Objects are associated with a player's Hero or Companion expedition via their `controllerId` and an `expeditionAssignment` property (e.g., `{ type: 'Hero' | 'Companion' }`). `IPlayer.expeditionState` tracks positions for Hero and Companion expeditions.
+  - (c) Expeditions always exist: The shared zone is initialized. Conceptual player expeditions exist as long as the player exists.
+  - (d) Object moving from one Expedition to another does not change zones: Fully Implemented. If an object switches its conceptual expedition (e.g., from Player A's Hero expedition to Player A's Companion expedition via an effect like "Switch Expeditions"), it remains within the single `sharedZones.expeditionZone`. Only its `expeditionAssignment` property changes. This does not trigger "leaves zone" or "enters zone" events for the Expedition Zone itself.
+  - (e) Player knows in which Expedition: Game state tracks object locations and their `expeditionAssignment`.
 
 - **3.2.5 Hand Zone:** Fully Implemented.
   - **Code References:** `src/engine/Zone.ts` (`HandZone`), `player.zones.handZone`.
@@ -560,20 +560,17 @@ This document audits the game engine implementation against the Altered Complete
   - **Code References:** `src/engine/Zone.ts` (`LimboZone`), `state.sharedZones.limbo`.
   - (a) Shared, visible: Yes.
 
-- **3.2.9 Mana Zone:** Partially Implemented.
+- **3.2.9 Mana Zone:** Fully Implemented.
   - **Code References:** `player.zones.manaZone` (`GenericZone`), `src/engine/ManaSystem.ts`.
   - (a) Personal, visible, contains face-down: Yes.
-  - (b) Card enters face-down, exhausted unless specified:
-    - `GameStateManager.initializeManaOrbs` sets them ready initially.
-    - `PhaseManager.playerExpand` calls `ManaSystem.expandMana`. `ManaSystem.expandMana` needs to ensure the card becomes a face-down `IGameObject` of type `ManaOrb` and is exhausted. Currently, `moveEntity` doesn't automatically exhaust or ensure `faceDown` is set by the caller or `ObjectFactory` for this specific case. `ObjectFactory.createGameObject` should set `faceDown: true` for mana orbs. Exhaustion needs to be applied by `ManaSystem.expandMana`.
-  - (c) Objects are Mana Orbs: `GameStateManager.initializeManaOrbs` sets type. `ManaSystem.expandMana` must ensure new cards moved there also become `CardType.ManaOrb`. `ObjectFactory.createGameObject` should handle this if the definition passed implies it's a mana orb.
+  - (b) Card enters face-down, exhausted unless specified: Fully Implemented.
+    - `GameStateManager.initializeManaOrbsFromHand` (Rule 4.1.k) and `GameStateManager.initializeBoard` correctly set initial mana orbs as face-down, `CardType.ManaOrb`, and **Ready**.
+    - `ManaSystem.addCardToMana` (used by "Expand Mana" action - Rule 4.2.1.e) correctly ensures the card becomes a face-down `IGameObject` of `type: CardType.ManaOrb` and is **Exhausted** (Rule 3.2.9.b).
+  - (c) Objects are Mana Orbs: Fully Implemented. Handled by the methods mentioned in 3.2.9.b.
   - (d) Player can look at own mana: Engine access. UI rule.
-  - (e) Exhaust one Mana Orb to ready another: **Not Implemented.** `ManaSystem.ts` lacks this utility.
-  - (f) Pay X mana by exhausting X orbs: `ManaSystem.spendMana` handles this.
-- **Discrepancies/Bugs for Mana Zone:**
-    - Explicit setting of `faceDown: true` and `type: CardType.ManaOrb` for cards moved by `ManaSystem.expandMana` needs verification in `ObjectFactory.createGameObject` or by `ManaSystem.expandMana` itself.
-    - Exhausting new mana orbs placed by `expandMana` needs to be implemented.
-    - Rule 3.2.9.e (exhaust one to ready another) is not implemented.
+  - (e) Exhaust one Mana Orb to ready another: Fully Implemented. `ManaSystem.convertMana(playerId, orbToExhaustId, orbToReadyId)` handles this, including validation and event publishing.
+  - (f) Pay X mana by exhausting X orbs: `ManaSystem.payMana` handles this.
+- **Details/Discrepancies:** All previously noted discrepancies for Mana Zone rules are now resolved.
 
 - **3.2.10 Reserve Zone:** Fully Implemented.
   - **Code References:** `player.zones.reserveZone` (`GenericZone`).

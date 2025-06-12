@@ -159,27 +159,39 @@ export class KeywordAbilityHandler {
 		let defenderInHeroExpedition = false;
 		let defenderInCompanionExpedition = false;
 
-		const allPlayerEntitiesInExpedition = sharedExpeditionZone.getAll().filter(e => {
+		// Get all characters of the player in the shared expedition zone
+		const allPlayerCharactersInExpedition = sharedExpeditionZone.getAll().filter(e => {
 			if (!isGameObject(e)) return false;
-			return e.expeditionAssignment?.playerId === playerId && e.type === CardType.Character;
+			return e.controllerId === playerId && e.type === CardType.Character;
 		}) as IGameObject[];
 
-		for (const char of allPlayerEntitiesInExpedition) {
+		for (const char of allPlayerCharactersInExpedition) {
 			const hasDefender = char.currentCharacteristics.hasDefender === true ||
-				char.abilities.some((ability) => ability.keyword === KeywordAbility.Defender);
+				(char.abilities && char.abilities.some((ability) => ability.keyword === KeywordAbility.Defender));
 
 			if (hasDefender) {
+				// Rule 7.4.4.a: A Gigantic Character is considered to be in both expeditions.
+				// Rule 7.4.2.c: If a Gigantic Character has Defender, both expeditions are restricted.
+				if (char.currentCharacteristics?.isGigantic) {
+					console.log(`[KeywordAbilityHandler] Gigantic character ${char.name} with Defender restricts both expeditions for player ${playerId}.`);
+					defenderInHeroExpedition = true;
+					defenderInCompanionExpedition = true;
+					break; // Both expeditions are restricted, no need to check further.
+				}
+
 				if (char.expeditionAssignment?.type === 'Hero') {
+					console.log(`[KeywordAbilityHandler] Character ${char.name} with Defender restricts Hero expedition for player ${playerId}.`);
 					defenderInHeroExpedition = true;
 				} else if (char.expeditionAssignment?.type === 'Companion') {
+					console.log(`[KeywordAbilityHandler] Character ${char.name} with Defender restricts Companion expedition for player ${playerId}.`);
 					defenderInCompanionExpedition = true;
 				}
 			}
 		}
 
 		return {
-			hero: !defenderInHeroExpedition, // Hero expedition can move if no defender in it
-			companion: !defenderInCompanionExpedition // Companion expedition can move if no defender in it
+			hero: !defenderInHeroExpedition,
+			companion: !defenderInCompanionExpedition
 		};
 	}
 

@@ -356,17 +356,23 @@ export class TiebreakerSystem {
 
 			// Process character status effects but don't move to Reserve
 			// since Arena combat continues
-			const expeditionChars = player.zones.expeditionZone
-				.getAll()
-				.filter((e) => isGameObject(e) && e.type === CardType.Character) as IGameObject[];
+			const sharedExpeditionZone = this.gsm.state.sharedZones.expedition;
+			const playerExpeditionChars = sharedExpeditionZone.getAll().filter(
+				(e): e is IGameObject =>
+					isGameObject(e) &&
+					e.controllerId === playerId &&
+					e.type === CardType.Character
+			);
 
-			for (const char of expeditionChars) {
+			for (const char of playerExpeditionChars) {
 				// Remove temporary statuses
 				if (char.statuses.has(StatusType.Anchored)) {
 					char.statuses.delete(StatusType.Anchored);
+					console.log(`[TiebreakerSystem] Removed Anchored from ${char.name} during Tiebreaker Rest.`);
 				}
 				if (char.statuses.has(StatusType.Asleep)) {
 					char.statuses.delete(StatusType.Asleep);
+					console.log(`[TiebreakerSystem] Removed Asleep from ${char.name} during Tiebreaker Rest.`);
 				}
 			}
 		}
