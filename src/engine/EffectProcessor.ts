@@ -93,8 +93,18 @@ export class EffectProcessor {
 			case 'create':
 				await this.effectCreate(step, sourceObjectForContext);
 				break;
-			case 'augment':
-				await this.effectAugment(step, sourceObjectForContext);
+			case 'gainability': // New verb for the old "augment" functionality
+				await this.effectGainAbility(step, sourceObjectForContext);
+				break;
+			case 'augmentcounter': // New verb for augmenting counters as per Rule 7.3.3
+				await this.effectAugmentCounters(step, sourceObjectForContext);
+				break;
+			case 'augment': // Deprecated: Keep temporarily to catch old usage
+				console.warn(
+					"[EffectProcessor] Deprecated verb 'augment' used. Use 'gainability' for adding abilities or 'augmentcounter' for counters."
+				);
+				// Optionally, you could still call the old logic or a specific version:
+				// await this.effectGainAbility(step, sourceObjectForContext);
 				break;
 			case 'exchange':
 				await this.effectExchange(step, sourceObjectForContext);
@@ -327,9 +337,9 @@ export class EffectProcessor {
 	}
 
 	/**
-	 * Rule 7.3.7 - Augment: Give objects new abilities
+	 * Old "Augment" - Rule 7.3.7 (now renamed) - Give objects new abilities
 	 */
-	private async effectAugment(
+	private async effectGainAbility(
 		step: IEffectStep,
 		sourceObjectForContext?: IGameObject | null
 	): Promise<void> {
@@ -337,13 +347,46 @@ export class EffectProcessor {
 		const ability = step.parameters?.ability; // This should be a full IAbility object
 
 		if (!ability) {
-			console.warn('[EffectProcessor] Augment effect called without ability.');
+			console.warn('[EffectProcessor] effectGainAbility called without ability.');
 			return;
 		}
 		for (const target of targets) {
-			if (typeof target === 'object' && 'objectId' in target && ability) {
+			if (this.isTargetGameObject(target) && ability) {
 				target.abilities.push(ability);
-				console.log(`[EffectProcessor] Augmented ${target.name} with new ability`);
+				console.log(`[EffectProcessor] Target ${target.name} gained new ability via effectGainAbility.`);
+			}
+		}
+	}
+
+	/**
+	 * Rule 7.3.3 - Augment (Counters): Increment an existing counter on an object.
+	 * "To Augment a counter means to add 1 to a counter an object already has."
+	 */
+	private async effectAugmentCounters(
+		step: IEffectStep,
+		sourceObjectForContext?: IGameObject | null
+	): Promise<void> {
+		const targets = this.resolveTargets(step.targets, sourceObjectForContext);
+		const counterType = step.parameters?.counterType as CounterType | undefined;
+
+		if (!counterType) {
+			console.warn('[EffectProcessor] effectAugmentCounters called without counterType.');
+			return;
+		}
+
+		for (const target of targets) {
+			if (this.isTargetGameObject(target)) {
+				const currentCount = target.counters.get(counterType);
+				if (currentCount !== undefined && currentCount > 0) {
+					target.counters.set(counterType, currentCount + 1);
+					console.log(
+						`[EffectProcessor] Target ${target.name} augmented ${counterType} counter to ${currentCount + 1}.`
+					);
+				} else {
+					console.log(
+						`[EffectProcessor] Target ${target.name} does not have (or has 0) ${counterType} counter(s) to augment.`
+					);
+				}
 			}
 		}
 	}
