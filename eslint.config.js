@@ -29,7 +29,24 @@ export default [
 				self: 'readonly',
 				importScripts: 'readonly',
 				define: 'readonly',
-				URL: 'readonly'
+				URL: 'readonly',
+				Request: 'readonly',
+				Response: 'readonly',
+				Headers: 'readonly',
+				fetch: 'readonly',
+				caches: 'readonly',
+				FetchEvent: 'readonly',
+				setTimeout: 'readonly',
+				clearTimeout: 'readonly',
+				registration: 'readonly',
+				IDBDatabase: 'readonly',
+				IDBTransaction: 'readonly',
+				IDBCursor: 'readonly',
+				IDBObjectStore: 'readonly',
+				IDBIndex: 'readonly',
+				IDBRequest: 'readonly',
+				indexedDB: 'readonly',
+				DOMException: 'readonly'
 			}
 		},
 		plugins: {

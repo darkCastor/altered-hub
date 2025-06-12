@@ -1,24 +1,28 @@
 define(['exports'], function (t) {
 	'use strict';
 	try {
-		self['workbox:core:7.0.0'] && _();
-	} catch (t) {}
+		self['workbox:core:7.0.0'] && (() => {})();
+	} catch (_t) {}
 	const e = (t, ...e) => {
 		let s = t;
 		return e.length > 0 && (s += ` :: ${JSON.stringify(e)}`), s;
 	};
 	class s extends Error {
 		constructor(t, s) {
-			super(e(t, s)), (this.name = t), (this.details = s);
+			super(e(t, s));
+			this.name = t;
+			this.details = s;
 		}
 	}
 	try {
-		self['workbox:routing:7.0.0'] && _();
-	} catch (t) {}
+		self['workbox:routing:7.0.0'] && (() => {})();
+	} catch (_t) {}
 	const n = (t) => (t && 'object' == typeof t ? t : { handle: t });
 	class r {
 		constructor(t, e, s = 'GET') {
-			(this.handler = n(e)), (this.match = t), (this.method = s);
+			this.handler = n(e);
+			this.match = t;
+			this.method = s;
 		}
 		setCatchHandler(t) {
 			this.catchHandler = n(t);
@@ -38,7 +42,8 @@ define(['exports'], function (t) {
 	}
 	class a {
 		constructor() {
-			(this.t = new Map()), (this.i = new Map());
+			this.t = new Map();
+			this.i = new Map();
 		}
 		get routes() {
 			return this.t;
@@ -156,8 +161,8 @@ define(['exports'], function (t) {
 		return c().registerRoute(a), a;
 	}
 	try {
-		self['workbox:strategies:7.0.0'] && _();
-	} catch (t) {}
+		self['workbox:strategies:7.0.0'] && (() => {})();
+	} catch (_t) {}
 	const u = {
 			cacheWillUpdate: async ({ response: t }) => (200 === t.status || 0 === t.status ? t : null)
 		},
@@ -397,7 +402,7 @@ define(['exports'], function (t) {
 			let r, i;
 			try {
 				r = await t;
-			} catch (i) {}
+			} catch (_i) {}
 			try {
 				await e.runCallbacks('handlerDidRespond', { event: n, request: s, response: r }),
 					await e.doneWaiting();
@@ -422,6 +427,7 @@ define(['exports'], function (t) {
 	}
 	function q() {
 		return (
+			/* eslint-disable-next-line no-func-assign */
 			(q = Object.assign
 				? Object.assign.bind()
 				: function (t) {
@@ -559,8 +565,8 @@ define(['exports'], function (t) {
 			has: (e, s) => !!j(e, s) || t.has(e, s)
 		}))(N);
 	try {
-		self['workbox:expiration:7.0.0'] && _();
-	} catch (t) {}
+		self['workbox:expiration:7.0.0'] && (() => {})();
+	} catch (_t) {}
 	const S = 'cache-entries',
 		K = (t) => {
 			const e = new URL(t, location.href);
@@ -675,8 +681,8 @@ define(['exports'], function (t) {
 		}
 	}
 	try {
-		self['workbox:range-requests:7.0.0'] && _();
-	} catch (t) {}
+		self['workbox:range-requests:7.0.0'] && (() => {})();
+	} catch (_t) {}
 	async function H(t, e) {
 		try {
 			if (206 === e.status) return e;
@@ -727,8 +733,8 @@ define(['exports'], function (t) {
 		return t.waitUntil(s), s;
 	}
 	try {
-		self['workbox:precaching:7.0.0'] && _();
-	} catch (t) {}
+		self['workbox:precaching:7.0.0'] && (() => {})();
+	} catch (_t) {}
 	function z(t) {
 		if (!t) throw new s('add-to-cache-list-unexpected-type', { entry: t });
 		if ('string' == typeof t) {
@@ -1023,7 +1029,7 @@ define(['exports'], function (t) {
 					if (t)
 						try {
 							t.waitUntil(a);
-						} catch (t) {}
+						} catch (_t) {}
 					return r ? n : null;
 				}),
 					(this.cacheDidUpdate = async ({ cacheName: t, request: e }) => {
@@ -1082,7 +1088,7 @@ define(['exports'], function (t) {
 				if (!o) throw new s('no-response', { url: t.url });
 				return o;
 			}
-			et({ request: t, logs: e, handler: s }) {
+			et({ request: t, logs: _e, handler: s }) {
 				let n;
 				return {
 					promise: new Promise((e) => {
@@ -1093,7 +1099,7 @@ define(['exports'], function (t) {
 					id: n
 				};
 			}
-			async st({ timeoutId: t, request: e, logs: s, handler: n }) {
+			async st({ timeoutId: t, request: e, logs: _s, handler: n }) {
 				let r, i;
 				try {
 					i = await n.fetchAndCachePut(e);
@@ -1138,7 +1144,7 @@ define(['exports'], function (t) {
 							(s) => s.includes(e) && s.includes(self.registration.scope) && s !== t
 						);
 						return await Promise.all(s.map((t) => self.caches.delete(t))), s;
-					})(e).then((t) => {})
+					})(e).then((_t) => {})
 				);
 			});
 		}),
