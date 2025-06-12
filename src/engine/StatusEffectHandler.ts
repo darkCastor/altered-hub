@@ -1,7 +1,8 @@
 import type { GameStateManager } from './GameStateManager';
 import type { IGameObject } from './types/objects';
-import { StatusType, CardType, ZoneIdentifier, CounterType } from './types/enums';
+import { StatusType, CardType, CounterType } from './types/enums'; // Removed ZoneIdentifier
 import { isGameObject } from './types/objects';
+import type { IZone } from './types/zones'; // Added IZone
 
 /**
  * Handles all status effect mechanics and their interactions
@@ -206,8 +207,8 @@ export class StatusEffectHandler {
 	/**
 	 * Checks if an object should be affected by status during specific events
 	 */
-	public checkStatusInteraction(object: IGameObject, event: string): any {
-		const results: any = {};
+	public checkStatusInteraction(object: IGameObject, event: string): StatusInteractionResults {
+		const results: StatusInteractionResults = {};
 
 		switch (event) {
 			case 'progress':
@@ -242,28 +243,28 @@ export class StatusEffectHandler {
 	/**
 	 * Handle effects when Boosted status is gained
 	 */
-	private handleBoostedGained(object: IGameObject): void {
+	private handleBoostedGained(_object: IGameObject): void {
 		// Boosted status is automatic based on counters, no additional effects
 	}
 
 	/**
 	 * Handle effects when Boosted status is lost
 	 */
-	private handleBoostedLost(object: IGameObject): void {
+	private handleBoostedLost(_object: IGameObject): void {
 		// Boosted status is automatic based on counters, no additional effects
 	}
 
 	/**
 	 * Handle effects when Fleeting status is gained
 	 */
-	private handleFleetingGained(object: IGameObject): void {
+	private handleFleetingGained(_object: IGameObject): void {
 		// Fleeting affects Rest behavior, no immediate effects
 	}
 
 	/**
 	 * Gets all visible zones for status processing
 	 */
-	private *getAllVisibleZones(): Generator<any> {
+	private *getAllVisibleZones(): Generator<IZone> {
 		for (const player of this.gsm.state.players.values()) {
 			yield player.zones.discardPileZone;
 			yield player.zones.manaZone;
@@ -275,4 +276,13 @@ export class StatusEffectHandler {
 		yield this.gsm.state.sharedZones.adventure;
 		yield this.gsm.state.sharedZones.limbo;
 	}
+}
+
+interface StatusInteractionResults {
+	ignoreStats?: boolean;
+	anchored?: boolean;
+	asleep?: boolean;
+	fleetingDestination?: 'discard' | 'reserve' | 'stay';
+	canPlay?: boolean;
+	hasSupport?: boolean;
 }

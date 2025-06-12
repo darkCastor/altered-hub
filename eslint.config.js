@@ -94,7 +94,8 @@ export default [
 			'*.config.js',
 			'*.config.ts',
 			'playwright-report/',
-			'test-results/'
+			'test-results/',
+			'public/' // Added this line
 		]
 	}
 ];

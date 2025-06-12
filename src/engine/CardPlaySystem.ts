@@ -11,10 +11,12 @@ import {
 import type { IGameObject, ICardInstance } from './types/objects'; // Assuming ICardInstance and IGameObject are relevant
 
 // Define CardPlayOptions here for now, or move to a central types file later
+import type { ICost } from './types/abilities';
+
 export interface CardPlayOptions {
 	targetIds?: string[];
 	mode?: number | string;
-	chosenCost?: any;
+	chosenCost?: ICost | undefined;
 	expeditionChoice?: 'hero' | 'companion';
 	fromZone: ZoneIdentifier; // e.g., ZoneIdentifier.Hand, ZoneIdentifier.Reserve
 }

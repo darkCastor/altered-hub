@@ -1,7 +1,7 @@
 import type { GameStateManager } from './GameStateManager';
 import type { IGameObject } from './types/objects';
 import type { ITerrainStats } from './types/game';
-import { TerrainType, StatusType, CardType, CounterType } from './types/enums';
+import { StatusType, CardType, CounterType } from './types/enums'; // Removed TerrainType
 import { isGameObject } from './types/objects';
 
 /**
@@ -259,12 +259,7 @@ export class ManaSystem {
 
 		// Move card to mana zone via GameStateManager
 		try {
-			const movedCard = this.gsm.moveEntity(
-				entityId,
-				player.zones.handZone,
-				player.zones.manaZone,
-				playerId
-			);
+			this.gsm.moveEntity(entityId, player.zones.handZone, player.zones.manaZone, playerId);
 
 			// Apply Rule 3.2.9.b and 3.2.9.c to the moved card
 			// Always search for the card in mana zone since moveEntity creates a new object

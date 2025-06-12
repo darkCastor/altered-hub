@@ -8,9 +8,9 @@ import type { GameStateManager } from '../GameStateManager';
  */
 export interface ICost {
 	mana?: number;
-	discard?: { count: number; criteria?: any }; // criteria can be further defined
+	discard?: { count: number; criteria?: unknown }; // criteria can be further defined
 	exhaustSelf?: boolean;
-	sacrifice?: { count: number; criteria?: any };
+	sacrifice?: { count: number; criteria?: unknown };
 	spendCounters?: { type: CounterType; amount: number };
 }
 
@@ -20,8 +20,8 @@ export interface ICost {
  */
 export interface IEffectStep {
 	verb: string; // e.g., 'draw', 'createToken', 'gainStatus', 'gainCounter'
-	targets: 'self' | 'controller' | { type: 'select'; criteria: any }; // Target selection
-	parameters?: any; // Verb-specific data, like a status type or counter info
+	targets: 'self' | 'controller' | { type: 'select'; criteria: unknown }; // Target selection
+	parameters?: Record<string, unknown> | undefined; // Verb-specific data, like a status type or counter info
 	isOptional?: boolean; // For "may" effects (Rule 1.2.6.d, 6.5.c)
 }
 
@@ -32,7 +32,7 @@ export interface IEffectStep {
 export interface IEffect {
 	steps: IEffectStep[];
 	sourceObjectId?: string; // The object that generated this effect
-	_triggerPayload?: any;
+	_triggerPayload?: unknown;
 }
 
 /**
@@ -43,7 +43,7 @@ export interface ITrigger {
 	eventType: string; // e.g., 'entityMoved', corresponds to an EventBus event type
 	// A function to check if the specific event payload meets the trigger's conditions
 	// Rule 6.3.b, 6.3.k
-	condition: (payload: any, sourceObject: IGameObject, gsm: GameStateManager) => boolean;
+	condition: (payload: unknown, sourceObject: IGameObject, gsm: GameStateManager) => boolean;
 }
 
 export enum AbilityType {

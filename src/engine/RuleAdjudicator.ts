@@ -3,6 +3,7 @@
 import type { GameStateManager } from './GameStateManager';
 import type { IGameObject } from './types/objects';
 import type { IAbility } from './types/abilities';
+import { KeywordAbility } from './types/enums'; // Import KeywordAbility
 
 export class RuleAdjudicator {
 	constructor(private gsm: GameStateManager) {}
@@ -44,7 +45,7 @@ export class RuleAdjudicator {
 	private doesADependOnB(
 		abilityA: IAbility,
 		abilityB: IAbility,
-		allCurrentAbilities: IAbility[]
+		_allCurrentAbilities: IAbility[] // Prefixed with _
 	): boolean {
 		// Rule 2.3.2: A depends on B if B's application could change A's existence, text, or how it applies.
 		if (!abilityA.sourceObjectId || !abilityB.sourceObjectId) return false;
@@ -164,9 +165,9 @@ export class RuleAdjudicator {
 			// Handle ties using Rule 2.3.3.d (already applied abilities' timestamps) - this is complex.
 			// For now, a simple timestamp sort.
 			freeAbilities.sort((a, b) => {
-				const objA = this.gsm.getObject(a.sourceObjectId!);
-				const objB = this.gsm.getObject(b.sourceObjectId!);
-				if (!objA || !objB) return 0; // Should not happen if data is consistent
+				const objA = this.gsm.getObject(a.sourceObjectId || '');
+				const objB = this.gsm.getObject(b.sourceObjectId || '');
+				if (!objA || !objB) return 0;
 				if (objA.timestamp === objB.timestamp) {
 					// Rule 2.3.3.d - if timestamps are equal, check if one source object's abilities
 					// have already been applied. This part is tricky and might need more state.
@@ -183,7 +184,7 @@ export class RuleAdjudicator {
 				const nextAbility = freeAbilities[0];
 				sortedAbilities.push(nextAbility);
 				unappliedAbilities = unappliedAbilities.filter((a) => a !== nextAbility);
-				const sourceObject = this.gsm.getObject(nextAbility.sourceObjectId!);
+				const sourceObject = this.gsm.getObject(nextAbility.sourceObjectId || '');
 				if (sourceObject) {
 					appliedTimestamps.add(sourceObject.timestamp);
 				}
@@ -193,15 +194,15 @@ export class RuleAdjudicator {
 				// or a state where the current simplified dependency logic cannot proceed.
 				// Fallback: Add the one with the smallest timestamp from remaining unapplied to prevent infinite loop.
 				unappliedAbilities.sort((a, b) => {
-					const objA = this.gsm.getObject(a.sourceObjectId!);
-					const objB = this.gsm.getObject(b.sourceObjectId!);
+					const objA = this.gsm.getObject(a.sourceObjectId || '');
+					const objB = this.gsm.getObject(b.sourceObjectId || '');
 					if (!objA || !objB) return 0;
 					return objA.timestamp - objB.timestamp;
 				});
 				const fallbackAbility = unappliedAbilities.shift();
 				if (fallbackAbility) {
 					sortedAbilities.push(fallbackAbility);
-					const sourceObject = this.gsm.getObject(fallbackAbility.sourceObjectId!);
+					const sourceObject = this.gsm.getObject(fallbackAbility.sourceObjectId || '');
 					if (sourceObject) {
 						appliedTimestamps.add(sourceObject.timestamp);
 					}
@@ -212,7 +213,11 @@ export class RuleAdjudicator {
 	}
 
 	// --- Helper methods for applying ability effects ---
-	private _modifyStatistics(target: IGameObject, params: any): void {
+	private _modifyStatistics(
+		target: IGameObject,
+		params: Record<string, unknown> | undefined
+	): void {
+		if (!params) return;
 		if (!target.currentCharacteristics.statistics) {
 			target.currentCharacteristics.statistics = {
 				forest: 0,
@@ -233,7 +238,7 @@ export class RuleAdjudicator {
 		);
 	}
 
-	private _grantKeyword(target: IGameObject, keyword: string, value?: any): void {
+	private _grantKeyword(target: IGameObject, keyword: string, value?: unknown): void {
 		// Assuming keyword is string for now
 		if (!target.currentCharacteristics.keywords) target.currentCharacteristics.keywords = {};
 		target.currentCharacteristics.keywords[keyword] = value !== undefined ? value : true;
@@ -247,8 +252,8 @@ export class RuleAdjudicator {
 		}
 	}
 
-	private _setCharacteristic(target: IGameObject, characteristic: string, value: any): void {
-		(target.currentCharacteristics as any)[characteristic] = value;
+	private _setCharacteristic(target: IGameObject, characteristic: string, value: unknown): void {
+		(target.currentCharacteristics as any)[characteristic] = value; // Still might need 'as any' if characteristic is truly dynamic
 		console.log(
 			`[RuleAdjudicator] Set characteristic ${characteristic}=${value} for ${target.name}`
 		);
@@ -256,7 +261,7 @@ export class RuleAdjudicator {
 
 	private _grantAbility(
 		target: IGameObject,
-		newAbilityDefinition: any /* IAbilityDefinition */
+		newAbilityDefinition: unknown /* IAbilityDefinition */
 	): void {
 		// This is complex: needs to instantiate an IAbility from IAbilityDefinition
 		// and ensure it doesn't grant itself infinitely. For now, placeholder.

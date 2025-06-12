@@ -24,7 +24,7 @@ export class ReactionManager {
 	 * @param eventType The type of event that occurred (e.g., 'entityMoved').
 	 * @param payload The data associated with the event.
 	 */
-	public checkForTriggers(eventType: string, payload: any): void {
+	public checkForTriggers(eventType: string, payload: unknown): void {
 		// --- Part 1: Non-Self-Move Reactions (Rule 6.3.e) ---
 		// These reactions must exist and have an active ability *before* the event.
 		const allObjects = this.getAllGameObjects();
@@ -86,7 +86,7 @@ export class ReactionManager {
 		}
 	}
 
-	private createAndAddEmblem(ability: IAbility, sourceObject: IGameObject, payload: any): void {
+	private createAndAddEmblem(ability: IAbility, sourceObject: IGameObject, payload: unknown): void {
 		const emblem = this.objectFactory.createReactionEmblem(ability, sourceObject, payload);
 		this.gsm.state.sharedZones.limbo.add(emblem);
 		console.log(`[ReactionManager] Created Emblem-Reaction ${emblem.objectId} in Limbo.`);

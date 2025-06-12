@@ -9,7 +9,7 @@ import { isGameObject } from './types/objects';
  * Rule 7.3 - Keyword Actions and core game effects
  */
 export class EffectProcessor {
-	private currentTriggerPayload: any | null = null;
+	private currentTriggerPayload: unknown | null = null;
 
 	constructor(private gsm: GameStateManager) {}
 
@@ -474,8 +474,8 @@ export class EffectProcessor {
 	 * Helper to get a value from a nested object using a dot-separated path.
 	 * Example: getValueFromPath(payload, 'object.id')
 	 */
-	private getValueFromPath(obj: any, path: string): any {
-		if (!obj) return undefined;
+	private getValueFromPath(obj: unknown, path: string): unknown {
+		if (!obj || typeof obj !== 'object') return undefined;
 		const properties = path.split('.');
 		return properties.reduce((prev, curr) => prev && prev[curr], obj);
 	}
@@ -484,7 +484,7 @@ export class EffectProcessor {
 	 * Resolves effect targets based on target specification
 	 */
 	private resolveTargets(
-		targets: any,
+		targets: unknown,
 		sourceObjectForContext?: IGameObject | null
 	): (IGameObject | string)[] {
 		if (!targets) return [];
@@ -583,9 +583,12 @@ export class EffectProcessor {
 	}
 
 	/**
+import type { IZone } from './types/zones';
+
+	/**
 	 * Finds a zone by type for a player
 	 */
-	private findZoneByType(playerId: string, zoneType: ZoneIdentifier): any {
+	private findZoneByType(playerId: string, zoneType: ZoneIdentifier): IZone | null {
 		// Return type should be IZone | null
 		const player = this.gsm.getPlayer(playerId);
 		if (!player) {

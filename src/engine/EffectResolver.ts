@@ -145,7 +145,11 @@ export class EffectResolver {
 				break;
 			}
 			case 'draw': {
-				const player = this.gsm.getPlayer(sourceObjectId!); // Simplification, target might be 'controller'
+				if (!sourceObjectId) {
+					console.error("Effect 'draw' requires a sourceObjectId to determine the player.");
+					return;
+				}
+				const player = this.gsm.getPlayer(sourceObjectId); // Simplification, target might be 'controller'
 				const amount = (step.parameters?.amount as number) ?? 1;
 				if (player) {
 					this.gsm.drawCards(player.id, amount);
