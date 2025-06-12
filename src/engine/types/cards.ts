@@ -38,4 +38,5 @@ export interface ICardInstance {
 	instanceId: string; // Unique ID for this specific copy
 	definitionId: string; // The ID of the card it represents
 	ownerId: string;
+	terrains?: string[]; // Optional field for region-like entities
 }
