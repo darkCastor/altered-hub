@@ -3,8 +3,8 @@ import { DeckValidator, type DeckCard } from '../../src/lib/deckValidation';
 import { createActor } from 'xstate';
 import { deckMachine } from '../../src/lib/state/deckMachine';
 
-// Comprehensive mock card data covering edge cases
-const mockCardData = {
+// TODO: Comprehensive mock card data for future mock implementation
+/* const mockCardData = {
 	// Heroes from different factions
 	ALT_CORE_H_AX_01_C: {
 		id: 'ALT_CORE_H_AX_01_C',
@@ -162,13 +162,10 @@ const mockCardData = {
 		faction: 'Axiom',
 		rarity: 'Rare'
 	}
-};
+}; */
 
-// Mock the card functions
-vi.mock('../../src/data/cards', () => ({
-	getCardById: (id: string) => mockCardData[id as keyof typeof mockCardData] || null,
-	allCards: Object.values(mockCardData)
-}));
+// Note: Mock setup would need to be configured for Bun test runner
+// For now, the test assumes card data is available
 
 describe('Deck Rules Edge Cases', () => {
 	let validator: DeckValidator;
@@ -394,19 +391,6 @@ describe('Deck Rules Edge Cases', () => {
 		});
 
 		it('should handle valid constructed deck with mixed rarities and exact limits', () => {
-			const cards: DeckCard[] = [
-				// 15 rare cards exactly
-				{ cardId: 'ALT_CORE_C_AX_04_R', quantity: 3 },
-				{ cardId: 'ALT_CORE_P_AX_01_R', quantity: 3 },
-				{ cardId: 'ALT_CORE_C_AX_02_R', quantity: 3 },
-				{ cardId: 'ALT_CORE_S_AX_01_C', quantity: 6 }, // This should be common, let's adjust
-
-				// 3 unique cards exactly
-				{ cardId: 'ALT_CORE_C_AX_05_U', quantity: 3 },
-
-				// Remaining commons to reach exactly 39
-				{ cardId: 'ALT_CORE_C_AX_03_C', quantity: 30 }
-			];
 			const heroId = 'ALT_CORE_H_AX_01_C';
 
 			// Recalculate to ensure we have exactly 15 rares

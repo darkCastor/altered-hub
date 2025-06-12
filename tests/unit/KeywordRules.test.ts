@@ -1,13 +1,7 @@
 import { describe, test, expect, beforeEach } from 'bun:test';
 import { GameStateManager } from '../../src/engine/GameStateManager';
 import { EventBus } from '../../src/engine/EventBus';
-import {
-	CardType,
-	GamePhase,
-	StatusType,
-	ZoneIdentifier,
-	KeywordAbility
-} from '../../src/engine/types/enums';
+import { CardType, GamePhase, ZoneIdentifier, KeywordAbility } from '../../src/engine/types/enums';
 import type { ICardDefinition } from '../../src/engine/types/cards';
 import type { IGameObject } from '../../src/engine/types/objects';
 import { isGameObject } from '../../src/engine/types/objects';
@@ -627,7 +621,7 @@ describe('GameStateManager - Keyword Rule Compliance (Rule 7.4)', () => {
 			cardDef_P2_CompanionChar_Stats3.id,
 			P2
 		);
-		const p2CompanionWeak = gsm.objectFactory.createGameObject(p2CompanionWeakInst, P2);
+		gsm.objectFactory.createGameObject(p2CompanionWeakInst, P2);
 		// To make P2's companion side distinct, we'd need separate expedition zones or a way to tag chars.
 		// Current model: all P2 chars (p2HeroStrong + p2CompanionWeak) are in player2.zones.expeditionZone.
 		// So P2 Hero stats = 10+3=13, P2 Companion stats = 10+3=13.
@@ -1193,7 +1187,6 @@ describe('GameStateManager - Keyword Rule Compliance (Rule 7.4)', () => {
 		test('Rule 7.4.7.b, 7.4.7.c: Opponent (P2) pays correct Tough 2 cost', async () => {
 			const spellCardInst = gsm.objectFactory.createCardInstance(targetingSpellP2.id, P2);
 			p2.zones.hand.add(spellCardInst);
-			const initialManaP2 = p2.currentMana;
 			const spellCost = targetingSpellP2.handCost;
 			const toughCost = tough2CharP1.currentCharacteristics.isTough as number; // Should be 2
 
@@ -1215,7 +1208,6 @@ describe('GameStateManager - Keyword Rule Compliance (Rule 7.4)', () => {
 		test('Targeting non-Tough character (P1 NormalChar) does not require Tough cost from P2', async () => {
 			const spellCardInst = gsm.objectFactory.createCardInstance(targetingSpellP2.id, P2);
 			p2.zones.hand.add(spellCardInst);
-			const initialManaP2 = p2.currentMana;
 			const spellCost = targetingSpellP2.handCost;
 
 			// Ensure P2 has just enough for spell, but would not be enough if Tough 1 was added

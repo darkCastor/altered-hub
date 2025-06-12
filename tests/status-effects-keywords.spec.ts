@@ -351,7 +351,7 @@ test.describe('Status Effects and Keyword Abilities - Rules 2.4 & 7.4', () => {
 });
 
 // Helper functions for status effects and keywords
-async function setupTestDeck(page: any, deckName: string) {
+async function setupTestDeck(page: import('@playwright/test').Page, deckName: string) {
 	await page.click('text=Browse Cards');
 	await page.waitForSelector('[data-testid="card-grid"]', { timeout: 10000 });
 	await page.click('text=Create Deck');
@@ -369,7 +369,7 @@ async function setupTestDeck(page: any, deckName: string) {
 	await page.waitForSelector('[data-testid="game-board"]', { timeout: 15000 });
 }
 
-async function navigateToGameplay(page: any) {
+async function navigateToGameplay(page: import('@playwright/test').Page) {
 	// Basic navigation to get game started
 	while (true) {
 		const phaseText = await page.locator('[data-testid="phase-display"]').textContent();

@@ -37,7 +37,6 @@ test.describe('Phase Transitions - Rules Compliance', () => {
 	test('Rule 4.2: Complete Day Structure Progression', async ({ page }) => {
 		// Test complete progression through all phases of a day
 		const phases = ['Morning', 'Noon', 'Afternoon', 'Dusk', 'Night'];
-		let currentDay = 1;
 
 		// Skip Day 1 Morning (it's automatically skipped per Rule 4.1.l)
 		for (let day = 1; day <= 2; day++) {

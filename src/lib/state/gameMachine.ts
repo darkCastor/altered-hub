@@ -6,6 +6,7 @@ import { GamePhase } from '$engine/types/enums';
 import type { PhaseManager } from '$engine/PhaseManager';
 import type { TurnManager } from '$engine/TurnManager';
 import type { CardPlaySystem } from '$engine/CardPlaySystem';
+import type { IEmblemObject } from '$engine/types/objects';
 
 interface GameContext {
 	gameStateManager: GameStateManager | null;
@@ -23,8 +24,8 @@ interface GameContext {
 	error: string | null;
 	// Reaction loop context
 	pendingReactionsCount: number;
-	initiativePlayerReactions: any[]; // Should be IEmblemObject[], using any for now
-	nextReactionToResolve: any | null; // Should be IEmblemObject | null
+	initiativePlayerReactions: IEmblemObject[];
+	nextReactionToResolve: IEmblemObject | null;
 	reactionInitiativePlayerId: string | null;
 	reactionInitiativePassCount: number;
 }

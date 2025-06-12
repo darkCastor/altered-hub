@@ -253,7 +253,7 @@ export class RuleAdjudicator {
 	}
 
 	private _setCharacteristic(target: IGameObject, characteristic: string, value: unknown): void {
-		(target.currentCharacteristics as any)[characteristic] = value; // Still might need 'as any' if characteristic is truly dynamic
+		(target.currentCharacteristics as Record<string, unknown>)[characteristic] = value;
 		console.log(
 			`[RuleAdjudicator] Set characteristic ${characteristic}=${value} for ${target.name}`
 		);

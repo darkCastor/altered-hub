@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount, beforeUpdate } from 'svelte';
+	import { onMount } from 'svelte';
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
 	import { useMachine } from '@xstate/svelte';
@@ -41,21 +41,10 @@
 		send({ type: 'ADVANCE_PHASE' });
 	}
 
-	function handlePlayCard(cardId: string) {
-		if ($snapshot.context.currentPlayer) {
-			send({ type: 'PLAY_CARD', cardId, playerId: $snapshot.context.currentPlayer });
-		}
-	}
-
-	function handleSelectCard(cardId: string) {
-		send({ type: 'SELECT_CARD', cardId });
-	}
-
 	// Reactive variables
 	$: currentPhase = $snapshot.context.currentPhase;
 	$: currentPlayer = $snapshot.context.currentPlayer;
 	$: currentDay = $snapshot.context.currentDay;
-	$: selectedCard = $snapshot.context.selectedCard;
 	$: gameError = $snapshot.context.error;
 	$: isMyTurn = currentPlayer === 'player1'; // Assuming player1 is the user
 </script>

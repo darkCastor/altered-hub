@@ -138,7 +138,7 @@
 		return validator({
 			context: $snapshot.context,
 			event: { type: 'ADD_CARD', cardId }
-		} as any);
+		});
 	}
 
 	$: cardGroups = groupCardsByBase(filteredCards);
@@ -206,7 +206,7 @@
 								>Format:
 								<select
 									bind:value={currentDeck.format}
-									onchange={(e) => handleChangeFormat(e.target.value)}
+									onchange={(e) => handleChangeFormat((e.target as HTMLSelectElement).value)}
 									class="ml-1 rounded border px-2 py-1"
 								>
 									<option value="constructed">Constructed</option>

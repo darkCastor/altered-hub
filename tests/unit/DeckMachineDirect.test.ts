@@ -412,8 +412,6 @@ describe('Deck State Machine - Direct Tests', () => {
 		});
 
 		it('should handle removing non-existent cards gracefully', () => {
-			const beforeSnapshot = actor.getSnapshot();
-
 			actor.send({
 				type: 'REMOVE_CARD',
 				cardId: 'non_existent_card'

@@ -276,7 +276,10 @@ test.describe('Terrain and Mana System - Rules 2.2 & 3.2.5', () => {
 		const exactCostCard = await findCardWithExactCost(page, availableMana);
 		if (exactCostCard) {
 			await exactCostCard.click();
-			await expeditionZone.click();
+			const expeditionZoneForExact = page.locator(
+				'[data-testid="expedition-zone"][data-owner="self"]'
+			);
+			await expeditionZoneForExact.click();
 
 			await page.waitForTimeout(1000);
 

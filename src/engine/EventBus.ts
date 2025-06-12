@@ -19,7 +19,7 @@ type EventPayloads = {
 type EventType = keyof EventPayloads;
 type EventHandler<T extends EventType> = (payload: EventPayloads[T]) => void;
 export class EventBus {
-	private subscribers: Map<EventType, EventHandler<any>[]> = new Map();
+	private subscribers: Map<EventType, EventHandler<EventType>[]> = new Map();
 	subscribe<T extends EventType>(eventType: T, handler: EventHandler<T>) {
 		if (!this.subscribers.has(eventType)) {
 			this.subscribers.set(eventType, []);

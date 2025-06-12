@@ -112,8 +112,8 @@ export class GameStateManager {
 			ownerId: 'shared'
 		};
 
-		adventureZone.add(heroRegion as any);
-		adventureZone.add(companionRegion as any);
+		adventureZone.add(heroRegion as ZoneEntity);
+		adventureZone.add(companionRegion as ZoneEntity);
 
 		// Rule 4.1.c: Place 3 face-down Tumult cards between regions
 		for (let i = 0; i < 3; i++) {
@@ -125,7 +125,7 @@ export class GameStateManager {
 				terrainType: 'tumult',
 				ownerId: 'shared'
 			};
-			adventureZone.add(tumultCard as any);
+			adventureZone.add(tumultCard as ZoneEntity);
 		}
 	}
 
@@ -529,7 +529,7 @@ export class GameStateManager {
 		];
 
 		arenaRegions.forEach((region) => {
-			adventureZone.add(region as any);
+			adventureZone.add(region as ZoneEntity);
 		});
 
 		console.log('[GSM] Tiebreaker mode started');

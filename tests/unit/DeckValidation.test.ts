@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'bun:test';
-import { DeckValidator, type DeckCard, type DeckFormat } from '../../src/lib/deckValidation';
+import { DeckValidator, type DeckCard } from '../../src/lib/deckValidation';
 
 describe('DeckValidator', () => {
 	let validator: DeckValidator;

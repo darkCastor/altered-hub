@@ -1,10 +1,9 @@
 import { describe, it, expect, beforeEach } from 'bun:test';
 import { createActor } from 'xstate';
 import { deckMachine } from '../../src/lib/state/deckMachine';
-import type { DeckCard } from '../../src/lib/deckValidation';
 
-// Mock card data matching DeckValidation.test.ts
-const mockCardData = {
+// TODO: Mock card data for future mock implementation
+/* const mockCardData = {
 	// Axiom Hero
 	ALT_CORE_H_AX_01_C: {
 		id: 'ALT_CORE_H_AX_01_C',
@@ -50,13 +49,10 @@ const mockCardData = {
 		rarity: 'Common',
 		imageUrl: 'test-url'
 	}
-};
+}; */
 
-// Mock the card data import
-vi.mock('../../src/data/cards', () => ({
-	getCardById: (id: string) => mockCardData[id as keyof typeof mockCardData] || null,
-	allCards: Object.values(mockCardData)
-}));
+// Note: Mock setup would need to be configured for Bun test runner
+// For now, the test assumes card data is available
 
 describe('Deck State Machine', () => {
 	let actor: ReturnType<typeof createActor>;
@@ -266,7 +262,6 @@ describe('Deck State Machine', () => {
 			}
 
 			// This should be blocked by the guard before reaching the action
-			const prevState = actor.getSnapshot();
 			actor.send({
 				type: 'ADD_CARD',
 				cardId: 'ALT_CORE_C_AX_02_R'

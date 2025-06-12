@@ -272,7 +272,7 @@ test.describe('Expand Mechanics - Rule 4.2.1.e', () => {
 });
 
 // Helper functions
-async function navigateToMorningPhase(page: any) {
+async function navigateToMorningPhase(page: import('@playwright/test').Page) {
 	// Navigate to a Morning phase (Day 2+)
 	while (true) {
 		const dayText = await page.locator('[data-testid="day-display"]').textContent();
@@ -287,7 +287,7 @@ async function navigateToMorningPhase(page: any) {
 	}
 }
 
-async function advanceToNextDay(page: any) {
+async function advanceToNextDay(page: import('@playwright/test').Page) {
 	// Advance through all phases to reach the next day
 	while (true) {
 		const currentDay = await page.locator('[data-testid="day-display"]').textContent();

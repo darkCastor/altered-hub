@@ -259,7 +259,7 @@ test.describe('Card Playing Mechanics - Rule 5.1', () => {
 });
 
 // Helper functions
-async function navigateToAfternoonTurn(page: any) {
+async function navigateToAfternoonTurn(page: import('@playwright/test').Page) {
 	// Navigate to Afternoon phase when it's the player's turn
 	while (true) {
 		const phaseText = await page.locator('[data-testid="phase-display"]').textContent();
@@ -286,7 +286,7 @@ async function navigateToAfternoonTurn(page: any) {
 	}
 }
 
-async function findCardByType(page: any, cardType: string) {
+async function findCardByType(page: import('@playwright/test').Page, cardType: string) {
 	const handCards = page.locator('[data-testid="player-hand"] [data-testid="card"]');
 	const count = await handCards.count();
 
@@ -302,7 +302,7 @@ async function findCardByType(page: any, cardType: string) {
 	return null;
 }
 
-async function findCardWithKeyword(page: any, keyword: string) {
+async function findCardWithKeyword(page: import('@playwright/test').Page, keyword: string) {
 	const handCards = page.locator('[data-testid="player-hand"] [data-testid="card"]');
 	const count = await handCards.count();
 

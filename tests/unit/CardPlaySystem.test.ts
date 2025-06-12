@@ -361,7 +361,7 @@ describe('CardPlaySystem - Card Playing Rules', () => {
 			const character = gameStateManager.objectFactory.createCard('character-001', 'player1');
 
 			if (player) {
-				const expeditionZone = player.zones.expeditionZone;
+				// expeditionZone available at player.zones.expeditionZone
 			}
 			// expeditionZone.setCapacity(0); // Force placement failure - BaseZone has no setCapacity
 

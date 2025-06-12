@@ -271,7 +271,6 @@ describe('GameStateManager - Rule Compliance Tests', () => {
 
 		test('should validate zone operations', async () => {
 			await gameStateManager.initializeGame();
-			const player = gameStateManager.getPlayer('player1');
 
 			// Should prevent invalid zone moves
 			expect(() => {

@@ -1,4 +1,5 @@
 <script lang="ts">
+	/* eslint-env browser */
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { useMachine } from '@xstate/svelte';
@@ -135,7 +136,7 @@
 						<Button
 							on:click={() => {
 								if (
-									confirm(
+									window.confirm(
 										`Are you sure you want to delete "${deck.name}"? This action cannot be undone.`
 									)
 								) {

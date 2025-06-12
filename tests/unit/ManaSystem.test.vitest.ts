@@ -2,7 +2,7 @@ import { describe, test, expect, beforeEach } from 'bun:test';
 import { ManaSystem } from '../../src/engine/ManaSystem';
 import { GameStateManager } from '../../src/engine/GameStateManager';
 import { EventBus } from '../../src/engine/EventBus';
-import { TerrainType, StatusType, CardType } from '../../src/engine/types/enums';
+import { StatusType, CardType } from '../../src/engine/types/enums';
 import type { ICardDefinition } from '../../src/engine/types/cards';
 
 /**
@@ -280,8 +280,6 @@ describe('ManaSystem - Mana and Terrain Rules', () => {
 		});
 
 		test('Should prevent expand if card not in hand', () => {
-			const player = gameStateManager.getPlayer('player1');
-
 			// Try to expand card not in hand
 			const expandResult = manaSystem.expandMana('player1', 'nonexistent-card');
 
