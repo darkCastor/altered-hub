@@ -197,7 +197,39 @@ export class CardPlaySystem {
 					`[CardPlaySystem] Applied Fleeting to Spell ${limboCardObject.name} (intrinsic keyword).`
 				);
 			}
-			// TODO: Rule 5.2.4.a.3 - Passive ability grants/loses Fleeting (requires passive ability system)
+			// Rule 5.2.4.a.3: Passive ability (including Emblem-Ongoing) grants/loses Fleeting
+			// TODO: Query GSM for passive abilities affecting Fleeting status of limboCardObject.id
+			// const passiveFleetingModifiers = this.gsm.getPassiveFleetingModifiers(limboCardObject.id, limboCardObject.definitionId);
+			// For now, simulate one modifier. In a real scenario, loop through all relevant modifiers.
+			// This simulation can be triggered by specific card IDs or names for testing if needed.
+			const simulatePassiveModifier = true; // Set to true to test this logic path
+
+			if (simulatePassiveModifier) {
+				// Example: Simulate a passive effect that grants Fleeting
+				// const simulatedModifier = { effect: 'gain', status: StatusType.Fleeting, source: 'Emblem of Evanescence' };
+				// Example: Simulate a passive effect that removes Fleeting
+				const simulatedModifier = { effect: 'lose', status: StatusType.Fleeting, source: 'Amulet of Permanence' };
+
+
+				if (simulatedModifier.effect === 'gain' && simulatedModifier.status === StatusType.Fleeting) {
+					this.gsm.statusHandler.applyStatusEffect(limboCardObject, StatusType.Fleeting);
+					console.log(
+						`[CardPlaySystem] Applied Fleeting to Spell ${limboCardObject.name} due to passive effect from ${simulatedModifier.source}.`
+					);
+				} else if (simulatedModifier.effect === 'lose' && simulatedModifier.status === StatusType.Fleeting) {
+					// Check if it even has Fleeting to remove (e.g. from Reserve or intrinsic)
+					if (this.gsm.statusHandler.hasStatus(limboCardObject, StatusType.Fleeting)) {
+						this.gsm.statusHandler.removeStatusEffect(limboCardObject, StatusType.Fleeting);
+						console.log(
+							`[CardPlaySystem] Removed Fleeting from Spell ${limboCardObject.name} due to passive effect from ${simulatedModifier.source}.`
+						);
+					} else {
+						console.log(
+							`[CardPlaySystem] Passive effect from ${simulatedModifier.source} attempts to remove Fleeting from ${limboCardObject.name}, but it does not have Fleeting.`
+						);
+					}
+				}
+			}
 		}
 
 		// TODO: Rule 5.1.2.h: Pay Costs
