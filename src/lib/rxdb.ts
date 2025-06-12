@@ -1,6 +1,8 @@
-import { createRxDatabase, addRxPlugin, RxDatabase, RxCollection } from 'rxdb';
+import { createRxDatabase, addRxPlugin } from 'rxdb';
+import type { RxDatabase, RxCollection } from 'rxdb';
 import { getRxStorageDexie } from 'rxdb/plugins/storage-dexie';
 import { RxDBDevModePlugin } from 'rxdb/plugins/dev-mode';
+import { wrappedValidateAjvStorage } from 'rxdb/plugins/validate-ajv';
 import type { AlteredCard } from '../types'; // Assuming AlteredCard is the type for card documents
 import type { Deck } from './state/deckMachine'; // Assuming Deck is the type for deck documents
 
@@ -33,9 +35,12 @@ async function initializeDb(): Promise<MyDatabase> {
 
 	console.log('[RxDB] Initializing database...');
 	try {
+		const dexieStorage = getRxStorageDexie();
+		const validatedStorage = wrappedValidateAjvStorage({ storage: dexieStorage });
+
 		const db: MyDatabase = await createRxDatabase<MyDatabaseCollections>({
 			name: 'alterdeckdb', // chosen database name
-			storage: getRxStorageDexie(),
+			storage: validatedStorage,
 			multiInstance: false, // simpler for now
 			ignoreDuplicate: true // useful for HMR
 		});
