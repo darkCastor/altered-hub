@@ -66,6 +66,18 @@ export default [
 			parserOptions: {
 				parser: tsParser,
 				extraFileExtensions: ['.svelte']
+			},
+			globals: {
+				setTimeout: 'readonly',
+				alert: 'readonly',
+				console: 'readonly',
+				window: 'readonly',
+				document: 'readonly',
+				navigator: 'readonly',
+				MouseEvent: 'readonly',
+				HTMLDivElement: 'readonly',
+				HTMLParagraphElement: 'readonly',
+				HTMLHeadingElement: 'readonly'
 			}
 		},
 		plugins: {
