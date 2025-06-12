@@ -86,10 +86,22 @@ export class PhaseManager {
 
 		this.gameStateManager.state.players.forEach((playerId) => {
 			this.gameStateManager.drawCards(playerId, 2); // Draw 2 cards
-			const player = this.gameStateManager.playerManager.getPlayer(playerId);
-			if (player && player.playerExpand) {
-				// Check for Expand mechanic
-				this.gameStateManager.manaSystem.expandMana(playerId);
+			const player = this.gameStateManager.getPlayer(playerId); // Corrected: getPlayer is directly on gameStateManager
+			if (player && player.playerExpand && !player.hasExpandedThisTurn) {
+				// Check for Expand mechanic and if player has already expanded
+				const handZone = this.gameStateManager.zoneManager.getZone('Hand', playerId);
+				if (handZone && handZone.cards.length > 0) {
+					const firstCardInHand = handZone.cards[0];
+					// Ensure we have a valid card identifier (instanceId or objectId)
+					const chosenCardId = firstCardInHand.instanceId || firstCardInHand.objectId;
+					if (chosenCardId) {
+						this.gameStateManager.manaSystem.expandMana(playerId, chosenCardId);
+					} else {
+						console.warn(`PhaseManager: Card in hand for player ${playerId} is missing an identifier.`);
+					}
+				} else {
+					console.log(`PhaseManager: Player ${playerId} has no cards in hand to expand.`);
+				}
 			}
 		});
 		console.log(

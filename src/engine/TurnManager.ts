@@ -24,8 +24,12 @@ export class TurnManager {
 		this.gsm.state.currentPlayerId = this.gsm.state.firstPlayerId;
 
 		// Reset hasPassedTurn for all players involved in the game
-		this.gsm.playerManager.getPlayers().forEach((player) => {
-			player.hasPassedTurn = false;
+		// Assuming getPlayerIds() and getPlayer() are the correct methods on gsm
+		this.gsm.getPlayerIds().forEach((playerId) => {
+			const player = this.gsm.getPlayer(playerId);
+			if (player) {
+				player.hasPassedTurn = false;
+			}
 		});
 
 		console.log(
@@ -37,7 +41,7 @@ export class TurnManager {
 	}
 
 	public playerPasses(playerId: string): void {
-		const player = this.gsm.playerManager.getPlayer(playerId);
+		const player = this.gsm.getPlayer(playerId); // Corrected: gsm.getPlayer directly
 		if (!player) {
 			console.error(`TurnManager: Player ${playerId} not found to pass turn.`);
 			return;
@@ -56,7 +60,9 @@ export class TurnManager {
 		// but passes priority to the next player who hasn't passed yet.
 		// Or, if the current player was the only one active, they might get another turn.
 
-		const activePlayers = this.gsm.playerManager.getPlayers().filter((p) => !p.hasPassedTurn);
+		const activePlayers = this.gsm.getPlayerIds()
+			.map(pid => this.gsm.getPlayer(pid))
+			.filter((p): p is IPlayer => !!p && !p.hasPassedTurn);
 
 		if (activePlayers.length === 0) {
 			// This should ideally be handled by checkPhaseEnd after the last pass.
@@ -111,9 +117,10 @@ export class TurnManager {
 			return;
 		}
 
-		const allPlayersPassed = this.gsm.playerManager
-			.getPlayers()
-			.every((player) => player.hasPassedTurn);
+		const allPlayersPassed = this.gsm.getPlayerIds()
+		.map(pid => this.gsm.getPlayer(pid))
+		.every((player): player is IPlayer => !!player && player.hasPassedTurn);
+
 
 		if (allPlayersPassed) {
 			console.log('TurnManager: All players have passed in Afternoon. Advancing to next phase.');
@@ -130,29 +137,29 @@ export class TurnManager {
 	public succeedPhase(): void {
 		// Called during Morning (as per audit 4.2.1.b) to determine who starts next Afternoon.
 		// The first player for the *next* day's Afternoon is the opponent of the current first player.
-		const players = this.gsm.state.players; // Assuming this is an array of player IDs
-		if (!players || players.length === 0) {
+		const playerIds = this.gsm.getPlayerIds(); // Get array of player IDs
+		if (!playerIds || playerIds.length === 0) {
 			console.warn('TurnManager: succeedPhase called with no players in state.');
 			this.gsm.state.firstPlayerId = ''; // Or handle as an error
 			return;
 		}
-		if (players.length === 1) {
-			this.gsm.state.firstPlayerId = players[0]; // Only one player
+		if (playerIds.length === 1) {
+			this.gsm.state.firstPlayerId = playerIds[0]; // Only one player
 		} else {
 			const currentFirstPlayerId = this.gsm.state.firstPlayerId;
-			let currentFirstPlayerIndex = players.indexOf(currentFirstPlayerId);
+			let currentFirstPlayerIndex = playerIds.indexOf(currentFirstPlayerId);
 
 			if (currentFirstPlayerIndex === -1) {
 				// Fallback if currentFirstPlayerId is somehow not in the list
 				console.warn(
-					`TurnManager: currentFirstPlayerId '${currentFirstPlayerId}' not found in players list during succeedPhase. Defaulting to first player in list.`
+					`TurnManager: currentFirstPlayerId '${currentFirstPlayerId}' not found in player ID list during succeedPhase. Defaulting to first player in list.`
 				);
 				currentFirstPlayerIndex = 0; // Default to the first player
-				this.gsm.state.firstPlayerId = players[currentFirstPlayerIndex];
+				this.gsm.state.firstPlayerId = playerIds[currentFirstPlayerIndex];
 			}
 
-			const nextFirstPlayerIndex = (currentFirstPlayerIndex + 1) % players.length;
-			this.gsm.state.firstPlayerId = players[nextFirstPlayerIndex];
+			const nextFirstPlayerIndex = (currentFirstPlayerIndex + 1) % playerIds.length;
+			this.gsm.state.firstPlayerId = playerIds[nextFirstPlayerIndex];
 		}
 		console.log(
 			`TurnManager: succeedPhase - First player for the next day's Afternoon is now ${this.gsm.state.firstPlayerId}.`

@@ -459,12 +459,12 @@ export class GameStateManager {
 
 	private *getAllVisibleZones(): Generator<IZone> {
 		for (const player of this.state.players.values()) {
-			yield player.zones.discardPile;
+			yield player.zones.discardPileZone; // Corrected: discardPile -> discardPileZone
 			yield player.zones.manaZone;
-			yield player.zones.reserve;
+			yield player.zones.reserveZone;    // Corrected: reserve -> reserveZone (using the primary, not alias)
 			yield player.zones.landmarkZone;
 			yield player.zones.heroZone;
-			yield player.zones.expedition;
+			yield player.zones.expeditionZone; // Corrected: expedition -> expeditionZone (using the primary, not alias)
 		}
 		yield this.state.sharedZones.adventure;
 		yield this.state.sharedZones.limbo;

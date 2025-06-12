@@ -185,20 +185,65 @@ export class EffectProcessor {
 		const count = step.parameters?.count || 1;
 
 		for (const target of targets) {
-			if (typeof target === 'string') {
+			if (typeof target === 'string') { // Target is a player ID
 				const player = this.gsm.getPlayer(target);
 				if (!player) continue;
 
-				const discardCards = player.zones.discardPileZone.getAll().slice(0, count);
-				for (const card of discardCards) {
-					this.gsm.moveEntity(
-						isGameObject(card) ? card.objectId : card.instanceId,
-						player.zones.discardPileZone,
-						player.zones.reserve,
-						target
-					);
+				let cardsResuppliedCount = 0;
+				for (let i = 0; i < count; i++) {
+					// Assume player.zones.deckZone is of type DeckZone which has removeTop, addBottom, shuffle
+					const deckZone = player.zones.deckZone as import('./Zone').DeckZone;
+					const discardPile = player.zones.discardPileZone;
+
+					if (deckZone.getCount() === 0) {
+						if (discardPile.getCount() > 0) {
+							const discardedCards = discardPile.getAll();
+							discardPile.clear();
+
+							const cardsToReshuffle = discardedCards.map(entity => {
+								if (isGameObject(entity)) {
+									// Convert IGameObject from discard back to ICardInstance for deck
+									return this.gsm.objectFactory.createCardInstance(entity.definitionId, entity.ownerId);
+								}
+								// Should already be ICardInstance if somehow there, or could be an error/unexpected type
+								return entity as import('./types/cards').ICardInstance;
+							});
+
+							deckZone.addBottom(cardsToReshuffle);
+							deckZone.shuffle();
+							console.log(`[EffectProcessor] Player ${target} shuffled discard into deck for Resupply.`);
+						}
+					}
+
+					if (deckZone.getCount() > 0) {
+						// Get the top card's instanceId without removing it yet.
+						// moveEntity will handle the removal from deckZone.
+						// DeckZone.getAll() should maintain order, [0] is top.
+						const allDeckInstances = deckZone.getAll() as import('./types/cards').ICardInstance[];
+						const cardToMoveInstance = allDeckInstances[0];
+
+						if (cardToMoveInstance && cardToMoveInstance.instanceId) {
+							this.gsm.moveEntity(
+								cardToMoveInstance.instanceId,
+								deckZone,
+								player.zones.reserveZone,
+								target
+							);
+							cardsResuppliedCount++;
+						} else {
+							// This case implies deckZone had a card, but it was invalid or lacked instanceId.
+							console.warn(`[EffectProcessor] Resupply: Deck top card was invalid or missing instanceId for player ${target}.`);
+							break; // Stop trying to resupply for this player if deck state is unexpected.
+						}
+					} else {
+						// Deck and discard were empty, or became empty
+						console.log(`[EffectProcessor] Player ${target} has no more cards in Deck or Discard to Resupply.`);
+						break;
+					}
 				}
-				console.log(`[EffectProcessor] Player ${target} resupplied ${discardCards.length} cards`);
+				if (cardsResuppliedCount > 0) {
+					console.log(`[EffectProcessor] Player ${target} resupplied ${cardsResuppliedCount} cards from Deck to Reserve.`);
+				}
 			}
 		}
 	}
