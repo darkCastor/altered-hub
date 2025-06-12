@@ -25,7 +25,11 @@ export default [
 				window: 'readonly',
 				document: 'readonly',
 				navigator: 'readonly',
-				location: 'readonly'
+				location: 'readonly',
+				self: 'readonly',
+				importScripts: 'readonly',
+				define: 'readonly',
+				URL: 'readonly'
 			}
 		},
 		plugins: {
