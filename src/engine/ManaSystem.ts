@@ -243,39 +243,37 @@ export class ManaSystem {
 		const player = this.gsm.getPlayer(playerId);
 		if (!player) return false;
 
-		// Find the card in player's hand - try multiple ID fields
-		const handCard = player.zones.handZone.getAll().find((c) => {
-			if (isGameObject(c)) {
-				return c.objectId === cardId || c.id === cardId || c.definitionId === cardId;
-			} else {
-				return c.instanceId === cardId || c.id === cardId || c.definitionId === cardId;
-			}
-		});
+		// Find the card in player's hand using the cardId passed (which should be instanceId or objectId)
+		const handCard = player.zones.handZone.findById(cardId);
 
-		if (!handCard) return false;
+		if (!handCard) {
+			console.error(`[ManaSystem.addCardToMana] Card with ID ${cardId} not found in hand of player ${playerId}.`);
+			return false;
+		}
 
-		// Use the correct entity ID for movement
-		const entityId = isGameObject(handCard) ? handCard.objectId : handCard.instanceId;
+		// Note: entityId for moveEntity is cardId itself, as findById ensures it's the key in the zone.
+		// const entityId = isGameObject(handCard) ? handCard.objectId : handCard.instanceId; // This is just cardId
 
 		// Move card to mana zone via GameStateManager
 		try {
-			this.gsm.moveEntity(entityId, player.zones.handZone, player.zones.manaZone, playerId);
+			// The cardId IS the entityId (key) for the handZone.
+			this.gsm.moveEntity(cardId, player.zones.handZone, player.zones.manaZone, playerId);
 
 			// Apply Rule 3.2.9.b and 3.2.9.c to the moved card
-			// Always search for the card in mana zone since moveEntity creates a new object
-			const cardInMana = player.zones.manaZone.getAll().find((c) => {
-				if (isGameObject(c)) {
-					return c.definitionId === handCard.definitionId;
-				}
-				return false;
-			});
+			// After moveEntity, a new object is in the mana zone. We need to find it.
+			// The original handCard's definitionId is reliable for finding the new entity.
+			// The entity moved will have a new objectId if it became an IGameObject.
+			// We use the definitionId of the original handCard to find it in the mana zone.
+			const newCardInManaZone = player.zones.manaZone.getAll().find(entity => entity.definitionId === handCard.definitionId);
 
-			if (isGameObject(cardInMana)) {
-				cardInMana.faceDown = true; // Rule 3.2.9.b
-				cardInMana.statuses.add(StatusType.Exhausted); // Rule 3.2.9.b
-				cardInMana.type = CardType.ManaOrb; // Rule 3.2.9.c
+			if (isGameObject(newCardInManaZone)) {
+				newCardInManaZone.faceDown = true; // Rule 3.2.9.b
+				newCardInManaZone.statuses.add(StatusType.Exhausted); // Rule 3.2.9.b
+				newCardInManaZone.type = CardType.ManaOrb; // Rule 3.2.9.c
+			} else {
+				// This case should ideally not happen if moveEntity correctly creates an IGameObject for visible zones like Mana.
+				console.warn(`[ManaSystem.addCardToMana] Card ${handCard.definitionId} in mana zone is not an IGameObject.`);
 			}
-
 			return true;
 		} catch (error) {
 			console.error('Failed to add card to mana:', error);

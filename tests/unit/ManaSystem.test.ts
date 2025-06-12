@@ -1,9 +1,10 @@
-import { describe, test, expect, beforeEach } from 'bun:test';
+import { describe, test, expect, beforeEach, vi } from 'bun:test';
 import { ManaSystem } from '../../src/engine/ManaSystem';
 import { GameStateManager } from '../../src/engine/GameStateManager';
 import { EventBus } from '../../src/engine/EventBus';
-import { StatusType, CardType } from '../../src/engine/types/enums'; // Removed TerrainType
+import { StatusType, CardType, Faction, ZoneIdentifier } from '../../src/engine/types/enums';
 import type { ICardDefinition } from '../../src/engine/types/cards';
+import { isGameObject } from '../../src/engine/types/objects';
 
 /**
  * Unit tests for ManaSystem - Rules 3.2.9 (Mana Zone) and 2.2.10 (Terrain Statistics)
@@ -71,12 +72,15 @@ describe('ManaSystem - Mana and Terrain Rules', () => {
 			if (!player) throw new Error('Player not found');
 			player.zones.handZone.add(card);
 
-			manaSystem.addCardToMana('player1', card.id);
+			manaSystem.addCardToMana('player1', card.id); // card.id here is likely definitionId or instance/objectId based on createCard
 
 			const manaZone = player.zones.manaZone;
-			const addedCard = manaZone.getAll().find((c) => c.id === card.id);
+			// Find by definitionId, as the object might be new in manaZone with a new objectId
+			const addedCard = manaZone.getAll().find((c) => c.definitionId === card.definitionId);
 
+			expect(addedCard).toBeDefined();
 			expect(addedCard?.faceDown).toBe(true);
+			// addCardToMana sets Exhausted, so this should be true.
 			expect(addedCard?.statuses.has(StatusType.Exhausted)).toBe(true);
 		});
 
@@ -89,11 +93,13 @@ describe('ManaSystem - Mana and Terrain Rules', () => {
 			if (!player) throw new Error('Player not found');
 			player.zones.handZone.add(card);
 
-			manaSystem.addCardToMana('player1', card.id);
+			manaSystem.addCardToMana('player1', card.id); // card.id here is likely definitionId or instance/objectId
 
 			const manaZone = player.zones.manaZone;
-			const manaOrb = manaZone.getAll().find((c) => c.id === card.id);
+			// Find by definitionId
+			const manaOrb = manaZone.getAll().find((c) => c.definitionId === card.definitionId);
 
+			expect(manaOrb).toBeDefined();
 			expect(manaOrb?.type).toBe(CardType.ManaOrb);
 		});
 
@@ -269,7 +275,8 @@ describe('ManaSystem - Mana and Terrain Rules', () => {
 			const manaCard = player.zones.manaZone.getAll().find((c) => c.id === card.id);
 			expect(manaCard).toBeDefined();
 			expect(manaCard?.faceDown).toBe(true);
-			expect(manaCard?.statuses.has(StatusType.Exhausted)).toBe(false);
+			// Corrected assertion: card added via expandMana (which uses addCardToMana) should be exhausted.
+			expect(manaCard?.statuses.has(StatusType.Exhausted)).toBe(true);
 		});
 
 		test('Should prevent expand if card not in hand', () => {
@@ -297,6 +304,69 @@ describe('ManaSystem - Mana and Terrain Rules', () => {
 			const expand2 = manaSystem.expandMana('player1', card2.objectId);
 			expect(expand2.success).toBe(false);
 			expect(expand2.error).toBe('Already expanded this turn');
+		});
+
+		test('ManaSystem.expandMana correctly processes a card from hand to mana zone and sets Exhausted status', () => {
+			// Setup specific to this test
+			const localEventBus = new EventBus();
+			const mockCardDef: ICardDefinition = {
+				id: 'testCardDef1',
+				name: 'Test Card for Expand',
+				type: CardType.Character,
+				subTypes: [],
+				handCost: { total: 1 },
+				reserveCost: { total: 1 },
+				faction: Faction.Axiom, // Assuming Faction enum is imported
+				statistics: { forest: 1, mountain: 1, water: 1 },
+				abilities: [],
+				rarity: 'Common',
+				version: '1.0'
+			};
+			const localGameStateManager = new GameStateManager(['player1'], [mockCardDef], localEventBus);
+			// Need to call initializeGame for players and zones to be set up
+			localGameStateManager.initializeGame();
+			const localManaSystem = localGameStateManager.manaSystem;
+
+			const player = localGameStateManager.getPlayer('player1');
+			if (!player) throw new Error('Test Setup Error: Player not found');
+
+			// Clear default mana orbs from initializeGame for a clean mana zone count for this test
+			player.zones.manaZone.clear();
+			expect(player.zones.manaZone.getCount()).toBe(0);
+
+
+			const cardInHand = localGameStateManager.objectFactory.createCardInstance(mockCardDef.id, 'player1');
+			player.zones.handZone.add(cardInHand);
+			player.hasExpandedThisTurn = false;
+
+			// Action
+			// Get hand count *before* adding the specific card to be expanded, but *after* initial draw from initializeGame()
+			const initialHandCountFromSetup = player.zones.handZone.getCount(); // Should be 6 from initializeGame
+			player.zones.handZone.add(cardInHand); // Now hand has initialHandCountFromSetup + 1
+			const handCountBeforeExpand = player.zones.handZone.getCount();
+
+			const result = localManaSystem.expandMana('player1', cardInHand.instanceId);
+
+			// Assertions
+			expect(result.success).toBe(true);
+			// Hand count should be one less than before this specific expand action
+			expect(player.zones.handZone.getCount()).toBe(handCountBeforeExpand - 1);
+			// Mana zone was cleared, so it should now have 1.
+			expect(player.zones.manaZone.getCount()).toBe(1);
+
+			const manaOrbs = player.zones.manaZone.getAll();
+			const manaOrb = manaOrbs[0];
+
+			expect(manaOrb).toBeDefined();
+			expect(isGameObject(manaOrb)).toBe(true); // Check if it's an IGameObject
+
+			if (isGameObject(manaOrb)) {
+				expect(manaOrb.type).toBe(CardType.ManaOrb);
+				expect(manaOrb.faceDown).toBe(true);
+				expect(manaOrb.statuses.has(StatusType.Exhausted)).toBe(true); // Key assertion
+				expect(manaOrb.definitionId).toBe(cardInHand.definitionId);
+			}
+			expect(player.hasExpandedThisTurn).toBe(true);
 		});
 	});
 
