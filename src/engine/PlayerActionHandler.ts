@@ -271,7 +271,7 @@ export class PlayerActionHandler {
 	/**
 	 * Gets available quick actions
 	 */
-	private getAvailableQuickActions(playerId: string): PlayerAction[] {
+	private getAvailableQuickActions(_playerId: string): PlayerAction[] {
 		// TODO: Implement quick action detection
 		// Check support abilities, object abilities, etc.
 		return [];

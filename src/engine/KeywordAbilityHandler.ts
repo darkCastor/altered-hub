@@ -67,8 +67,7 @@ export class KeywordAbilityHandler {
 			return true; // No Tough or same controller
 		}
 
-		const _toughValue = toughAbility.keywordValue || 0;
-		// TODO: Check if opponent can pay the additional cost
+		// TODO: Check if opponent can pay the additional cost for Tough
 		// For now, return true (assuming they can pay)
 		return true;
 	}

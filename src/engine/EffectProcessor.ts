@@ -1,6 +1,7 @@
 import type { GameStateManager } from './GameStateManager';
 import type { IGameObject } from './types/objects';
 import type { IEffect, IEffectStep } from './types/abilities';
+import type { IZone } from './types/zones';
 import { CounterType, StatusType, ZoneIdentifier } from './types/enums';
 import { isGameObject } from './types/objects';
 
@@ -581,9 +582,6 @@ export class EffectProcessor {
 		console.warn('[EffectProcessor] Unresolved target specification:', targets);
 		return [];
 	}
-
-	/**
-import type { IZone } from './types/zones';
 
 	/**
 	 * Finds a zone by type for a player

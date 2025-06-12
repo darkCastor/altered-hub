@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { z } from 'zod';
 	// Temporarily disabled AI functionality for build
 	// import { getDeckAdvice, type DeckAdviceInput, type DeckAdviceOutput } from '$ai/flows/deck-advisor';
 

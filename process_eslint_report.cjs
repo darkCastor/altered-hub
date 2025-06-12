@@ -1,4 +1,6 @@
 const fs = require('fs');
+/* eslint-env node */
+/* eslint no-undef: "off" */
 
 try {
 	const reportContent = fs.readFileSync('eslint_report.json', 'utf-8');

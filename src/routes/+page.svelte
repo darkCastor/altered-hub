@@ -1,10 +1,4 @@
 <script lang="ts">
-	import Button from '$components/ui/button/Button.svelte';
-	import Card from '$components/ui/card/Card.svelte';
-	import CardContent from '$components/ui/card/CardContent.svelte';
-	import CardDescription from '$components/ui/card/CardDescription.svelte';
-	import CardHeader from '$components/ui/card/CardHeader.svelte';
-	import CardTitle from '$components/ui/card/CardTitle.svelte';
 	import { Zap, BookOpen, Lightbulb, Layers } from 'lucide-svelte';
 
 	const features = [

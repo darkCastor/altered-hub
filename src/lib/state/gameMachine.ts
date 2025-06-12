@@ -125,7 +125,7 @@ export const gameMachine = setup({
 				// pendingReactionsCount and initiativePlayerReactions will be re-evaluated in evaluateLimbo
 			};
 		}),
-		clearReactionContext: assign(({ context }) => {
+		clearReactionContext: assign(() => {
 			return {
 				pendingReactionsCount: 0,
 				initiativePlayerReactions: [],

@@ -90,8 +90,6 @@ test.describe('Phase Transitions - Rules Compliance', () => {
 
 				await page.waitForTimeout(1000);
 			}
-
-			currentDay++;
 		}
 
 		// Verify we've advanced to Day 3
@@ -146,9 +144,6 @@ test.describe('Phase Transitions - Rules Compliance', () => {
 
 		// Rule 4.2.4: Progress phase should execute
 		// Characters in expedition should move forward
-		const expeditionCards = await page
-			.locator('[data-testid="expedition-zone"] [data-testid="card"]')
-			.count();
 
 		// Advance through Dusk
 		await page.click('button:has-text("Advance Phase")');

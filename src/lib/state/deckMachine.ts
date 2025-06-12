@@ -1,7 +1,6 @@
-import { setup, assign, sendParent, assertEvent } from 'xstate';
+import { setup, assign, assertEvent } from 'xstate';
 import { deckValidator, type DeckValidationResult, type DeckFormat } from '$lib/deckValidation';
-import type { AlteredCard } from '$types';
-import { dbPromise, type MyDatabase } from '$lib/rxdb'; // Import RxDB
+import { dbPromise } from '$lib/rxdb';
 
 // RxDB Deck type (dates as strings)
 export interface DeckDoc {
@@ -144,7 +143,7 @@ export const deckMachine = setup({
 				error: event.error instanceof Error ? event.error.message : 'Failed to load decks'
 			};
 		}),
-		createDeck: assign(({ context, event }) => {
+		createDeck: assign(({ event }) => {
 			assertEvent(event, 'CREATE_DECK');
 
 			const format = event.format || 'constructed';

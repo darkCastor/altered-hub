@@ -538,7 +538,6 @@ describe('PhaseManager - Phase Transition Rules', () => {
 			// potentially by PhaseManager calling it.
 			// We can check if the turn ownership or priority is correctly set for reactions.
 			gameStateManager.setCurrentPhase(GamePhase.Morning);
-			const initialPlayer = gameStateManager.state.currentPlayerId;
 
 			// After advancing from Morning to Noon, a reaction window should occur.
 			// The first player (usually currentPlayerId at the start of the new phase) gets priority.

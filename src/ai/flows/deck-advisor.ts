@@ -52,7 +52,7 @@ const deckAdvisorFlow = ai.defineFlow(
 		const { output } = await prompt(input);
 		if (!output) {
 			// Or return a default DeckAdviceOutput if that's preferred
-			throw new Error("Failed to get advice from AI prompt.");
+			throw new Error('Failed to get advice from AI prompt.');
 		}
 		return output;
 	}

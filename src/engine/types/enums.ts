@@ -5,14 +5,7 @@ export enum Faction {
 	Muna = 'Muna',
 	Ordis = 'Ordis',
 	Yzmir = 'Yzmir',
-	Neutre = 'Neutre', // Added for Neutral cards
-	AX = 'Axiom', // Alias for mapping
-	BR = 'Bravos', // Alias for mapping
-	LY = 'Lyra', // Alias for mapping
-	MU = 'Muna', // Alias for mapping
-	NE = 'Neutre', // Alias for mapping
-	OR = 'Ordis', // Alias for mapping
-	YZ = 'Yzmir' // Alias for mapping
+	Neutre = 'Neutre' // Added for Neutral cards
 }
 
 export enum CardType {
@@ -26,17 +19,8 @@ export enum CardType {
 	LandmarkPermanent = 'Repère Permanent',
 	ExpeditionPermanent = 'Permanent d’Expédition',
 	Token = 'Jeton Personnage',
-	// Aliases for mapping
-	CHARACTER = 'Personnage',
-	HERO = 'Héros',
-	SPELL = 'Sort',
-	PERMANENT = 'Permanent',
-	EMBLEM = 'Emblem', // Added
-	LANDMARK_PERMANENT = 'Repère Permanent',
-	EXPEDITION_PERMANENT = 'Permanent d’Expédition',
-	TOKEN = 'Jeton Personnage',
-	TOKEN_MANA = 'Mana',
-	FOILER = 'Foiler'
+	TokenMana = 'Mana',
+	Foiler = 'Foiler'
 }
 
 export enum PermanentZoneType {
@@ -48,10 +32,7 @@ export enum Rarity {
 	Common = 'Commun', // Match names from raritiesLookup
 	Rare = 'Rare',
 	Unique = 'Unique',
-	Token = 'Token',
-	// Aliases for mapping
-	COMMON = 'Commun',
-	RARE = 'Rare'
+	Token = 'Token'
 }
 
 export enum GamePhase {

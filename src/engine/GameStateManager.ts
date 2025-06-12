@@ -18,6 +18,8 @@ import { EffectProcessor } from './EffectProcessor';
 import { StatusEffectHandler } from './StatusEffectHandler';
 import { ManaSystem } from './ManaSystem';
 import { CardPlaySystem } from './CardPlaySystem';
+import type { TurnManager } from './TurnManager';
+import type { PhaseManager } from './PhaseManager';
 import { TiebreakerSystem } from './TiebreakerSystem';
 // import { PassiveAbilityManager } from './PassiveAbilityManager'; // Removed
 import { RuleAdjudicator } from './RuleAdjudicator';

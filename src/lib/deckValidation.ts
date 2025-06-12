@@ -1,5 +1,4 @@
-import type { AlteredCard } from '$types';
-import { allCards, getCardById } from '$data/cards';
+import { getCardById } from '$data/cards';
 
 export interface DeckValidationResult {
 	isValid: boolean;
