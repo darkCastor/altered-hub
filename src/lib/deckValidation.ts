@@ -67,7 +67,9 @@ export class DeckValidator {
 		// Rule 1.1.4.c - Minimum Deck Size (39 other cards + 1 hero = 40 total)
 		const nonHeroCards = stats.totalCards - stats.heroCount;
 		if (nonHeroCards < 39) {
-			errors.push(`A constructed deck must include at least 39 non-Hero cards (currently ${nonHeroCards})`);
+			errors.push(
+				`A constructed deck must include at least 39 non-Hero cards (currently ${nonHeroCards})`
+			);
 		}
 
 		// Rule 1.1.4.d - Faction Restrictions
@@ -75,17 +77,21 @@ export class DeckValidator {
 			const hero = getCardById(heroId);
 			if (hero && hero.faction) {
 				const otherFactions = Object.keys(stats.factionBreakdown).filter(
-					faction => faction !== hero.faction && stats.factionBreakdown[faction] > 0
+					(faction) => faction !== hero.faction && stats.factionBreakdown[faction] > 0
 				);
 				if (otherFactions.length > 0) {
-					errors.push(`All cards must be the same faction as the Hero (${hero.faction}). Found cards from: ${otherFactions.join(', ')}`);
+					errors.push(
+						`All cards must be the same faction as the Hero (${hero.faction}). Found cards from: ${otherFactions.join(', ')}`
+					);
 				}
 			}
 		}
 
 		// Rule 1.1.4.e - Copy Restrictions (max 3 cards with same name)
-		stats.copyViolations.forEach(violation => {
-			errors.push(`Maximum 3 copies of "${violation.cardName}" allowed (currently ${violation.count})`);
+		stats.copyViolations.forEach((violation) => {
+			errors.push(
+				`Maximum 3 copies of "${violation.cardName}" allowed (currently ${violation.count})`
+			);
 		});
 
 		// Rule 1.1.4.f - Rare Card Restrictions (max 15 rare cards)
@@ -121,32 +127,36 @@ export class DeckValidator {
 		// Rule 1.1.5.c - Minimum Deck Size (29 non-Hero cards)
 		const nonHeroCards = stats.totalCards - stats.heroCount;
 		if (nonHeroCards < 29) {
-			errors.push(`A limited deck must include at least 29 non-Hero cards (currently ${nonHeroCards})`);
+			errors.push(
+				`A limited deck must include at least 29 non-Hero cards (currently ${nonHeroCards})`
+			);
 		}
 
 		// Rule 1.1.5.d - Faction Restrictions (max 3 factions, Hero counts as one)
 		const factionCount = Object.keys(stats.factionBreakdown).filter(
-			faction => stats.factionBreakdown[faction] > 0
+			(faction) => stats.factionBreakdown[faction] > 0
 		).length;
 
 		if (factionCount > 3) {
 			const factions = Object.keys(stats.factionBreakdown).filter(
-				faction => stats.factionBreakdown[faction] > 0
+				(faction) => stats.factionBreakdown[faction] > 0
 			);
-			errors.push(`Maximum 3 factions allowed in limited format (currently ${factionCount}: ${factions.join(', ')})`);
+			errors.push(
+				`Maximum 3 factions allowed in limited format (currently ${factionCount}: ${factions.join(', ')})`
+			);
 		}
 
 		// No copy or rarity restrictions in limited format, but warn about multiple copies
 		// Check for multiple copies (in limited format, check manually since copyViolations only tracks constructed violations)
 		const cardNameCounts: { [name: string]: number } = {};
-		cards.forEach(deckCard => {
+		cards.forEach((deckCard) => {
 			const card = getCardById(deckCard.cardId);
 			if (card) {
 				cardNameCounts[card.name] = (cardNameCounts[card.name] || 0) + deckCard.quantity;
 			}
 		});
 
-		const hasMultipleCopies = Object.values(cardNameCounts).some(count => count > 3);
+		const hasMultipleCopies = Object.values(cardNameCounts).some((count) => count > 3);
 		if (hasMultipleCopies) {
 			warnings.push('Multiple copies of the same card - consider deck diversity');
 		}
@@ -180,7 +190,7 @@ export class DeckValidator {
 		const cardNameCounts: { [name: string]: number } = {};
 
 		// Count main deck cards
-		cards.forEach(deckCard => {
+		cards.forEach((deckCard) => {
 			const card = getCardById(deckCard.cardId);
 			if (!card) return;
 
@@ -189,7 +199,8 @@ export class DeckValidator {
 
 			// Count by faction
 			if (card.faction) {
-				stats.factionBreakdown[card.faction] = (stats.factionBreakdown[card.faction] || 0) + quantity;
+				stats.factionBreakdown[card.faction] =
+					(stats.factionBreakdown[card.faction] || 0) + quantity;
 			}
 
 			// Count by rarity
@@ -222,7 +233,11 @@ export class DeckValidator {
 	}
 
 	// Helper method to check if a card can be added to the deck
-	canAddCard(cards: DeckCard[], cardId: string, heroId?: string): { canAdd: boolean; reason?: string } {
+	canAddCard(
+		cards: DeckCard[],
+		cardId: string,
+		heroId?: string
+	): { canAdd: boolean; reason?: string } {
 		const card = getCardById(cardId);
 		if (!card) {
 			return { canAdd: false, reason: 'Card not found' };
@@ -232,7 +247,10 @@ export class DeckValidator {
 		if (this.format === 'constructed' && heroId) {
 			const hero = getCardById(heroId);
 			if (hero && hero.faction && card.faction && card.faction !== hero.faction) {
-				return { canAdd: false, reason: `Card faction (${card.faction}) must match Hero faction (${hero.faction})` };
+				return {
+					canAdd: false,
+					reason: `Card faction (${card.faction}) must match Hero faction (${hero.faction})`
+				};
 			}
 		}
 
@@ -240,7 +258,7 @@ export class DeckValidator {
 		if (this.format === 'constructed') {
 			// Count all cards with the same name as the card we're trying to add
 			let sameNameCount = 0;
-			cards.forEach(deckCard => {
+			cards.forEach((deckCard) => {
 				const existingCard = getCardById(deckCard.cardId);
 				if (existingCard && existingCard.name === card.name) {
 					sameNameCount += deckCard.quantity;
@@ -254,17 +272,17 @@ export class DeckValidator {
 
 		// Check rarity restrictions for constructed
 		if (this.format === 'constructed') {
-			const existingCard = cards.find(c => c.cardId === cardId);
-			const tempCards = existingCard 
-				? cards.map(c => c.cardId === cardId ? { ...c, quantity: c.quantity + 1 } : c)
+			const existingCard = cards.find((c) => c.cardId === cardId);
+			const tempCards = existingCard
+				? cards.map((c) => (c.cardId === cardId ? { ...c, quantity: c.quantity + 1 } : c))
 				: [...cards, { cardId, quantity: 1 }];
-			
+
 			const tempStats = this.calculateStats(tempCards, heroId);
-			
+
 			if (card.rarity === 'Rare' && tempStats.rarityBreakdown['Rare'] > 15) {
 				return { canAdd: false, reason: 'Maximum 15 rare cards allowed' };
 			}
-			
+
 			// Assuming card.rarity will be "UNIQUE" for unique cards if not found in lookup
 			if (card.rarity === 'UNIQUE' && (tempStats.rarityBreakdown['UNIQUE'] || 0) > 3) {
 				return { canAdd: false, reason: 'Maximum 3 unique cards allowed' };

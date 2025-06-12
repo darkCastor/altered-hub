@@ -15,7 +15,7 @@
 	<meta name="theme-color" content="#09090b" />
 </svelte:head>
 
-<div class="min-h-screen bg-background font-sans antialiased">
+<div class="bg-background min-h-screen font-sans antialiased">
 	<Header />
 	<main class="flex-1">
 		<slot />

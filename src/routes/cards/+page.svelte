@@ -12,7 +12,7 @@
 
 	let searchQuery = '';
 	let localLoadedCards: AlteredCard[] = []; // To store cards once loaded
-	let filteredCards: AlteredCard[] = [];   // Derived from localLoadedCards and searchQuery
+	let filteredCards: AlteredCard[] = []; // Derived from localLoadedCards and searchQuery
 	let selectedAction: string | null = null;
 	let showHeroSelector = false;
 
@@ -31,7 +31,9 @@
 		if (action === 'create') {
 			selectedAction = 'create';
 			const deckName = prompt('Enter deck name:') || 'New Deck';
-			const format = confirm('Create a Constructed deck? (Cancel for Limited)') ? 'constructed' : 'limited';
+			const format = confirm('Create a Constructed deck? (Cancel for Limited)')
+				? 'constructed'
+				: 'limited';
 			send({ type: 'CREATE_DECK', name: deckName, format });
 		} else if (action === 'edit') {
 			selectedAction = 'edit'; // Or some indicator that we are in edit mode
@@ -63,20 +65,22 @@
 		if (searchQuery.trim() === '') {
 			filteredCards = localLoadedCards;
 		} else {
-			filteredCards = localLoadedCards.filter(card =>
-				card.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-				card.type.toLowerCase().includes(searchQuery.toLowerCase()) ||
-				card.faction?.toLowerCase().includes(searchQuery.toLowerCase())
+			filteredCards = localLoadedCards.filter(
+				(card) =>
+					card.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+					card.type.toLowerCase().includes(searchQuery.toLowerCase()) ||
+					card.faction?.toLowerCase().includes(searchQuery.toLowerCase())
 			);
 		}
 	}
 
-	$: if (searchQuery && localLoadedCards.length > 0) { // Trigger search when searchQuery changes
+	$: if (searchQuery && localLoadedCards.length > 0) {
+		// Trigger search when searchQuery changes
 		handleSearch();
-	} else if (localLoadedCards.length > 0) { // Reset if search query is cleared
+	} else if (localLoadedCards.length > 0) {
+		// Reset if search query is cleared
 		filteredCards = localLoadedCards;
 	}
-
 
 	function handleAddCard(cardId: string) {
 		if (selectedAction === 'create' && $snapshot.context.currentDeck) {
@@ -102,8 +106,8 @@
 	// Group cards by base name to show transformations together
 	function groupCardsByBase(cards: AlteredCard[]) {
 		const groups: { [key: string]: AlteredCard[] } = {};
-		
-		cards.forEach(card => {
+
+		cards.forEach((card) => {
 			// Use the card name as the grouping key since transformations have the same name
 			const baseName = card.name;
 			if (!groups[baseName]) {
@@ -111,18 +115,18 @@
 			}
 			groups[baseName].push(card);
 		});
-		
+
 		return Object.values(groups);
 	}
 
 	// Filter cards for hero selection (only CHARACTER types)
 	// This will be reactive based on localLoadedCards once available
-	$: heroCards = localLoadedCards.filter(card => card.type === 'CHARACTER');
+	$: heroCards = localLoadedCards.filter((card) => card.type === 'CHARACTER');
 
 	// Get card quantity in current deck
 	function getCardQuantity(cardId: string): number {
 		if (!$snapshot.context.currentDeck) return 0;
-		const deckCard = $snapshot.context.currentDeck.cards.find(c => c.cardId === cardId);
+		const deckCard = $snapshot.context.currentDeck.cards.find((c) => c.cardId === cardId);
 		return deckCard ? deckCard.quantity : 0;
 	}
 
@@ -130,7 +134,7 @@
 	function canAddCard(cardId: string): boolean {
 		const validator = deckMachine.config.guards?.canAddCard;
 		if (!validator) return false;
-		
+
 		return validator({
 			context: $snapshot.context,
 			event: { type: 'ADD_CARD', cardId }
@@ -155,14 +159,18 @@
 		<div class="flex items-center justify-between">
 			<div>
 				<h1 class="text-3xl font-bold tracking-tight">
-					{selectedAction === 'create' ? 'Deck Builder' : (selectedAction === 'edit' ? 'Edit Deck' : 'Card Viewer')}
+					{selectedAction === 'create'
+						? 'Deck Builder'
+						: selectedAction === 'edit'
+							? 'Edit Deck'
+							: 'Card Viewer'}
 				</h1>
 				<p class="text-muted-foreground">
-					{selectedAction === 'create' 
+					{selectedAction === 'create'
 						? 'Build your deck with Altered TCG rules enforcement.'
-						: (selectedAction === 'edit'
+						: selectedAction === 'edit'
 							? 'Edit your existing deck.'
-							: `Browse all ${localLoadedCards.length > 0 ? localLoadedCards.length : '...'} Altered TCG cards with their transformations.`)}
+							: `Browse all ${localLoadedCards.length > 0 ? localLoadedCards.length : '...'} Altered TCG cards with their transformations.`}
 				</p>
 			</div>
 			{#if selectedAction === 'create' || selectedAction === 'edit'}
@@ -174,34 +182,32 @@
 				{:else}
 					<Button
 						on:click={() => send({ type: 'SAVE_DECK' })}
-						disabled={!currentDeck || !$snapshot.context.validationResult?.isValid || $snapshot.matches('saving')}
-						class="bg-green-600 hover:bg-green-700 text-white"
+						disabled={!currentDeck ||
+							!$snapshot.context.validationResult?.isValid ||
+							$snapshot.matches('saving')}
+						class="bg-green-600 text-white hover:bg-green-700"
 					>
 						Save Deck
 					</Button>
 				{/if}
-				<Button
-					on:click={() => goto('/decks')}
-					variant="outline"
-				>
-					Back to Decks
-				</Button>
+				<Button on:click={() => goto('/decks')} variant="outline">Back to Decks</Button>
 			{/if}
 		</div>
 
 		<!-- Deck Building Panel -->
 		{#if (selectedAction === 'create' || selectedAction === 'edit') && currentDeck}
-			<div class="bg-card border rounded-lg p-6 space-y-4">
+			<div class="bg-card space-y-4 rounded-lg border p-6">
 				<div class="flex items-center justify-between">
 					<div>
 						<!-- Deck Name - TODO: Make editable for currentDeck.name -->
 						<h2 class="text-xl font-semibold">{currentDeck.name}</h2>
-						<div class="flex items-center gap-4 text-sm text-muted-foreground">
-							<span>Format: 
-								<select 
-									bind:value={currentDeck.format} 
+						<div class="text-muted-foreground flex items-center gap-4 text-sm">
+							<span
+								>Format:
+								<select
+									bind:value={currentDeck.format}
 									onchange={(e) => handleChangeFormat(e.target.value)}
-									class="ml-1 px-2 py-1 border rounded"
+									class="ml-1 rounded border px-2 py-1"
 								>
 									<option value="constructed">Constructed</option>
 									<option value="limited">Limited</option>
@@ -218,8 +224,8 @@
 								{/await}
 							{:else}
 								<button
-									onclick={() => showHeroSelector = true}
-									class="text-blue-600 hover:text-blue-800 underline"
+									onclick={() => (showHeroSelector = true)}
+									class="text-blue-600 underline hover:text-blue-800"
 								>
 									Select Hero
 								</button>
@@ -229,19 +235,19 @@
 					<div class="flex items-center gap-2">
 						{#if validationResult?.isValid}
 							<CheckCircle class="h-5 w-5 text-green-600" />
-							<span class="text-green-600 text-sm">Valid</span>
+							<span class="text-sm text-green-600">Valid</span>
 						{:else}
 							<AlertCircle class="h-5 w-5 text-red-600" />
-							<span class="text-red-600 text-sm">Invalid</span>
+							<span class="text-sm text-red-600">Invalid</span>
 						{/if}
 					</div>
 				</div>
 
 				<!-- Validation Errors -->
 				{#if validationResult?.errors && validationResult.errors.length > 0}
-					<div class="bg-red-50 border border-red-200 rounded p-3">
-						<h4 class="text-sm font-medium text-red-800 mb-2">Deck Issues:</h4>
-						<ul class="text-sm text-red-700 space-y-1">
+					<div class="rounded border border-red-200 bg-red-50 p-3">
+						<h4 class="mb-2 text-sm font-medium text-red-800">Deck Issues:</h4>
+						<ul class="space-y-1 text-sm text-red-700">
 							{#each validationResult.errors as error}
 								<li>• {error}</li>
 							{/each}
@@ -251,9 +257,9 @@
 
 				<!-- Validation Warnings -->
 				{#if validationResult?.warnings && validationResult.warnings.length > 0}
-					<div class="bg-yellow-50 border border-yellow-200 rounded p-3">
-						<h4 class="text-sm font-medium text-yellow-800 mb-2">Suggestions:</h4>
-						<ul class="text-sm text-yellow-700 space-y-1">
+					<div class="rounded border border-yellow-200 bg-yellow-50 p-3">
+						<h4 class="mb-2 text-sm font-medium text-yellow-800">Suggestions:</h4>
+						<ul class="space-y-1 text-sm text-yellow-700">
 							{#each validationResult.warnings as warning}
 								<li>• {warning}</li>
 							{/each}
@@ -263,14 +269,14 @@
 
 				<!-- Error Messages -->
 				{#if error}
-					<div class="bg-red-50 border border-red-200 rounded p-3">
+					<div class="rounded border border-red-200 bg-red-50 p-3">
 						<p class="text-sm text-red-700">{error}</p>
 					</div>
 				{/if}
 
 				<!-- Deck Stats -->
 				{#if validationResult?.stats}
-					<div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+					<div class="grid grid-cols-2 gap-4 text-sm md:grid-cols-4">
 						<div>
 							<div class="font-medium">Total Cards</div>
 							<div class="text-2xl">{validationResult.stats.totalCards}</div>
@@ -296,11 +302,11 @@
 
 		<!-- Hero Selector Modal -->
 		{#if showHeroSelector}
-			<div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-				<div class="bg-white rounded-lg p-6 max-w-4xl max-h-96 overflow-y-auto">
-					<div class="flex items-center justify-between mb-4">
+			<div class="bg-opacity-50 fixed inset-0 z-50 flex items-center justify-center bg-black">
+				<div class="max-h-96 max-w-4xl overflow-y-auto rounded-lg bg-white p-6">
+					<div class="mb-4 flex items-center justify-between">
 						<h3 class="text-lg font-semibold">Select Hero</h3>
-						<button onclick={() => showHeroSelector = false}>
+						<button onclick={() => (showHeroSelector = false)}>
 							<X class="h-5 w-5" />
 						</button>
 					</div>
@@ -308,12 +314,12 @@
 						{#each heroCards as hero}
 							<button
 								onclick={() => handleSetHero(hero.id)}
-								class="p-2 border rounded hover:bg-gray-50"
+								class="rounded border p-2 hover:bg-gray-50"
 							>
 								{#if hero.imageUrl}
-									<img src={hero.imageUrl} alt={hero.name} class="w-full h-auto rounded mb-2" />
+									<img src={hero.imageUrl} alt={hero.name} class="mb-2 h-auto w-full rounded" />
 								{/if}
-								<div class="text-xs text-center">
+								<div class="text-center text-xs">
 									<div class="font-medium">{hero.name}</div>
 									<div class="text-gray-600">{hero.faction}</div>
 								</div>
@@ -326,14 +332,16 @@
 
 		<!-- Search -->
 		<div class="flex gap-4">
-			<div class="flex-1 relative">
-				<Search class="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+			<div class="relative flex-1">
+				<Search
+					class="text-muted-foreground absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 transform"
+				/>
 				<input
 					type="text"
 					placeholder="Search cards..."
 					bind:value={searchQuery}
 					oninput={handleSearch}
-					class="w-full pl-10 pr-4 py-2 border border-input bg-background rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
+					class="border-input bg-background focus:ring-ring w-full rounded-md border py-2 pr-4 pl-10 focus:ring-2 focus:outline-none"
 				/>
 			</div>
 		</div>
@@ -341,23 +349,29 @@
 		<!-- Cards Grid by Group -->
 		{#await cardsPromise}
 			<div class="flex items-center justify-center py-12">
-				<Clock class="h-8 w-8 animate-spin text-primary" />
-				<p class="ml-2 text-muted-foreground">Loading cards...</p>
+				<Clock class="text-primary h-8 w-8 animate-spin" />
+				<p class="text-muted-foreground ml-2">Loading cards...</p>
 			</div>
 		{:then loadedSuccessfullyCards}
-			{@const _ = (localLoadedCards = loadedSuccessfullyCards, filteredCards = loadedSuccessfullyCards, handleSearch())} <!-- Assign and initialize filter -->
+			{@const _ =
+				((localLoadedCards = loadedSuccessfullyCards),
+				(filteredCards = loadedSuccessfullyCards),
+				handleSearch())}
+			<!-- Assign and initialize filter -->
 			<div class="space-y-8">
 				{#each cardGroups as cardGroup (cardGroup[0].name)}
 					<div class="space-y-2">
 						<h3 class="text-xl font-semibold">{cardGroup[0].name}</h3>
-						<div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
+						<div
+							class="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6"
+						>
 							{#each cardGroup as card (card.id)}
-								<div class="relative group">
+								<div class="group relative">
 									{#if card.imageUrl}
 										<img
 											src={card.imageUrl}
 											alt={card.name}
-											class="w-full h-auto rounded-lg shadow-md hover:shadow-lg transition-shadow cursor-pointer"
+											class="h-auto w-full cursor-pointer rounded-lg shadow-md transition-shadow hover:shadow-lg"
 											loading="lazy"
 										/>
 
@@ -365,11 +379,14 @@
 										{#if selectedAction === 'create'}
 											{@const quantity = getCardQuantity(card.id)}
 											{@const canAdd = canAddCard(card.id)}
-											<div class="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 transition-all rounded-lg flex items-center justify-center">
-												
-												<div class="opacity-0 group-hover:opacity-100 transition-opacity">
+											<div
+												class="bg-opacity-0 group-hover:bg-opacity-40 absolute inset-0 flex items-center justify-center rounded-lg bg-black transition-all"
+											>
+												<div class="opacity-0 transition-opacity group-hover:opacity-100">
 													{#if quantity > 0}
-														<div class="bg-white rounded-full px-3 py-1 text-sm font-medium mb-2 text-center">
+														<div
+															class="mb-2 rounded-full bg-white px-3 py-1 text-center text-sm font-medium"
+														>
 															{quantity} in deck
 														</div>
 													{/if}
@@ -377,12 +394,12 @@
 													{#if canAdd}
 														<button
 															onclick={() => handleAddCard(card.id)}
-															class="bg-blue-600 hover:bg-blue-700 text-white rounded-full p-2"
+															class="rounded-full bg-blue-600 p-2 text-white hover:bg-blue-700"
 														>
 															<Plus class="h-4 w-4" />
 														</button>
 													{:else}
-														<div class="bg-gray-600 text-white rounded-full p-2">
+														<div class="rounded-full bg-gray-600 p-2 text-white">
 															<X class="h-4 w-4" />
 														</div>
 													{/if}
@@ -390,7 +407,7 @@
 													{#if quantity > 0}
 														<button
 															onclick={() => handleRemoveCard(card.id)}
-															class="bg-red-600 hover:bg-red-700 text-white rounded-full p-2 ml-2"
+															class="ml-2 rounded-full bg-red-600 p-2 text-white hover:bg-red-700"
 														>
 															<X class="h-4 w-4" />
 														</button>
@@ -400,8 +417,12 @@
 										{/if}
 
 										<!-- Card Info Overlay -->
-										<div class="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all rounded-lg flex items-end p-2">
-											<div class="bg-black bg-opacity-70 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity">
+										<div
+											class="bg-opacity-0 group-hover:bg-opacity-20 absolute inset-0 flex items-end rounded-lg bg-black p-2 transition-all"
+										>
+											<div
+												class="bg-opacity-70 rounded bg-black px-2 py-1 text-xs text-white opacity-0 transition-opacity group-hover:opacity-100"
+											>
 												{card.faction} • {card.rarity}
 												{#if card.id.includes('_R1')}
 													(Transform 1)
@@ -413,7 +434,9 @@
 											</div>
 										</div>
 									{:else}
-										<div class="w-full aspect-[2.5/3.5] bg-gray-200 rounded-lg flex items-center justify-center text-gray-500">
+										<div
+											class="flex aspect-[2.5/3.5] w-full items-center justify-center rounded-lg bg-gray-200 text-gray-500"
+										>
 											No Image
 										</div>
 									{/if}
@@ -431,7 +454,7 @@
 			{/if}
 		{:catch error}
 			<div class="flex items-center justify-center py-12 text-red-500">
-				<AlertCircle class="h-8 w-8 mr-2" />
+				<AlertCircle class="mr-2 h-8 w-8" />
 				<p>Error loading cards: {error.message}</p>
 			</div>
 		{/await}

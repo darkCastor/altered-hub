@@ -5,9 +5,8 @@ import type { ICardDefinition } from './cards';
 export type { ICardInstance, ICardDefinition };
 import type { CardType, StatusType } from './enums';
 import type { IAbility, IEffect } from './abilities';
-import  { CounterType } from './enums';
+import { CounterType } from './enums';
 import { PermanentZoneType } from './enums';
-
 
 /**
  * The base interface for all entities in visible game zones.
@@ -15,62 +14,62 @@ import { PermanentZoneType } from './enums';
  * Rule 2.1.a, 2.1.d
  */
 export interface IGameObject {
-    objectId: string; // Unique runtime ID for this specific object instance
-    definitionId: string; // The ID of the card it's based on
-    name: string;
-    type: CardType;
-    subTypes?: string[];
-    
-    // Characteristics
-    baseCharacteristics: Partial<ICardDefinition>;
-    currentCharacteristics: Partial<ICardDefinition>;
+	objectId: string; // Unique runtime ID for this specific object instance
+	definitionId: string; // The ID of the card it's based on
+	name: string;
+	type: CardType;
+	subTypes?: string[];
 
-    ownerId: string;
-    controllerId: string;
+	// Characteristics
+	baseCharacteristics: Partial<ICardDefinition>;
+	currentCharacteristics: Partial<ICardDefinition>;
 
-    timestamp: number; // Unique timestamp assigned on zone entry (Rule 2.2.15, 2.1.d)
-    
-    statuses: Set<StatusType>; // Rule 2.4
-    counters: Map<CounterType, number>; // Rule 2.5
-    
-    abilities: IAbility[]; // Instantiated abilities for this object
+	ownerId: string;
+	controllerId: string;
+
+	timestamp: number; // Unique timestamp assigned on zone entry (Rule 2.2.15, 2.1.d)
+
+	statuses: Set<StatusType>; // Rule 2.4
+	counters: Map<CounterType, number>; // Rule 2.5
+
+	abilities: IAbility[]; // Instantiated abilities for this object
 }
 
 // Rule 2.2.1.g, 6.3.g
 export interface IEmblemObject extends IGameObject {
-    type: CardType.Emblem;
-    emblemSubType: 'Reaction' | 'Ongoing'; // Rule 2.2.2.h
-    boundEffect: IEffect; // Rule 6.3.h: The effect to resolve, with targets bound from the trigger
-    duration?: 'this turn' | 'this Afternoon' | 'this Day'; // Rule 2.2.14
+	type: CardType.Emblem;
+	emblemSubType: 'Reaction' | 'Ongoing'; // Rule 2.2.2.h
+	boundEffect: IEffect; // Rule 6.3.h: The effect to resolve, with targets bound from the trigger
+	duration?: 'this turn' | 'this Afternoon' | 'this Day'; // Rule 2.2.14
 }
 
 // Specializations of IGameObject
 export interface ICharacterObject extends IGameObject {
-    type: CardType.Character;
+	type: CardType.Character;
 }
 
 export interface IPermanentObject extends IGameObject {
-    type: CardType.Permanent;
-    permanentZoneType: PermanentZoneType;
+	type: CardType.Permanent;
+	permanentZoneType: PermanentZoneType;
 }
 
 export interface IHeroObject extends IGameObject {
-    type: CardType.Hero;
-    reserveLimit: number;
-    landmarkLimit: number;
+	type: CardType.Hero;
+	reserveLimit: number;
+	landmarkLimit: number;
 }
 
 export interface ISpellObject extends IGameObject {
-    type: CardType.Spell;
+	type: CardType.Spell;
 }
 
 export interface IManaOrbObject extends IGameObject {
-    type: CardType.ManaOrb;
+	type: CardType.ManaOrb;
 }
 
 // Type guard to check if an entity is a full GameObject
 export function isGameObject(entity: ICardInstance | IGameObject): entity is IGameObject {
-    return (entity as IGameObject).objectId !== undefined;
+	return (entity as IGameObject).objectId !== undefined;
 }
 
 /**
@@ -80,5 +79,5 @@ export function isGameObject(entity: ICardInstance | IGameObject): entity is IGa
  * @returns True if the object has one or more Boost counters.
  */
 export function isBoosted(object: IGameObject): boolean {
-    return (object.counters.get(CounterType.Boost) || 0) > 0;
+	return (object.counters.get(CounterType.Boost) || 0) > 0;
 }

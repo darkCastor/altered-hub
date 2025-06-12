@@ -9,6 +9,6 @@
 	let { class: className, children, ...restProps }: CardDescriptionProps = $props();
 </script>
 
-<p class={cn('text-sm text-muted-foreground', className)} {...restProps}>
+<p class={cn('text-muted-foreground text-sm', className)} {...restProps}>
 	{@render children?.()}
 </p>

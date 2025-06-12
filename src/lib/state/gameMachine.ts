@@ -48,10 +48,10 @@ export const gameMachine = setup({
 		events: {} as GameEvents
 	},
 	actions: {
-		evaluateLimbo: assign(( {context} ) => {
+		evaluateLimbo: assign(({ context }) => {
 			if (!context.gameStateManager) return {};
 			const limbo = context.gameStateManager.state.sharedZones.limbo;
-			const allReactions = limbo.getAll().filter(obj => obj.type === 'EMBLEM-REACTION'); // Ensure 'type' and 'controllerId' exist
+			const allReactions = limbo.getAll().filter((obj) => obj.type === 'EMBLEM-REACTION'); // Ensure 'type' and 'controllerId' exist
 
 			let currentReactionInitiativePlayerId = context.reactionInitiativePlayerId;
 			let currentPassCount = context.reactionInitiativePassCount;
@@ -66,29 +66,36 @@ export const gameMachine = setup({
 				currentPassCount = 0; // Reset pass count for the new cycle
 			}
 
-			const initiativePlayerReactions = allReactions.filter(r => r.controllerId === currentReactionInitiativePlayerId); // Assuming 'controllerId'
-			
+			const initiativePlayerReactions = allReactions.filter(
+				(r) => r.controllerId === currentReactionInitiativePlayerId
+			); // Assuming 'controllerId'
+
 			return {
 				pendingReactionsCount: allReactions.length,
 				initiativePlayerReactions: initiativePlayerReactions,
 				// Set nextReactionToResolve only if there's exactly one, or for auto-processing.
 				// If multiple, player choice will set it.
-				nextReactionToResolve: initiativePlayerReactions.length === 1 ? initiativePlayerReactions[0] : null,
+				nextReactionToResolve:
+					initiativePlayerReactions.length === 1 ? initiativePlayerReactions[0] : null,
 				reactionInitiativePlayerId: currentReactionInitiativePlayerId,
 				reactionInitiativePassCount: currentPassCount
 			};
 		}),
-		setChosenReaction: assign(( {context, event} ) => {
+		setChosenReaction: assign(({ context, event }) => {
 			if (event.type !== 'CHOOSE_REACTION_TO_PLAY') return {};
-			const chosenReaction = context.initiativePlayerReactions.find(r => r.id === event.chosenReactionId); // Assuming reaction has 'id'
+			const chosenReaction = context.initiativePlayerReactions.find(
+				(r) => r.id === event.chosenReactionId
+			); // Assuming reaction has 'id'
 			if (chosenReaction) {
 				return { nextReactionToResolve: chosenReaction };
 			} else {
-				console.warn(`Chosen reaction ID ${event.chosenReactionId} not found in initiativePlayerReactions.`);
+				console.warn(
+					`Chosen reaction ID ${event.chosenReactionId} not found in initiativePlayerReactions.`
+				);
 				return {}; // Or set an error
 			}
 		}),
-		passReactionInitiative: assign(( {context} ) => {
+		passReactionInitiative: assign(({ context }) => {
 			if (!context.gameStateManager || !context.reactionInitiativePlayerId) return {};
 			const playerIds = context.gameStateManager.getPlayerIds();
 			if (playerIds.length === 0) return {};
@@ -102,20 +109,23 @@ export const gameMachine = setup({
 				nextReactionToResolve: null // Clear previous player's reaction
 			};
 		}),
-		resolveNextReaction: assign(( {context} ) => {
+		resolveNextReaction: assign(({ context }) => {
 			if (!context.nextReactionToResolve || !context.gameStateManager) return {};
 
 			const reaction = context.nextReactionToResolve;
 			// Assuming effectProcessor.resolveEffect is synchronous for now or handles its own async
-			context.gameStateManager.effectProcessor.resolveEffect(reaction.boundEffect, reaction.controllerId);
+			context.gameStateManager.effectProcessor.resolveEffect(
+				reaction.boundEffect,
+				reaction.controllerId
+			);
 			context.gameStateManager.state.sharedZones.limbo.remove(reaction.id); // Assuming reaction has an id
 
 			return {
-				nextReactionToResolve: null,
+				nextReactionToResolve: null
 				// pendingReactionsCount and initiativePlayerReactions will be re-evaluated in evaluateLimbo
 			};
 		}),
-		clearReactionContext: assign(( {context} ) => {
+		clearReactionContext: assign(({ context }) => {
 			return {
 				pendingReactionsCount: 0,
 				initiativePlayerReactions: [],
@@ -200,12 +210,13 @@ export const gameMachine = setup({
 			context.turnManager.startAfternoon();
 			return {
 				...context,
-				currentPlayer: context.gameStateManager.state.currentPlayerId,
+				currentPlayer: context.gameStateManager.state.currentPlayerId
 			};
 		}),
 
 		passTurn: assign(({ context }) => {
-			if (!context.turnManager || !context.gameStateManager || !context.currentPlayer) return context;
+			if (!context.turnManager || !context.gameStateManager || !context.currentPlayer)
+				return context;
 			context.turnManager.playerPasses(context.currentPlayer);
 			// currentPlayer and currentPhase might change as a result of playerPasses (if phase ends)
 			return {
@@ -218,7 +229,7 @@ export const gameMachine = setup({
 
 		selectCard: assign(({ context, event }) => {
 			if (event.type !== 'SELECT_CARD') return context;
-			
+
 			return {
 				...context,
 				selectedCard: event.cardId,
@@ -228,7 +239,7 @@ export const gameMachine = setup({
 
 		setError: assign(({ context, event }) => {
 			if (event.type !== 'ERROR') return context;
-			
+
 			return {
 				...context,
 				error: event.message
@@ -263,7 +274,9 @@ export const gameMachine = setup({
 		},
 		hasSingleReactionForInitiativePlayer: ({ context }) => {
 			// evaluateLimbo sets nextReactionToResolve if length is 1.
-			return context.initiativePlayerReactions.length === 1 && context.nextReactionToResolve !== null;
+			return (
+				context.initiativePlayerReactions.length === 1 && context.nextReactionToResolve !== null
+			);
 		},
 		// Renaming for clarity, effectively the same as old hasReactionsForInitiativePlayer after multiple check
 		hasNextReactionToResolve: ({ context }) => {
@@ -271,18 +284,22 @@ export const gameMachine = setup({
 		},
 		canPassReactionInitiative: ({ context }) => {
 			// True if there are pending reactions, current initiative player has no chosen/single reaction, and we haven't cycled through all players
-			return context.pendingReactionsCount > 0 &&
-			       context.nextReactionToResolve === null && // No single auto-selected reaction
-			       context.initiativePlayerReactions.length === 0 && // And no reactions for them to choose from (or they chose none)
-			       context.reactionInitiativePassCount < (context.players?.length || 0);
+			return (
+				context.pendingReactionsCount > 0 &&
+				context.nextReactionToResolve === null && // No single auto-selected reaction
+				context.initiativePlayerReactions.length === 0 && // And no reactions for them to choose from (or they chose none)
+				context.reactionInitiativePassCount < (context.players?.length || 0)
+			);
 		},
 		noReactionsAtAllOrAllPassed: ({ context }) => {
 			// True if no reactions pending globally, OR
 			// if current initiative player has no reactions (nextReactionToResolve is null AND initiativePlayerReactions is empty) AND we've already tried passing to everyone
-			return context.pendingReactionsCount === 0 ||
-			       (context.nextReactionToResolve === null &&
-			        context.initiativePlayerReactions.length === 0 &&
-			        context.reactionInitiativePassCount >= (context.players?.length || 0));
+			return (
+				context.pendingReactionsCount === 0 ||
+				(context.nextReactionToResolve === null &&
+					context.initiativePlayerReactions.length === 0 &&
+					context.reactionInitiativePassCount >= (context.players?.length || 0))
+			);
 		},
 		canPlayCard: ({ context, event }) => {
 			// Basic guard, will need refinement with GameStateManager
@@ -291,10 +308,11 @@ export const gameMachine = setup({
 			// or checked via gsm.canPlayCard(event.playerId, event.cardId).
 			// For XState guard, we ensure basic conditions are met for the event to proceed.
 			if (event.type !== 'PLAY_CARD') return false;
-			return context.currentPhase === GamePhase.Afternoon &&
-				   context.currentPlayer === event.playerId;
-				   // context.selectedCard !== null was here, but event.cardId is more direct.
-				   // We assume event.cardId is provided.
+			return (
+				context.currentPhase === GamePhase.Afternoon && context.currentPlayer === event.playerId
+			);
+			// context.selectedCard !== null was here, but event.cardId is more direct.
+			// We assume event.cardId is provided.
 		},
 
 		canAdvancePhase: ({ context }) => {
@@ -390,12 +408,12 @@ export const gameMachine = setup({
 					always: [
 						{
 							target: 'checkingReactions', // Check reactions after phase advance logic
-							guard: ({ context }) => context.currentPhase !== GamePhase.Afternoon,
+							guard: ({ context }) => context.currentPhase !== GamePhase.Afternoon
 						},
 						{
 							target: 'checkingReactions', // Check reactions after starting afternoon
 							actions: 'startAfternoonPhase',
-							guard: ({ context }) => context.currentPhase === GamePhase.Afternoon,
+							guard: ({ context }) => context.currentPhase === GamePhase.Afternoon
 						}
 					]
 				},
@@ -413,7 +431,10 @@ export const gameMachine = setup({
 									guard: 'canPassReactionInitiative' // No reactions for current player, can pass
 								},
 								// Default: No reactions for current initiative player, and cannot pass initiative further
-								{ target: '#game.playing.gameFlowContinuationPoint', guard: 'noReactionsAtAllOrAllPassed' }
+								{
+									target: '#game.playing.gameFlowContinuationPoint',
+									guard: 'noReactionsAtAllOrAllPassed'
+								}
 							]
 						},
 						awaitingReactionChoice: {

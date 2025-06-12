@@ -41,11 +41,14 @@
 		"zod": "^3.25.62"
 	},
 	"devDependencies": {
+		"@eslint/js": "^9.28.0",
 		"@playwright/test": "^1.53.0",
 		"@sveltejs/adapter-auto": "^6.0.1 ",
 		"@sveltejs/kit": "^2.21.4",
 		"@sveltejs/vite-plugin-svelte": "^5.1.0",
 		"@tailwindcss/postcss": "^4.1.10",
+		"@typescript-eslint/eslint-plugin": "^8.34.0",
+		"@typescript-eslint/parser": "^8.34.0",
 		"autoprefixer": "^10.4.21",
 		"cssnano": "^7.0.7",
 		"eslint": "^9.28.0",
@@ -57,6 +60,7 @@
 		"prettier-plugin-tailwindcss": "^0.6.12",
 		"svelte": "^5.33.19",
 		"svelte-check": "^4.2.1",
+		"svelte-eslint-parser": "^1.2.0",
 		"tailwindcss": "^4",
 		"tslib": "^2.8.1",
 		"typescript": "^5.8.3",

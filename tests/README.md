@@ -5,9 +5,11 @@ This directory contains comprehensive integration tests for the Altered TCG game
 ## Test Structure
 
 ### 1. `game-engine.spec.ts`
+
 Complete integration tests covering:
+
 - **Rule 4.1**: Game Setup Phase
-- **Rule 4.2.1**: Morning Phase Mechanics 
+- **Rule 4.2.1**: Morning Phase Mechanics
 - **Rule 4.2.1.e**: Expand Mechanics
 - **Rule 4.2.2**: Noon Phase Transition
 - **Rule 4.2.3**: Afternoon Phase Turn Mechanics
@@ -15,7 +17,9 @@ Complete integration tests covering:
 - **Rule 7.5**: Victory Conditions
 
 ### 2. `phase-transitions.spec.ts`
+
 Detailed phase transition testing:
+
 - **Rule 4.1.l**: First Morning Phase Skip
 - **Rule 4.2**: Complete Day Structure Progression
 - **Rule 4.2.1**: Morning Phase Effects (Day 2+)
@@ -24,7 +28,9 @@ Detailed phase transition testing:
 - Phase timing and automation validation
 
 ### 3. `card-playing.spec.ts`
+
 Comprehensive card playing mechanics:
+
 - **Rule 5.1.2**: Card Playing Process
 - **Rule 5.1.3**: Character Card Placement
 - **Rule 5.1.4**: Permanent Card Placement
@@ -34,7 +40,9 @@ Comprehensive card playing mechanics:
 - **Rule 7.4.1.b**: Cooldown Spell Mechanics
 
 ### 4. `expand-mechanics.spec.ts`
+
 Detailed expand functionality testing:
+
 - **Rule 4.2.1.e**: Expand availability in Morning phase
 - Card-to-mana conversion mechanics
 - Skip expand functionality
@@ -47,6 +55,7 @@ Detailed expand functionality testing:
 The tests expect the following `data-testid` attributes in the UI:
 
 ### Game Board
+
 - `data-testid="game-board"` - Main game container
 - `data-testid="day-display"` - Day number display
 - `data-testid="phase-display"` - Current phase display
@@ -54,27 +63,32 @@ The tests expect the following `data-testid` attributes in the UI:
 - `data-testid="error-message"` - Error message display
 
 ### Player Areas
+
 - `data-testid="player-hand"` - Player hand container
 - `data-testid="deck-count"` - Deck card count
 - `data-testid="mana-display"` - Mana orbs display (current/max)
 
 ### Zones
+
 - `data-testid="expedition-zone"` - Expedition zone
-- `data-testid="landmark-zone"` - Landmark zone  
+- `data-testid="landmark-zone"` - Landmark zone
 - `data-testid="reserve-zone"` - Reserve zone
 - `data-testid="hero-zone"` - Hero zone
 
 ### Cards
+
 - `data-testid="card"` - Individual card elements
 - `data-testid="card-cost"` - Card cost display
 - `data-testid="card-type"` - Card type display
 - `data-testid="card-keywords"` - Card keywords display
 
 ### Card Grid (Deck Building)
+
 - `data-testid="card-grid"` - Card grid container
 - `data-testid="card-item"` - Individual card items in grid
 
 ### Zone Attributes
+
 - `data-owner="self"` or `data-owner="opponent"` - Zone ownership
 
 ## Running Tests
@@ -123,6 +137,7 @@ Before running tests:
 ## Test Data
 
 Tests create their own test decks but require:
+
 - Access to the card database
 - Functional deck creation interface
 - Working game engine initialization

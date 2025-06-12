@@ -24,22 +24,28 @@
 	$: currentPath = $page.url.pathname;
 </script>
 
-<header class="bg-background border-b border-border">
+<header class="bg-background border-border border-b">
 	<div class="container mx-auto px-4 sm:px-6 lg:px-8">
-		<div class="flex justify-between items-center h-16">
+		<div class="flex h-16 items-center justify-between">
 			<!-- Logo -->
 			<div class="flex-shrink-0">
-				<button on:click={() => goto('/')} class="text-2xl font-bold text-primary hover:text-primary/80">
+				<button
+					on:click={() => goto('/')}
+					class="text-primary hover:text-primary/80 text-2xl font-bold"
+				>
 					AlterDeck
 				</button>
 			</div>
 
 			<!-- Desktop Navigation -->
-			<nav class="hidden md:flex space-x-8">
+			<nav class="hidden space-x-8 md:flex">
 				{#each navigation as item}
 					<button
 						on:click={() => navigateTo(item.href)}
-						class="text-muted-foreground hover:text-foreground px-3 py-2 text-sm font-medium transition-colors {currentPath === item.href ? 'text-foreground border-b-2 border-primary' : ''}"
+						class="text-muted-foreground hover:text-foreground px-3 py-2 text-sm font-medium transition-colors {currentPath ===
+						item.href
+							? 'text-foreground border-primary border-b-2'
+							: ''}"
 					>
 						{item.name}
 					</button>
@@ -61,11 +67,14 @@
 		<!-- Mobile Navigation -->
 		{#if mobileMenuOpen}
 			<div class="md:hidden">
-				<div class="px-2 pt-2 pb-3 space-y-1 sm:px-3 border-t border-border">
+				<div class="border-border space-y-1 border-t px-2 pt-2 pb-3 sm:px-3">
 					{#each navigation as item}
 						<button
 							on:click={() => navigateTo(item.href)}
-							class="block text-muted-foreground hover:text-foreground px-3 py-2 text-base font-medium w-full text-left transition-colors {currentPath === item.href ? 'text-foreground bg-muted' : ''}"
+							class="text-muted-foreground hover:text-foreground block w-full px-3 py-2 text-left text-base font-medium transition-colors {currentPath ===
+							item.href
+								? 'text-foreground bg-muted'
+								: ''}"
 						>
 							{item.name}
 						</button>
