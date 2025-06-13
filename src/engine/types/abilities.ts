@@ -16,6 +16,26 @@ export interface ICost {
 }
 
 /**
+ * Parameters for an effect step that defines a passive grant of a counter or status
+ * to a card as it is being played.
+ * Used with a verb like 'DEFINE_PASSIVE_GRANT_ON_PLAY'.
+ */
+export interface PassiveGrantOnPlayParameters {
+	itemToGrant: { type: 'counter'; counterType: CounterType; amount: number } |
+	             { type: 'status'; statusType: StatusType };
+	targetCriteria?: { // Criteria for the card being played
+		cardType?: CardType[];
+		faction?: string;
+		definitionId?: string;
+		// Potentially add more specific criteria here, e.g., hasKeyword, specificStatValue
+	};
+	// Optional: Condition for the source object of the passive ability itself.
+	// This would use a similar structure to ITrigger.condition or IEffectStep.parameters.condition
+	sourceCondition?: any; // Example: { type: 'check_object_characteristic', characteristic: 'isReady', value: true }
+}
+
+
+/**
  * Represents a single step within an effect's resolution.
  * Rule 1.2.6, 6.5
  */

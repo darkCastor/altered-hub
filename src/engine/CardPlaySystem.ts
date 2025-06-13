@@ -11,6 +11,11 @@ export interface TargetInfo {
 	objectId: string; // The ID of the IGameObject chosen as the target
 }
 
+// Represents a chosen mode for a card with multiple modes of play.
+export interface ModeSelection {
+	modeId: string; // The identifier of the chosen mode.
+}
+
 export interface TargetRequirement {
 	targetId: string;
 	criteria: any; // Define criteria for valid targets
@@ -24,6 +29,79 @@ export class CardPlaySystem {
 	) {}
 
 	/**
+	 * Helper method to declare intent to play a card, selecting targets and modes.
+	 * This step happens before the card is moved to Limbo or costs are paid.
+	 */
+	private async declareIntent(
+		playerId: string,
+		cardEntity: IGameObject | ICardInstance,
+		_fromZoneIdentifier: ZoneIdentifier, // fromZoneIdentifier is kept for context if needed in future target/mode validation based on origin
+		_targets?: TargetInfo[],
+		_mode?: ModeSelection
+	): Promise<{ selectedTargets: TargetInfo[], selectedMode?: ModeSelection, definition: ICardDefinition, cardInstance: IGameObject | ICardInstance }> {
+		const definition = this.gsm.getCardDefinition(cardEntity.definitionId);
+		if (!definition) {
+			throw new Error(`Card definition ${cardEntity.definitionId} not found during intent declaration.`);
+		}
+
+		let selectedTargets: TargetInfo[] = [];
+		let selectedMode: ModeSelection | undefined = _mode;
+
+		// Check for target requirements
+		// Assuming ICardDefinition might have targetRequirements (e.g., definition.targetRequirements)
+		// or it might be part of an effect (e.g., definition.effect?.targetRequirements)
+		const targetRequirements = definition.targetRequirements || (definition.effect as any)?.targetRequirements;
+
+		if (targetRequirements && Array.isArray(targetRequirements) && targetRequirements.length > 0) {
+			if (_targets && _targets.length > 0) {
+				// Basic validation: check if the number of targets matches.
+				// More complex validation (criteria matching) would be in canPlayCard or a dedicated validation step.
+				// For now, just accept provided targets. In a real scenario, validate each targetInfo.
+				// Example: if (targetRequirements.length !== _targets.length) {
+				// throw new Error(`Mismatch in number of targets provided versus required for ${definition.name}.`);
+				// }
+				console.log(`[CardPlaySystem.declareIntent] Targets provided for ${definition.name}:`, _targets);
+				selectedTargets = _targets;
+			} else {
+				// If targets are required but not provided, this would normally prompt the player.
+				// For this subtask, we throw an error as player interaction is out of scope.
+				throw new Error(`Targets are required for ${definition.name} but were not provided.`);
+			}
+		} else if (_targets && _targets.length > 0) {
+			// Targets provided but card does not require them. This could be an error or ignored.
+			// For now, let's log a warning and ignore them, as canPlayCard should prevent this.
+			console.warn(`[CardPlaySystem.declareIntent] Targets provided for ${definition.name}, but it does not require targets. Ignoring provided targets.`);
+		}
+
+		// Check for modes
+		// Assuming ICardDefinition might have a 'modes' array (e.g., definition.modes)
+		const cardModes = definition.modes;
+		if (cardModes && Array.isArray(cardModes) && cardModes.length > 0) {
+			if (_mode) {
+				const isValidMode = cardModes.some(m => m.modeId === _mode.modeId);
+				if (!isValidMode) {
+					throw new Error(`Invalid mode selected for ${definition.name}. Mode ID: ${_mode.modeId}`);
+				}
+				selectedMode = _mode;
+				console.log(`[CardPlaySystem.declareIntent] Mode selected for ${definition.name}:`, selectedMode);
+			} else {
+				// If modes exist but none provided, either default or error.
+				// For now, error if choice is mandatory. If a default mode exists, that logic would go here.
+				// Example: if (cardModes.some(m => m.isDefault)) { selectedMode = { modeId: cardModes.find(m => m.isDefault).modeId }; }
+				// else { throw new Error(`Mode selection is required for ${definition.name} but was not provided.`); }
+				throw new Error(`Mode selection is required for ${definition.name} but was not provided.`);
+			}
+		} else if (_mode) {
+			// Mode provided but card does not have modes.
+			console.warn(`[CardPlaySystem.declareIntent] Mode selected for ${definition.name}, but it does not have modes. Ignoring selected mode.`);
+			selectedMode = undefined; // Clear the mode if card doesn't support it.
+		}
+
+		return { selectedTargets, selectedMode, definition, cardInstance: cardEntity };
+	}
+
+
+	/**
 	 * Checks if a card can be played.
 	 * Rule 5.1, 5.2
 	 */
@@ -33,7 +111,9 @@ export class CardPlaySystem {
 		fromZoneIdentifier: ZoneIdentifier,
 		isScoutPlay?: boolean, // Hint for Scout play
 		scoutRawCost?: number,   // Raw Scout cost if isScoutPlay is true
-		overrideCost?: number // New parameter for specific cost overrides (e.g., 0 for free)
+		overrideCost?: number, // New parameter for specific cost overrides (e.g., 0 for free)
+		targets?: TargetInfo[], // Added for target validation
+		mode?: ModeSelection    // Added for mode validation
 	): Promise<{ isPlayable: boolean; cost?: number; reason?: string, definitionId?: string }> {
 		const player = this.gsm.getPlayer(playerId);
 		if (!player) return { isPlayable: false, reason: 'Player not found.' };
@@ -46,6 +126,58 @@ export class CardPlaySystem {
 
 		const definition = this.gsm.getCardDefinition(cardEntity.definitionId);
 		if (!definition) return { isPlayable: false, reason: 'Card definition not found.' };
+
+		// Target Validation
+		const targetRequirements: TargetRequirement[] | undefined = definition.targetRequirements || (definition.effect as any)?.targetRequirements;
+		if (targetRequirements && Array.isArray(targetRequirements) && targetRequirements.length > 0) {
+			if (!targets || targets.length === 0) {
+				return { isPlayable: false, reason: `Targets required for ${definition.name} but not provided.`, definitionId: definition.id };
+			}
+
+			// Validate number of targets
+			// This is a simplified check. A more robust check would sum `TargetRequirement.count`.
+			// For now, assuming one requirement entry means that many targets.
+			// Or, if each TargetInfo is meant to fulfill one TargetRequirement item.
+			// Let's assume for now `targets.length` should equal `targetRequirements.reduce((sum, req) => sum + req.count, 0)`
+			// For simplicity in this subtask, let's assume each target in TargetInfo[] corresponds to a slot,
+			// and the number of TargetInfo entries must match the number of TargetRequirement entries.
+			// A more complex system would match targetInfo.targetId to targetRequirement.targetId.
+			const requiredTargetCount = targetRequirements.reduce((sum, req) => sum + req.count, 0);
+			if (targets.length !== requiredTargetCount) {
+				return { isPlayable: false, reason: `Incorrect number of targets for ${definition.name}. Expected ${requiredTargetCount}, got ${targets.length}.`, definitionId: definition.id };
+			}
+
+			for (const targetInfo of targets) {
+				const targetObject = this.gsm.getObject(targetInfo.objectId);
+				if (!targetObject) {
+					return { isPlayable: false, reason: `Target object ${targetInfo.objectId} not found for ${definition.name}.`, definitionId: definition.id };
+				}
+				// Conceptual: this.gsm.isValidTarget(targetObject, requirement.criteria)
+				// For now, just checking existence is the basic criteria validation.
+				// TODO: Implement detailed criteria validation based on TargetRequirement.criteria
+			}
+		} else if (targets && targets.length > 0) {
+			// Targets provided, but card does not require them.
+			// Depending on game rules, this could be an error or just ignored.
+			// For now, this is not considered an error for canPlayCard, declareIntent handles warnings.
+			console.warn(`[CardPlaySystem.canPlayCard] Targets provided for ${definition.name}, but it does not seem to require targets. This might be an issue with card definition or play attempt.`);
+		}
+
+		// Mode Validation
+		const cardModes = definition.modes;
+		if (cardModes && Array.isArray(cardModes) && cardModes.length > 0) {
+			if (!mode) {
+				return { isPlayable: false, reason: `Mode selection required for ${definition.name} but not provided.`, definitionId: definition.id };
+			}
+			const isValidMode = cardModes.some(m => m.modeId === mode.modeId);
+			if (!isValidMode) {
+				return { isPlayable: false, reason: `Invalid mode '${mode.modeId}' selected for ${definition.name}.`, definitionId: definition.id };
+			}
+		} else if (mode) {
+			// Mode provided, but card does not have modes.
+			console.warn(`[CardPlaySystem.canPlayCard] Mode selected for ${definition.name}, but it does not have modes. This might be an issue with card definition or play attempt.`);
+		}
+
 
 		// Basic checks
 		if (fromZoneIdentifier === ZoneIdentifier.Reserve) {
@@ -210,6 +342,7 @@ export class CardPlaySystem {
 		fromZoneIdentifier: ZoneIdentifier,
 		selectedExpeditionType?: 'hero' | 'companion',
 		_targets?: TargetInfo[],
+		_mode?: ModeSelection, // Added for mode selection
 		isScoutPlay?: boolean,
 		scoutRawCost?: number,
 		overrideCost?: number // New parameter for specific cost overrides
@@ -220,53 +353,88 @@ export class CardPlaySystem {
 		const fromZone = this.gsm.getZoneByIdentifier(fromZoneIdentifier, playerId);
 		if (!fromZone) throw new Error(`Source zone ${fromZoneIdentifier} not found for player ${playerId}.`);
 
-		const cardEntity = fromZone.findById(cardId);
-		if (!cardEntity) throw new Error(`Card ${cardId} not found in zone ${fromZone.id}.`);
+		let cardEntityToPlay = fromZone.findById(cardId);
+		if (!cardEntityToPlay) throw new Error(`Card ${cardId} not found in zone ${fromZone.id}.`);
 
-		const originalDefinitionId = cardEntity.definitionId;
+		// Step 1: Declare Intent (before moving to Limbo or paying costs)
+		// This will fetch the definition and validate targets/modes if provided.
+		const {
+			selectedTargets,
+			selectedMode,
+			definition: cardDefinition, // Renaming to avoid conflict with 'definition' later if it's re-fetched (though ideally not)
+			cardInstance: initialCardInstance // The card entity before any state changes like moving to Limbo
+		} = await this.declareIntent(playerId, cardEntityToPlay, fromZoneIdentifier, _targets, _mode);
 
-		console.log(`[CardPlaySystem] Attempting to play card ${originalDefinitionId} (ID: ${cardId}) from ${fromZoneIdentifier}`);
+		const originalDefinitionId = initialCardInstance.definitionId; // Should be same as cardDefinition.id
+		console.log(`[CardPlaySystem] Intent declared for card ${cardDefinition.name} (ID: ${initialCardInstance.objectId || initialCardInstance.instanceId}) from ${fromZoneIdentifier}. Targets: ${selectedTargets.length}, Mode: ${selectedMode?.modeId}`);
+
+		// Step 2: Verify Play Legality (includes targets, mode, cost) BEFORE moving to Limbo
+		// Note: cardId for canPlayCard should be the original cardId from the source zone.
+		// isScoutPlay, scoutRawCost, overrideCost are passed through.
+		const legalityCheck = await this.canPlayCard(
+			playerId,
+			isGameObject(initialCardInstance) ? initialCardInstance.objectId : initialCardInstance.instanceId, // Use ID of card in its current zone (before Limbo)
+			fromZoneIdentifier,
+			isScoutPlay,
+			scoutRawCost,
+			overrideCost,
+			selectedTargets, // Pass selected targets
+			selectedMode     // Pass selected mode
+		);
+
+		if (!legalityCheck.isPlayable) {
+			throw new Error(`Cannot play card ${cardDefinition.name}: ${legalityCheck.reason || 'Unknown reason.'}`);
+		}
+		console.log(`[CardPlaySystem] Legality check passed for ${cardDefinition.name}. Cost: ${legalityCheck.cost}`);
+
 
 		// b. Move to Limbo (Rule 5.1.2.g)
-		const limboCardObject = this.gsm.moveEntity(cardId, fromZone, this.gsm.state.sharedZones.limbo, playerId) as IGameObject;
+		// Use initialCardInstance.objectId or instanceId as appropriate for moveEntity
+		const cardIdentifierForMove = isGameObject(initialCardInstance) ? initialCardInstance.objectId : initialCardInstance.instanceId;
+		const limboCardObject = this.gsm.moveEntity(cardIdentifierForMove, fromZone, this.gsm.state.sharedZones.limbo, playerId) as IGameObject;
 		if (!limboCardObject) throw new Error('Failed to move card to Limbo or card became non-object.');
 		console.log(`[CardPlaySystem] Card ${limboCardObject.name} (ObjID: ${limboCardObject.objectId}) moved to Limbo.`);
 
+		// Update cardEntityToPlay to be the one in Limbo for subsequent operations
+		cardEntityToPlay = limboCardObject;
+
+
 		try {
-			const definition = this.gsm.getCardDefinition(limboCardObject.definitionId);
-			if (!definition) throw new Error(`Card definition not found for ${limboCardObject.definitionId} in Limbo.`);
+			// const definition = this.gsm.getCardDefinition(limboCardObject.definitionId); // Already have cardDefinition
+			// if (!cardDefinition) throw new Error(`Card definition not found for ${limboCardObject.definitionId} in Limbo.`); // Should be caught by declareIntent
 
 			// Fleeting, etc. and other pre-cost steps
 			if (fromZoneIdentifier === ZoneIdentifier.Reserve) {
 				// Rule 2.4.6.a: Card played from Reserve gains Fleeting, UNLESS it's a Landmark Permanent (implied by 5.2.3)
-				const isLandmarkType = definition.type === CardType.LandmarkPermanent ||
-									  (definition.type === CardType.Permanent && definition.permanentZoneType === PermanentZoneType.Landmark);
+				const isLandmarkType = cardDefinition.type === CardType.LandmarkPermanent ||
+									  (cardDefinition.type === CardType.Permanent && cardDefinition.permanentZoneType === PermanentZoneType.Landmark);
 				if (!isLandmarkType) {
-					limboCardObject.statuses.add(StatusType.Fleeting);
-					console.log(`[CardPlaySystem] Card ${limboCardObject.name} played from Reserve, gained Fleeting status.`);
+					cardEntityToPlay.statuses.add(StatusType.Fleeting); // Use cardEntityToPlay (which is limboCardObject)
+					console.log(`[CardPlaySystem] Card ${cardEntityToPlay.name} played from Reserve, gained Fleeting status.`);
 				} else {
-					console.log(`[CardPlaySystem] Landmark ${limboCardObject.name} played from Reserve, does not gain Fleeting.`);
+					console.log(`[CardPlaySystem] Landmark ${cardEntityToPlay.name} played from Reserve, does not gain Fleeting.`);
 				}
 			}
 
 			// Rule 2.4.6.b (Spells) & prepares for 2.4.6.c (Characters/ExpeditionPermanents with inherent Fleeting)
-			const hasFleetingKeyword = definition.abilities.some(ab => ab.keyword === KeywordAbility.Fleeting);
+			const hasFleetingKeyword = cardDefinition.abilities.some(ab => ab.keyword === KeywordAbility.Fleeting);
 			if (hasFleetingKeyword) {
-				if (definition.type === CardType.Spell ||
-					definition.type === CardType.Character ||
-					definition.type === CardType.ExpeditionPermanent ||
-					(definition.type === CardType.Permanent && definition.permanentZoneType === PermanentZoneType.Expedition)) {
-					limboCardObject.statuses.add(StatusType.Fleeting);
-					console.log(`[CardPlaySystem] Card ${limboCardObject.name} (Type: ${definition.type}) has Fleeting keyword, gains Fleeting status in Limbo.`);
+				if (cardDefinition.type === CardType.Spell ||
+					cardDefinition.type === CardType.Character ||
+					cardDefinition.type === CardType.ExpeditionPermanent ||
+					(cardDefinition.type === CardType.Permanent && cardDefinition.permanentZoneType === PermanentZoneType.Expedition)) {
+					cardEntityToPlay.statuses.add(StatusType.Fleeting);
+					console.log(`[CardPlaySystem] Card ${cardEntityToPlay.name} (Type: ${cardDefinition.type}) has Fleeting keyword, gains Fleeting status in Limbo.`);
 				}
 			}
-			// TODO: Apply passives to limboCardObject if any affect its state before cost payment (e.g. granting Fleeting)
+			// TODO: Apply passives to cardEntityToPlay (limboCardObject) if any affect its state before cost payment
 
 			// Pay Tough Costs for any pre-selected targets (Rule 7.4.7)
 			// This happens before paying the card's own cost.
+			// Use selectedTargets from declareIntent
 			let totalToughCost = 0;
-			if (_targets && _targets.length > 0 && this.gsm.keywordAbilityHandler) {
-				for (const targetInfo of _targets) {
+			if (selectedTargets.length > 0 && this.gsm.keywordAbilityHandler) {
+				for (const targetInfo of selectedTargets) { // Use selectedTargets
 					const targetObject = this.gsm.getObject(targetInfo.objectId);
 					// Ensure target exists and is controlled by an opponent
 					if (targetObject && targetObject.controllerId !== playerId) {
@@ -283,58 +451,71 @@ export class CardPlaySystem {
 					throw new Error("[CardPlaySystem] ManaSystem not available on GSM. Cannot pay Tough costs.");
 				}
 				await this.gsm.manaSystem.spendMana(playerId, totalToughCost); // Assumes spendMana throws if unable to pay
-				console.log(`[CardPlaySystem] Player ${playerId} paid ${totalToughCost} additional mana for Tough costs for card ${definition.name}.`);
+				console.log(`[CardPlaySystem] Player ${playerId} paid ${totalToughCost} additional mana for Tough costs for card ${cardDefinition.name}.`);
 			}
 
 			// c. Pay Card's Own Costs (Rule 5.1.2.h, 6.4)
 			// Determine the effective zone for cost calculation (Limbo usually, but Hand for Scout's initial cost basis)
 			const effectiveZoneForCostCalc = (fromZoneIdentifier === ZoneIdentifier.Hand && isScoutPlay) ? ZoneIdentifier.Hand : ZoneIdentifier.Limbo;
-			const finalCardManaCost = this.getModifiedCost(limboCardObject, effectiveZoneForCostCalc, playerId, isScoutPlay, scoutRawCost);
+			// Use cardEntityToPlay (limboCardObject) for cost calculation
+			const finalCardManaCost = this.getModifiedCost(cardEntityToPlay, effectiveZoneForCostCalc, playerId, isScoutPlay, scoutRawCost);
 
-			console.log(`[CardPlaySystem] Final card mana cost for ${limboCardObject.name}${isScoutPlay ? ' (Scout)' : ''}: ${finalCardManaCost}`);
+			console.log(`[CardPlaySystem] Final card mana cost for ${cardEntityToPlay.name}${isScoutPlay ? ' (Scout)' : ''}: ${finalCardManaCost}`);
 			if (finalCardManaCost > 0) {
 				if (!this.gsm.manaSystem) { // Ensure manaSystem exists
 					throw new Error("[CardPlaySystem] ManaSystem not available on GSM. Cannot pay card mana cost.");
 				}
 				await this.gsm.manaSystem.spendMana(playerId, finalCardManaCost); // Assumes spendMana throws if unable to pay
-				console.log(`[CardPlaySystem] Player ${playerId} paid ${finalCardManaCost} mana for ${definition.name}.`);
+				console.log(`[CardPlaySystem] Player ${playerId} paid ${finalCardManaCost} mana for ${cardDefinition.name}.`);
 			} else {
-				console.log(`[CardPlaySystem] Card ${definition.name} has no mana cost to pay or cost is 0.`);
+				console.log(`[CardPlaySystem] Card ${cardDefinition.name} has no mana cost to pay or cost is 0.`);
 			}
 
+			// Rule 5.2.b: Handle passive abilities granting counters/statuses to the card being played.
+			// This creates Emblem-Reactions that will be picked up by resolveReactions later.
+			// This occurs after costs are paid but before the card moves to its final zone or resolves its own effects.
+			if (this.gsm.handlePassivesGrantingCountersOrStatusesOnPlay) { // Check if method exists for safety
+				await this.gsm.handlePassivesGrantingCountersOrStatusesOnPlay(cardEntityToPlay, playerId);
+				console.log(`[CardPlaySystem] Handled passives granting counters/statuses for ${cardEntityToPlay.name}.`);
+			} else {
+				console.warn(`[CardPlaySystem] GSM method handlePassivesGrantingCountersOrStatusesOnPlay not found. Skipping.`);
+			}
+
+
 			// d. Resolution (Rule 5.1.2.i)
-			console.log(`[CardPlaySystem] Resolving card ${limboCardObject.name} of type ${definition.type}.`);
+			// Use cardEntityToPlay (limboCardObject) and cardDefinition
+			console.log(`[CardPlaySystem] Resolving card ${cardEntityToPlay.name} of type ${cardDefinition.type}.`);
 			let finalDestinationZone: ZoneIdentifier | undefined = undefined;
 
-			switch (definition.type) {
+			switch (cardDefinition.type) {
 				case CardType.Character:
 				case CardType.ExpeditionPermanent:
 					if (!selectedExpeditionType) {
-						throw new Error(`Expedition type (hero/companion) not selected for ${definition.type}: ${limboCardObject.name}`);
+						throw new Error(`Expedition type (hero/companion) not selected for ${cardDefinition.type}: ${cardEntityToPlay.name}`);
 					}
 					const expeditionZone = this.gsm.state.sharedZones.expedition;
-					limboCardObject.expeditionAssignment = { playerId, type: selectedExpeditionType };
-					const finalExpeditionObject = this.gsm.moveEntity(limboCardObject.objectId, this.gsm.state.sharedZones.limbo, expeditionZone, playerId) as IGameObject;
+					cardEntityToPlay.expeditionAssignment = { playerId, type: selectedExpeditionType };
+					const finalExpeditionObject = this.gsm.moveEntity(cardEntityToPlay.objectId, this.gsm.state.sharedZones.limbo, expeditionZone, playerId) as IGameObject;
 					finalDestinationZone = ZoneIdentifier.Expedition;
-					if (finalExpeditionObject && definition.startingCounters) {
-						for (const [type, amount] of definition.startingCounters) {
+					if (finalExpeditionObject && cardDefinition.startingCounters) {
+						for (const [type, amount] of cardDefinition.startingCounters) {
 							this.gsm.addCounters(finalExpeditionObject.objectId, type, amount);
 						}
 						console.log(`[CardPlaySystem] Applied starting counters to ${finalExpeditionObject.name}.`);
 					}
-					console.log(`[CardPlaySystem] ${definition.type} ${finalExpeditionObject?.name || limboCardObject.name} moved to ${selectedExpeditionType} expedition.`);
+					console.log(`[CardPlaySystem] ${cardDefinition.type} ${finalExpeditionObject?.name || cardEntityToPlay.name} moved to ${selectedExpeditionType} expedition.`);
 					break;
 
 				case CardType.LandmarkPermanent:
-					const finalLandmarkObject = this.gsm.moveEntity(limboCardObject.objectId, this.gsm.state.sharedZones.limbo, player.zones.landmarkZone, playerId) as IGameObject;
+					const finalLandmarkObject = this.gsm.moveEntity(cardEntityToPlay.objectId, this.gsm.state.sharedZones.limbo, player.zones.landmarkZone, playerId) as IGameObject;
 					finalDestinationZone = ZoneIdentifier.Landmark;
-					if (finalLandmarkObject && definition.startingCounters) {
-						for (const [type, amount] of definition.startingCounters) {
+					if (finalLandmarkObject && cardDefinition.startingCounters) {
+						for (const [type, amount] of cardDefinition.startingCounters) {
 							this.gsm.addCounters(finalLandmarkObject.objectId, type, amount);
 						}
 						console.log(`[CardPlaySystem] Applied starting counters to ${finalLandmarkObject.name}.`);
 					}
-					console.log(`[CardPlaySystem] Landmark Permanent ${finalLandmarkObject?.name || limboCardObject.name} moved to landmark zone.`);
+					console.log(`[CardPlaySystem] Landmark Permanent ${finalLandmarkObject?.name || cardEntityToPlay.name} moved to landmark zone.`);
 					if (finalLandmarkObject?.statuses.has(StatusType.Fleeting) && fromZoneIdentifier === ZoneIdentifier.Reserve) {
                          // Fleeting from reserve should not stick to permanents unless specified by another effect
                         finalLandmarkObject.statuses.delete(StatusType.Fleeting);
@@ -343,45 +524,54 @@ export class CardPlaySystem {
 					break;
 
 				case CardType.Spell:
-					const spellDefinition = this.gsm.getCardDefinition(originalDefinitionId); // Use original for true effect
-					if (!spellDefinition || !spellDefinition.effect) throw new Error (`Spell definition or effect missing for ${originalDefinitionId}`);
+					// Use cardDefinition for effect, originalDefinitionId for logging if specific version needed
+					if (!cardDefinition.effect) throw new Error (`Spell definition or effect missing for ${originalDefinitionId}`);
 
-					console.log(`[CardPlaySystem] Resolving spell effect for ${limboCardObject.name} (DefID: ${originalDefinitionId}).`);
-					await this.gsm.effectProcessor.resolveEffect(spellDefinition.effect, limboCardObject /*, targets, triggerContext */);
+					console.log(`[CardPlaySystem] Resolving spell effect for ${cardEntityToPlay.name} (DefID: ${originalDefinitionId}). Mode: ${selectedMode?.modeId}`);
+					// Pass selectedTargets and selectedMode to resolveEffect
+					await this.gsm.effectProcessor.resolveEffect(
+						cardDefinition.effect,
+						cardEntityToPlay, // sourceCardObject
+						selectedTargets,  // targets
+						undefined,        // triggerContext (playCard is not a trigger context itself)
+						selectedMode      // mode
+					);
 
-					if (limboCardObject.statuses.has(StatusType.Fleeting)) {
-						console.log(`[CardPlaySystem] Fleeting spell ${limboCardObject.name} moving to Discard Pile.`);
-						this.gsm.moveEntity(limboCardObject.objectId, this.gsm.state.sharedZones.limbo, player.zones.discardPileZone, playerId);
+					if (cardEntityToPlay.statuses.has(StatusType.Fleeting)) {
+						console.log(`[CardPlaySystem] Fleeting spell ${cardEntityToPlay.name} moving to Discard Pile.`);
+						this.gsm.moveEntity(cardEntityToPlay.objectId, this.gsm.state.sharedZones.limbo, player.zones.discardPileZone, playerId);
 						finalDestinationZone = ZoneIdentifier.DiscardPile;
 					} else {
-						console.log(`[CardPlaySystem] Non-Fleeting spell ${limboCardObject.name} moving to Reserve.`);
-						const reservedSpell = this.gsm.moveEntity(limboCardObject.objectId, this.gsm.state.sharedZones.limbo, player.zones.reserveZone, playerId) as IGameObject;
+						console.log(`[CardPlaySystem] Non-Fleeting spell ${cardEntityToPlay.name} moving to Reserve.`);
+						const reservedSpell = this.gsm.moveEntity(cardEntityToPlay.objectId, this.gsm.state.sharedZones.limbo, player.zones.reserveZone, playerId) as IGameObject;
 						finalDestinationZone = ZoneIdentifier.Reserve;
-						if (reservedSpell && definition.abilities.some(ab => ab.keyword === KeywordAbility.Cooldown)) { // Check abilities array
+						if (reservedSpell && cardDefinition.abilities.some(ab => ab.keyword === KeywordAbility.Cooldown)) { // Check abilities array
 							reservedSpell.statuses.add(StatusType.Exhausted);
 							console.log(`[CardPlaySystem] Spell ${reservedSpell.name} has Cooldown, exhausted in Reserve.`);
 						}
 					}
 					break;
 				default:
-					console.error(`[CardPlaySystem] Unknown card type to play: ${definition.type} for card ${limboCardObject.name}`);
-					throw new Error(`Unhandled card type for play: ${definition.type}`);
+					console.error(`[CardPlaySystem] Unknown card type to play: ${cardDefinition.type} for card ${cardEntityToPlay.name}`);
+					throw new Error(`Unhandled card type for play: ${cardDefinition.type}`);
 			}
 
 			this.eventBus.publish('cardPlayed', {
-				card: limboCardObject, // This is the object instance that was played, now possibly in its final zone
+				card: cardEntityToPlay, // This is the object instance that was played, now possibly in its final zone
 				playerId,
 				fromZone: fromZoneIdentifier, // Original zone (e.g. Hand for Scout)
 				finalZone: finalDestinationZone, // Actual zone it landed in (e.g. Expedition)
-				definitionId: originalDefinitionId
+				definitionId: originalDefinitionId,
+				selectedTargets, // Include selected targets in the event
+				selectedMode     // Include selected mode in the event
 			});
 
 			// If played using Scout, grant the "Send to Reserve" reaction ability (Rule 7.4.5.c)
 			if (isScoutPlay &&
 				(finalDestinationZone === ZoneIdentifier.Expedition || finalDestinationZone === ZoneIdentifier.Landmark) &&
 				this.gsm.keywordAbilityHandler) { // Ensure handler exists
-				// limboCardObject is the card that is now in its final play zone
-				this.gsm.keywordAbilityHandler.grantScoutSendToReserveAbility(limboCardObject);
+				// cardEntityToPlay is the card that is now in its final play zone
+				this.gsm.keywordAbilityHandler.grantScoutSendToReserveAbility(cardEntityToPlay as IGameObject); // Ensure it's IGameObject
 			}
 
 			// Rule 5.1.2.j: "When a card is played" triggers. These typically occur after the card has resolved.
@@ -390,15 +580,22 @@ export class CardPlaySystem {
 			await this.gsm.resolveReactions();
 
 		} catch (error) {
-			console.error(`[CardPlaySystem] Error playing card ${originalDefinitionId} (ID: ${cardId}) for player ${playerId}:`, error);
+			console.error(`[CardPlaySystem] Error playing card ${originalDefinitionId} (ID: ${isGameObject(initialCardInstance) ? initialCardInstance.objectId : initialCardInstance.instanceId}) for player ${playerId}:`, error);
 			// Attempt to return the card to its original zone or hand if play fails mid-process.
-			const cardStillInLimbo = this.gsm.state.sharedZones.limbo.findById(limboCardObject.objectId);
+			// Check if the card is still in Limbo using cardEntityToPlay (which is limboCardObject)
+			const cardStillInLimbo = this.gsm.state.sharedZones.limbo.findById(cardEntityToPlay.objectId);
 			if (cardStillInLimbo) {
-				console.warn(`[CardPlaySystem] Attempting to return ${limboCardObject.name} from Limbo to player ${playerId}'s hand due to error during play.`);
+				console.warn(`[CardPlaySystem] Attempting to return ${cardEntityToPlay.name} from Limbo to player ${playerId}'s hand due to error during play.`);
 				// Deciding the "original" zone is tricky. Hand is a safe default.
 				// If `fromZoneIdentifier` was Reserve, it should ideally go back there.
-				const returnZone = (fromZoneIdentifier === ZoneIdentifier.Reserve) ? fromZone : player.zones.handZone;
-				this.gsm.moveEntity(limboCardObject.objectId, this.gsm.state.sharedZones.limbo, returnZone, playerId);
+				// `fromZone` object is already fetched and correct for this.
+				const returnZone = (fromZoneIdentifier === ZoneIdentifier.Reserve || fromZoneIdentifier === ZoneIdentifier.Battlefield || fromZoneIdentifier === ZoneIdentifier.Landmark || fromZoneIdentifier === ZoneIdentifier.Expedition) ? fromZone : player.zones.handZone;
+				this.gsm.moveEntity(cardEntityToPlay.objectId, this.gsm.state.sharedZones.limbo, returnZone, playerId);
+			} else {
+				// If the card is not in Limbo, it might have been moved to its final destination before an error occurred
+				// or failed to move to Limbo in the first place. This part of error recovery is complex.
+				// For now, if it's not in Limbo, we assume it was either never moved or already moved elsewhere by a completed step.
+				console.warn(`[CardPlaySystem] Card ${originalDefinitionId} was not found in Limbo during error handling. It might be in its original zone or an intermediate/final zone.`);
 			}
 			throw error; // Re-throw the error to be handled by the caller
 		}

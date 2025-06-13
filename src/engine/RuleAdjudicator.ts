@@ -1170,4 +1170,115 @@ export class RuleAdjudicator {
 		}
 		return activeModifiers;
 	}
+
+	// New method for Rule 5.2.b
+	public getPassivesGrantingItemsOnPlay(
+		playedCardObject: IGameObject,
+		_playingPlayerId: string, // playingPlayerId might be used for context in targetCriteria or sourceCondition
+		_gameState: IGameState // gameState might be used for complex sourceCondition checks
+	): {
+		passiveAbility: IAbility;
+		sourceObject: IGameObject;
+		itemToGrant: { type: 'counter'; counterType: CounterType; amount: number } | { type: 'status'; statusType: StatusType };
+	}[] {
+		const results: {
+			passiveAbility: IAbility;
+			sourceObject: IGameObject;
+			itemToGrant: { type: 'counter'; counterType: CounterType; amount: number } | { type: 'status'; statusType: StatusType };
+		}[] = [];
+
+		const potentialSources = this.getAllObjectsAndHeroesInPlay(); // Helper to get all relevant objects
+
+		for (const sourceObject of potentialSources) {
+			if (sourceObject.objectId === playedCardObject.objectId) {
+				continue; // The card being played cannot grant items to itself via this mechanism
+			}
+
+			const abilitiesToCheck: IAbility[] = [];
+			if (sourceObject.abilities) {
+				abilitiesToCheck.push(...sourceObject.abilities.map(a => ({ ...a, sourceObjectId: sourceObject.objectId })));
+			}
+			if (sourceObject.currentCharacteristics?.grantedAbilities) {
+				abilitiesToCheck.push(...sourceObject.currentCharacteristics.grantedAbilities.map(a => ({ ...a, sourceObjectId: sourceObject.objectId })));
+			}
+
+			for (const ability of abilitiesToCheck) {
+				if (ability.abilityType !== AbilityType.Passive || !ability.effect || !ability.effect.steps) {
+					continue;
+				}
+				if (sourceObject.currentCharacteristics?.negatedAbilityIds?.includes(ability.abilityId)) {
+					continue; // Skip negated abilities
+				}
+
+				for (const step of ability.effect.steps) {
+					if (step.verb === 'DEFINE_PASSIVE_GRANT_ON_PLAY') {
+						const params = step.parameters as PassiveGrantOnPlayParameters | undefined;
+						if (!params || !params.itemToGrant) {
+							console.warn(`[RuleAdjudicator.getPassivesGrantingItemsOnPlay] DEFINE_PASSIVE_GRANT_ON_PLAY step on ${sourceObject.name} (Ability: ${ability.abilityId}) is missing itemToGrant.`, params);
+							continue;
+						}
+
+						// 1. Check sourceCondition (conceptual for now)
+						// if (params.sourceCondition && !this.evaluateCondition(params.sourceCondition, sourceObject, this.gsm)) {
+						//     continue;
+						// }
+						// Assuming sourceCondition is met if not specified or for simplicity here.
+
+						// 2. Check targetCriteria against playedCardObject
+						let targetCriteriaMet = true;
+						if (params.targetCriteria) {
+							const defOfPlayedCard = this.gsm.getCardDefinition(playedCardObject.definitionId);
+							if (!defOfPlayedCard) {
+								targetCriteriaMet = false; // Should not happen if playedCardObject is valid
+							} else {
+								if (params.targetCriteria.cardType && !params.targetCriteria.cardType.includes(defOfPlayedCard.type)) {
+									targetCriteriaMet = false;
+								}
+								if (targetCriteriaMet && params.targetCriteria.faction && defOfPlayedCard.faction !== params.targetCriteria.faction) {
+									targetCriteriaMet = false;
+								}
+								if (targetCriteriaMet && params.targetCriteria.definitionId && defOfPlayedCard.id !== params.targetCriteria.definitionId) {
+									targetCriteriaMet = false;
+								}
+								// TODO: Add more criteria checks as defined in PassiveGrantOnPlayParameters.targetCriteria
+							}
+						}
+
+						if (targetCriteriaMet) {
+							results.push({
+								passiveAbility: ability,
+								sourceObject: sourceObject,
+								itemToGrant: params.itemToGrant
+							});
+							console.log(`[RuleAdjudicator.getPassivesGrantingItemsOnPlay] Found qualifying passive: ${ability.abilityId} on ${sourceObject.name} for played card ${playedCardObject.name}. Item:`, params.itemToGrant);
+						}
+					}
+				}
+			}
+		}
+		return results;
+	}
+
+	/**
+	 * Helper to get all objects in play zones (Expedition, Landmark) and Heroes in Hero Zones.
+	 */
+	private getAllObjectsAndHeroesInPlay(): IGameObject[] {
+		const objects: IGameObject[] = [];
+		// From shared expedition zone
+		if (this.gsm.state.sharedZones?.expedition) {
+			objects.push(...this.gsm.state.sharedZones.expedition.getAll().filter(isGameObject));
+		}
+		// From player-specific landmark and hero zones
+		for (const player of this.gsm.state.players.values()) {
+			if (player.zones.landmarkZone) {
+				objects.push(...player.zones.landmarkZone.getAll().filter(isGameObject));
+			}
+			if (player.zones.heroZone) { // Assuming heroes are IGameObjects
+				objects.push(...player.zones.heroZone.getAll().filter(isGameObject));
+			}
+			// Potentially add Battlefield zones if they exist and can have objects with such passives
+			// Example: if (player.zones.battlefieldZone) { objects.push(...player.zones.battlefieldZone.getAll().filter(isGameObject)); }
+		}
+		return objects;
+	}
 }
