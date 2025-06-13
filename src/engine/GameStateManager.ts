@@ -201,7 +201,7 @@ export class GameStateManager {
 		}
 
 		// Create and place the hero object
-		const heroObject = this.objectFactory.createGameObjectFromDefinition(heroDefinition, playerId);
+		const heroObject = this.objectFactory.createCard(heroDefinition.id, playerId);
 		// heroObject.faceDown = false; // Heroes are revealed (ObjectFactory should handle this based on card type)
 		player.zones.heroZone.add(heroObject);
 		console.log(`[GSM] Placed Hero ${heroDefinition.name} for player ${playerId}.`);

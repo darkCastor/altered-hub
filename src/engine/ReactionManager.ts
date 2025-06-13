@@ -99,7 +99,7 @@ export class ReactionManager {
 		while (reactionPlayedInLastFullPass) {
 			reactionPlayedInLastFullPass = false;
 			let currentPlayerId = gameState.firstPlayerId;
-			const playerIds = gameState.players.map(p => p.id);
+			const playerIds = Array.from(gameState.players.keys());
 			if (!playerIds.includes(currentPlayerId)) {
 				// Fallback if firstPlayerId is somehow invalid, though this shouldn't happen
 				currentPlayerId = playerIds[0];

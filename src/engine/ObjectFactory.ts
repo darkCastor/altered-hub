@@ -76,7 +76,8 @@ export class ObjectFactory {
 			statuses: new Set<StatusType>(),
 			counters: new Map<CounterType, number>(), // Default to empty map
 			abilities: [], // This will be populated later
-			abilityActivationsToday: new Map<string, number>() // Initialize here
+			abilityActivationsToday: new Map<string, number>(), // Initialize here
+			faceDown: false // Default to face-up, can be overridden if needed
 		};
 
 		// Apply initial counters if provided by the GameStateManager.
