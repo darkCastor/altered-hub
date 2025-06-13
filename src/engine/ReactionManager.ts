@@ -1,20 +1,21 @@
 import type { GameStateManager } from './GameStateManager';
 import type { ObjectFactory } from './ObjectFactory';
-import type { IGameObject, IEmblemObject } from './types/objects';
+import type { IGameObject, IEmblemObject, ICardInstance } from './types/objects';
 import { isGameObject } from './types/objects';
-import type { EffectResolver } from './EffectResolver';
+import type { EffectProcessor } from './EffectProcessor';
 import { CardType, StatusType, ZoneIdentifier } from './types/enums';
 import { AbilityType, type IAbility } from './types/abilities';
+import type { IGameState } from './types/gameState';
 
 export class ReactionManager {
-	private gsm: GameStateManager;
+	private gameStateManager: GameStateManager;
 	private objectFactory: ObjectFactory;
-	private effectResolver: EffectResolver;
+	private effectProcessor: EffectProcessor;
 
-	constructor(gsm: GameStateManager, objectFactory: ObjectFactory, effectResolver: EffectResolver) {
-		this.gsm = gsm;
+	constructor(gsm: GameStateManager, objectFactory: ObjectFactory, effectProcessor: EffectProcessor) {
+		this.gameStateManager = gsm;
 		this.objectFactory = objectFactory;
-		this.effectResolver = effectResolver;
+		this.effectProcessor = effectProcessor;
 	}
 
 	/**
@@ -29,7 +30,7 @@ export class ReactionManager {
 		// These reactions must exist and have an active ability *before* the event.
 		const allObjects = this.getAllGameObjects();
 		for (const object of allObjects) {
-			const zone = this.gsm.findZoneOfObject(object.objectId);
+			const zone = this.gameStateManager.findZoneOfObject(object.objectId);
 			if (!zone) continue;
 
 			for (const ability of object.abilities) {
@@ -54,7 +55,7 @@ export class ReactionManager {
 				}
 
 				if (isAbilityActive && ability.trigger?.eventType === eventType) {
-					if (ability.trigger.condition(payload, object, this.gsm)) {
+					if (ability.trigger.condition(payload, object, this.gameStateManager)) {
 						console.log(
 							`[ReactionManager] TRIGGERED (Non-Self-Move): Ability "${ability.text}" on ${object.name} (${object.objectId})`
 						);
@@ -67,15 +68,15 @@ export class ReactionManager {
 		// --- Part 2: Self-Move Reactions (Rule 6.3.d) ---
 		// These reactions are checked on the object *after* it has moved.
 		// Their abilities activate regardless of the new zone (the trigger condition itself is the filter).
-		if (eventType === 'entityMoved' && isGameObject(payload.entity)) {
-			const newObject = payload.entity;
+		if (eventType === 'entityMoved' && isGameObject((payload as any).entity)) {
+			const newObject = (payload as any).entity as IGameObject;
 			for (const ability of newObject.abilities) {
 				if (
 					ability.abilityType === AbilityType.Reaction &&
 					ability.isSelfMove &&
 					ability.trigger?.eventType === eventType
 				) {
-					if (ability.trigger.condition(payload, newObject, this.gsm)) {
+					if (ability.trigger.condition(payload, newObject, this.gameStateManager)) {
 						console.log(
 							`[ReactionManager] TRIGGERED (Self-Move): Ability "${ability.text}" on ${newObject.name} (${newObject.objectId})`
 						);
@@ -88,98 +89,74 @@ export class ReactionManager {
 
 	private createAndAddEmblem(ability: IAbility, sourceObject: IGameObject, payload: unknown): void {
 		const emblem = this.objectFactory.createReactionEmblem(ability, sourceObject, payload);
-		this.gsm.state.sharedZones.limbo.add(emblem);
+		this.gameStateManager.state.sharedZones.limbo.add(emblem);
 		console.log(`[ReactionManager] Created Emblem-Reaction ${emblem.objectId} in Limbo.`);
 	}
 
-	/**
-	 * Processes all currently pending Emblem-Reactions in Limbo,
-	 * following initiative order until none are left.
-	 * Rule 4.4
-	 */
-	public async processReactions(): Promise<void> {
-		let reactionsInLimbo = this.getReactionsInLimbo();
-		if (reactionsInLimbo.length === 0) {
-			return;
-		}
+	public async resolveReactions(gameState: IGameState): Promise<void> {
+		let reactionPlayedInLastFullPass = true;
 
-		console.log(
-			`[ReactionManager] Starting reaction processing loop with ${reactionsInLimbo.length} pending reaction(s).`
-		);
+		while (reactionPlayedInLastFullPass) {
+			reactionPlayedInLastFullPass = false;
+			let currentPlayerId = gameState.firstPlayerId;
+			const playerIds = gameState.players.map(p => p.id);
+			if (!playerIds.includes(currentPlayerId)) {
+				// Fallback if firstPlayerId is somehow invalid, though this shouldn't happen
+				currentPlayerId = playerIds[0];
+			}
 
-		let passesInARow = 0;
-		const numberOfPlayers = this.gsm.state.players.size; // Corrected to use map size
-		let currentReactionPlayerId = this.gsm.state.firstPlayerId; // Start with the first player
 
-		// Rule 4.4.b: The reaction process continues until all players pass in a row or no reactions remain.
-		while (reactionsInLimbo.length > 0 && passesInARow < numberOfPlayers) {
-			console.log(
-				`[ReactionManager] Next to act: Player ${currentReactionPlayerId}. Passes in a row: ${passesInARow}/${numberOfPlayers}. Reactions in limbo: ${reactionsInLimbo.length}`
-			);
-
-			const playerReactions = reactionsInLimbo.filter(
-				(r) => r.controllerId === currentReactionPlayerId
-			);
-
-			if (playerReactions.length > 0) {
-				// Player has reactions. Player chooses one to resolve.
-				const reactionToResolve = await this.gsm.playerChoosesReaction(currentReactionPlayerId, playerReactions);
-
-				if (!reactionToResolve) {
-					// Player chose not to play a reaction (passed).
-					console.log(`[ReactionManager] Player ${currentReactionPlayerId} chose to pass.`);
-					passesInARow++;
-					currentReactionPlayerId = this.gsm.getNextPlayerId(currentReactionPlayerId);
-					reactionsInLimbo = this.getReactionsInLimbo(); // Re-fetch before next iteration
-					continue; // Next iteration of the while loop.
-				}
-
-				// Player chose a reaction to resolve.
-				console.log(
-					`[ReactionManager] Player ${currentReactionPlayerId} resolves: "${reactionToResolve.name}" (ID: ${reactionToResolve.objectId})`
+			for (let i = 0; i < playerIds.length; i++) {
+				const reactionsInLimbo = this.getReactionsInLimbo(gameState);
+				const playerReactions = reactionsInLimbo.filter(
+					(r) => r.controllerId === currentPlayerId
 				);
 
-				// Resolve the reaction and remove it from Limbo
-				await this.effectResolver.resolve(reactionToResolve.boundEffect); // Assuming resolve can be async
-				this.gsm.state.sharedZones.limbo.remove(reactionToResolve.objectId); // Reaction ceases to exist (Rule 5.4.d)
-				console.log(`[ReactionManager] Reaction ${reactionToResolve.objectId} resolved and removed from Limbo.`);
+				if (playerReactions.length > 0) {
+					// Simplified: Automatically select the first available reaction.
+					const reactionToPlay = playerReactions[0];
 
-				passesInARow = 0; // Reset passes because an action was taken.
+					console.log(`Player ${currentPlayerId} plays reaction: ${reactionToPlay.definitionId} (Source: ${reactionToPlay.name})`);
 
-				// Re-fetch reactions in Limbo as the resolved reaction might have triggered new ones.
-				reactionsInLimbo = this.getReactionsInLimbo();
-				console.log(`[ReactionManager] Reactions re-fetched. Count: ${reactionsInLimbo.length}`);
+					if (reactionToPlay.boundEffect) {
+						await this.effectProcessor.resolveEffect(
+							gameState,
+							reactionToPlay.boundEffect,
+							reactionToPlay.controllerId,
+							reactionToPlay.sourceObject // Pass the LKI from the emblem
+						);
+					}
 
-				// The same player gets priority again (Rule 4.4.b.ii - "Priority returns to the initiative player")
-				// So, currentReactionPlayerId does not change yet.
-			} else {
-				// Player has no reactions available to choose from.
-				console.log(`[ReactionManager] Player ${currentReactionPlayerId} has no reactions to choose from or passes.`);
-				passesInARow++;
-				currentReactionPlayerId = this.gsm.getNextPlayerId(currentReactionPlayerId);
-				// Re-fetch reactions in case some appeared for other players, or for loop condition check
-				reactionsInLimbo = this.getReactionsInLimbo();
+					gameState.sharedZones.limbo.remove(reactionToPlay.objectId);
+					this.gameStateManager.eventBus.publish('reactionPlayed', { reaction: reactionToPlay });
+					reactionPlayedInLastFullPass = true; // A reaction was played, so loop again
+
+					// Priority might stay with the current player or switch depending on game rules.
+					// For this simplified loop, we'll just continue to the next player in order after a reaction.
+					// If strict priority return is needed, this logic would need adjustment.
+				}
+
+				// Switch to the next player
+				const currentIndex = playerIds.indexOf(currentPlayerId);
+				currentPlayerId = playerIds[(currentIndex + 1) % playerIds.length];
 			}
+			// If no reaction was played by any player in this full pass over all players, the loop will terminate.
 		}
-
-		if (reactionsInLimbo.length > 0 && passesInARow >= numberOfPlayers) {
-			console.log(
-				`[ReactionManager] Reaction loop ended due to all players passing. ${reactionsInLimbo.length} reaction(s) remain in Limbo unresolved.`
-			);
-			// These reactions would typically cease to exist or be handled by specific game rules for unresolved reactions.
-			// For now, we'll just log. Future: Rule 5.4.d "An Emblem-Reaction that is not played ceases to exist..."
-			// This implies they should be removed if the loop ends due to passes.
-			reactionsInLimbo.forEach(r => this.gsm.state.sharedZones.limbo.remove(r.objectId));
-			console.log('[ReactionManager] Unresolved reactions removed from Limbo due to full pass sequence.');
-		} else if (reactionsInLimbo.length === 0) {
-			console.log('[ReactionManager] Reaction processing loop finished: No more reactions in Limbo.');
-		} else {
-			console.log('[ReactionManager] Reaction processing loop finished for other reasons.'); // Should ideally not happen
-		}
+		// Clean up any remaining reactions if the loop terminates because no one played anything.
+		// This is implicitly handled by the loop condition, but if there's a rule for unplayed reactions after everyone passes,
+		// it could be added here. The original `processReactions` had logic for this.
+        // For now, if reactionPlayedInLastFullPass is false, it means no reactions were played by anyone.
+        if (!reactionPlayedInLastFullPass) {
+            const remainingReactions = this.getReactionsInLimbo(gameState);
+            if (remainingReactions.length > 0) {
+                console.log(`[ReactionManager] Reaction loop ended. ${remainingReactions.length} reaction(s) remain in Limbo and will be removed.`);
+                remainingReactions.forEach(r => gameState.sharedZones.limbo.remove(r.objectId));
+            }
+        }
 	}
 
-	private getReactionsInLimbo(): IEmblemObject[] {
-		const limboEntities = this.gsm.state.sharedZones.limbo.getAll();
+	private getReactionsInLimbo(gameState: IGameState): IEmblemObject[] {
+		const limboEntities = gameState.sharedZones.limbo.getAll();
 		return limboEntities.filter(
 			(e): e is IEmblemObject =>
 				isGameObject(e) &&
@@ -191,13 +168,13 @@ export class ReactionManager {
 	private getAllGameObjects(): IGameObject[] {
 		const objects: IGameObject[] = [];
 		// Player-specific zones
-		this.gsm.state.players.forEach((player) => {
+		this.gameStateManager.state.players.forEach((player) => {
 			objects.push(...player.zones.landmarkZone.getAll().filter(isGameObject));
 			objects.push(...player.zones.heroZone.getAll().filter(isGameObject));
 			objects.push(...player.zones.reserveZone.getAll().filter(isGameObject)); // For support abilities
 		});
 		// Shared zones
-		objects.push(...this.gsm.state.sharedZones.expedition.getAll().filter(isGameObject));
+		objects.push(...this.gameStateManager.state.sharedZones.expedition.getAll().filter(isGameObject));
 		// Adventure and Limbo zones are generally not sources of reaction abilities from objects within them.
 		return objects;
 	}

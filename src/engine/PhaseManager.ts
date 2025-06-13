@@ -133,13 +133,19 @@ export class PhaseManager {
 		// Final resolution for the Morning phase before moving on.
 		await this.gameStateManager.resolveReactions();
 
+		// Process "At Noon" triggers before officially transitioning to Noon phase
+		// This is because setCurrentPhase(Noon) will be called by advancePhase later.
+		// If Noon triggers need to happen at the very end of morning actions:
 		console.log(
-			`PhaseManager: Morning logic executed for Day ${this.gameStateManager.state.currentDay}.`
+			`PhaseManager: Morning logic executed for Day ${this.gameStateManager.state.currentDay}. Processing 'At Noon' triggers before advancing.`
 		);
+		await this.gameStateManager.triggerHandler.processPhaseTriggersForPhase(GamePhase.Noon);
+		await this.gameStateManager.resolveReactions();
 	}
 
 	private handleNoon(): void {
-		// "At Noon" effects are triggered by setCurrentPhase(GamePhase.Noon).
+		// "At Noon" effects are primarily triggered by setCurrentPhase(GamePhase.Noon) called from advancePhase
+		// or handleFirstMorning. This method is for any additional specific Noon logic if needed.
 		console.log('PhaseManager: Noon logic executed.');
 	}
 

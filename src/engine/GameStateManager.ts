@@ -604,14 +604,14 @@ export class GameStateManager {
 	}
 
 	public async resolveReactions(): Promise<void> {
-		console.log('[GameStateManager] resolveReactions called. Delegating to ReactionManager.processReactions...');
+		console.log('[GameStateManager] resolveReactions called. Delegating to ReactionManager.resolveReactions...');
 		// The ReactionManager.checkForTriggers should be called by the EventBus or specific game event handlers
 		// right before resolveReactions might be needed.
 		// For example, an event like 'afterEffectResolved' or 'cardPlayed' could trigger 'checkForTriggers',
 		// then 'resolveReactions' is called to process them.
 		// PhaseManager and TurnManager will call this method at appropriate times (e.g., end of a step, after an action).
-		await this.reactionManager.processReactions();
-		console.log('[GameStateManager] ReactionManager.processReactions finished.');
+		await this.reactionManager.resolveReactions(this.state);
+		console.log('[GameStateManager] ReactionManager.resolveReactions finished.');
 	}
 
 	/**

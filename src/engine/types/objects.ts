@@ -66,6 +66,7 @@ export interface IEmblemObject extends IGameObject {
 	type: CardType.Emblem;
 	emblemSubType: 'Reaction' | 'Ongoing'; // Rule 2.2.2.h
 	boundEffect: IEffect; // Rule 6.3.h: The effect to resolve, with targets bound from the trigger
+	sourceObject?: IGameObject | ICardInstance; // LKI of the object that triggered this reaction
 	duration?: 'this turn' | 'this Afternoon' | 'this Day'; // Rule 2.2.14
 }
 

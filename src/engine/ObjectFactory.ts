@@ -141,6 +141,7 @@ export class ObjectFactory {
 
 		const emblem: IEmblemObject = {
 			objectId: ObjectFactory.createUniqueId(),
+			sourceObject: lkiSnapshot as Readonly<IGameObject>, // Store LKI on the emblem itself
 			definitionId: `emblem-reaction-${sourceAbility.abilityId}`,
 			name: `Reaction: ${sourceAbility.text}`,
 			type: CardType.Emblem,

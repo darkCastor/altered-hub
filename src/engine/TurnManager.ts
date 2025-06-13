@@ -40,7 +40,7 @@ export class TurnManager {
 		});
 	}
 
-	public playerPasses(playerId: string): void {
+	public async playerPasses(playerId: string): Promise<void> {
 		const player = this.gsm.getPlayer(playerId); // Corrected: gsm.getPlayer directly
 		if (!player) {
 			console.error(`TurnManager: Player ${playerId} not found to pass turn.`);
@@ -51,11 +51,14 @@ export class TurnManager {
 		console.log(`TurnManager: Player ${playerId} has passed their turn.`);
 		this.eventBus.publish('playerPassedTurn', { playerId });
 
+		// Resolve reactions after a player passes
+		await this.gsm.resolveReactions(this.gsm.state);
+
 		// After a player passes, check if the phase should end
 		this.checkPhaseEnd();
 	}
 
-	public advanceTurn(): void {
+	public async advanceTurn(): Promise<void> {
 		// This method is called when the current player takes an action that doesn't end their turn,
 		// but passes priority to the next player who hasn't passed yet.
 		// Or, if the current player was the only one active, they might get another turn.

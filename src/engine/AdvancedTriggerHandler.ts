@@ -20,8 +20,8 @@ export class AdvancedTriggerHandler {
 	 */
 	private createEmblemForTriggeredAbility(
 		triggeredAbility: IAbility,
-		sourceObject: IGameObject,
-		eventPayload: any
+		sourceObject: IGameObject, // This is the object that has the ability. ObjectFactory will take its LKI.
+		eventPayload: any // This payload may contain other entities or data relevant to the trigger.
 	): IEmblemObject | null {
 		// Initialize reactionActivationsToday if it's undefined
 		if (triggeredAbility.reactionActivationsToday === undefined) {
@@ -42,16 +42,17 @@ export class AdvancedTriggerHandler {
 			`[TriggerHandler] Incrementing reaction count for ability ${triggeredAbility.abilityId} on ${sourceObject.name} to ${triggeredAbility.reactionActivationsToday}.`
 		);
 
-		// Create LKI of the source object at the time of triggering
-		// This should be a deep enough copy to capture relevant state for the effect.
-		// For simplicity, a shallow spread might be used, but be wary of nested objects/arrays.
-		const lkiSourceObject = { ...sourceObject, abilities: [...sourceObject.abilities] }; // Example shallow copy, may need deep clone
+		// ObjectFactory.createReactionEmblem is responsible for creating the LKI
+		// of the sourceObject (the object that possesses the ability).
+		// If eventPayload contains other objects whose LKI is needed for the reaction's
+		// effect or for complex trigger conditions not handled before this point,
+		// then eventPayload should be structured to hold those LKIs.
+		// For now, we assume ObjectFactory handles sourceObject's LKI and payload is as-is.
 
 		const emblem = this.gsm.objectFactory.createReactionEmblem(
 			triggeredAbility,
-			sourceObject, // The original sourceObject for context like controllerId, ownerId
-			eventPayload,
-			lkiSourceObject // Pass LKI to be stored on the emblem's effect
+			sourceObject, // Pass the live sourceObject; ObjectFactory will snapshot it for LKI.
+			eventPayload
 		);
 
 		const limboZone = this.gsm.state.sharedZones.limbo;
