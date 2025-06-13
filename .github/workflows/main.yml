@@ -3,6 +3,9 @@ on:
   push:
     branches:
       - master
+  pull_request: # Add this
+    branches:   # Add this
+      - master  # Add this
 jobs:
   build:
     runs-on: ubuntu-latest
