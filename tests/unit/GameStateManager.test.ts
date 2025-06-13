@@ -674,7 +674,7 @@ describe('GameStateManager - Rule Compliance Tests', () => {
 			p1HeroChar.currentCharacteristics.hasDefender = true; // Add Defender
 			// Re-apply passives for the change to be recognized by KeywordAbilityHandler if it caches them
 			// Or mock checkDefenderRestrictions directly
-			jest.spyOn(gameStateManager.keywordHandler, 'checkDefenderRestrictions').mockReturnValueOnce({
+			spyOn(gameStateManager.keywordHandler, 'checkDefenderRestrictions').mockReturnValueOnce({
 				hero: false, // Hero expedition cannot move
 				companion: true
 			});
@@ -729,7 +729,7 @@ describe('GameStateManager - Rule Compliance Tests', () => {
 			// Mock actionHandler.playerChoosesObjectsToKeep
 			// Simulate player chooses to keep r1, r2 (so r3 is discarded)
 			// Simulate player chooses to keep l1 (so l2 is sacrificed)
-			const mockPlayerChooses = jest.fn()
+			const mockPlayerChooses = mock()
 				.mockImplementationOnce(async (_playerId, objects, _limit, zoneType) => { // Reserve
 					expect(zoneType).toBe('reserve');
 					expect(objects.length).toBe(3);
@@ -768,7 +768,7 @@ describe('GameStateManager - Rule Compliance Tests', () => {
 				// No need to applyAllPassiveAbilities as cleanupPhase reads directly
 			}
 
-			const mockPlayerChooses = jest.fn()
+			const mockPlayerChooses = mock()
 				.mockImplementationOnce(async (_playerId, objects, limit, _zoneType) => { // Reserve
 					expect(limit).toBe(1);
 					// Player has 3, limit 1, should discard 2. Let's say r2, r3.

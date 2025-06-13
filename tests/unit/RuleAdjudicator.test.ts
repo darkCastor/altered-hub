@@ -1,4 +1,5 @@
 // tests/unit/RuleAdjudicator.test.ts
+import { describe, test, expect, beforeEach, afterEach, mock, spyOn } from 'bun:test';
 import { RuleAdjudicator } from '../../src/engine/RuleAdjudicator';
 import { GameStateManager } from '../../src/engine/GameStateManager';
 import { ObjectFactory } from '../../src/engine/ObjectFactory';
@@ -8,18 +9,12 @@ import type { IAbility, IEffectStep } from '../../src/engine/types/abilities';
 import { AbilityType, CardType } from '../../src/engine/types/enums';
 import { EffectProcessor } from '../../src/engine/EffectProcessor'; // Needed for gsm.effectProcessor
 
-// Mock dependencies
-jest.mock('../../src/engine/GameStateManager');
-jest.mock('../../src/engine/ObjectFactory');
-jest.mock('../../src/engine/EventBus');
-jest.mock('../../src/engine/EffectProcessor');
-
 
 describe('RuleAdjudicator', () => {
-	let gsm: jest.Mocked<GameStateManager>;
-	let objectFactory: jest.Mocked<ObjectFactory>;
-	let eventBus: jest.Mocked<EventBus>;
-	let effectProcessor: jest.Mocked<EffectProcessor>;
+	let gsm: GameStateManager;
+	let objectFactory: ObjectFactory;
+	let eventBus: EventBus;
+	let effectProcessor: EffectProcessor;
 	let ruleAdjudicator: RuleAdjudicator;
 
 	const createMockGameObject = (id: string, controllerId: string, abilities: IAbility[] = [], timestamp: number = 0): IGameObject => ({
@@ -146,8 +141,8 @@ describe('RuleAdjudicator', () => {
             abilityA.sourceObjectId = 'objA_circ';
             abilityB.sourceObjectId = 'objB_circ';
 
-            gsm.getObject.mockImplementation(id => id === 'objA_circ' ? objA : id === 'objB_circ' ? objB : undefined);
-            gsm.effectProcessor.resolveTargetsForDependency.mockImplementation((_ts, srcId) => [srcId]);
+            gsm.getObject = mock().mockImplementation((id: string) => id === 'objA_circ' ? objA : id === 'objB_circ' ? objB : undefined);
+            gsm.effectProcessor.resolveTargetsForDependency = mock().mockImplementation((_ts: any, srcId: string) => [srcId]);
 
 
             // A depends on B (B sets power, A's text mentions power)
@@ -191,7 +186,7 @@ describe('RuleAdjudicator', () => {
 			sourceObject.baseCharacteristics.abilities?.push(grantingAbility);
 			sourceObject.currentCharacteristics.abilities?.push(grantingAbility);
 
-			gsm.getObject.mockReturnValue(sourceObject);
+			gsm.getObject = mock().mockReturnValue(sourceObject);
 			// Mock createAbility to return a valid IAbility
 			const mockCreatedGrantedAbility = {...createMockAbility(grantedAbilityDef.id, grantedAbilityDef.effect.steps, grantedAbilityDef.text), sourceObjectId: sourceObject.objectId };
 			(objectFactory.createAbility as jest.Mock).mockReturnValue(mockCreatedGrantedAbility);
@@ -234,7 +229,7 @@ describe('RuleAdjudicator', () => {
 			sourceObject.baseCharacteristics.abilities?.push(negatingAbility);
 			sourceObject.currentCharacteristics.abilities?.push(negatingAbility);
 
-			gsm.getObject.mockReturnValue(sourceObject);
+			gsm.getObject = mock().mockReturnValue(sourceObject);
 
 			// Apply the negating ability
 			(ruleAdjudicator as any).applyAbility(negatingAbility);

@@ -1,4 +1,5 @@
 // tests/unit/AdvancedTriggerHandler.test.ts
+import { describe, test, expect, beforeEach, afterEach, mock, spyOn } from 'bun:test';
 import { AdvancedTriggerHandler } from '../../src/engine/AdvancedTriggerHandler';
 import { GameStateManager } from '../../src/engine/GameStateManager';
 import { ObjectFactory } from '../../src/engine/ObjectFactory';
@@ -8,14 +9,10 @@ import type { IAbility, ITrigger, IEffectStep } from '../../src/engine/types/abi
 import { AbilityType, CardType, ZoneIdentifier } from '../../src/engine/types/enums';
 import { GenericZone } from '../../src/engine/Zone';
 
-jest.mock('../../src/engine/GameStateManager');
-jest.mock('../../src/engine/ObjectFactory');
-jest.mock('../../src/engine/EventBus');
-
 describe('AdvancedTriggerHandler', () => {
-	let gsm: jest.Mocked<GameStateManager>;
-	let objectFactory: jest.Mocked<ObjectFactory>;
-	let eventBus: jest.Mocked<EventBus>;
+	let gsm: GameStateManager;
+	let objectFactory: ObjectFactory;
+	let eventBus: EventBus;
 	let triggerHandler: AdvancedTriggerHandler;
 	let mockLimboZone: GenericZone;
 
