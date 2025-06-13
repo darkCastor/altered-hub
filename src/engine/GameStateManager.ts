@@ -794,7 +794,7 @@ export class GameStateManager {
 					// Non-Gigantic: check specific expedition assignment
 					// Assumes CardPlaySystem sets entity.expeditionAssignment
 					if (
-						entity.expeditionAssignment === 'hero' &&
+						entity.expeditionAssignment?.type === 'hero' &&
 						player.heroExpedition.hasMoved
 					) {
 						isAffectedByMovingExpedition = true;
@@ -802,7 +802,7 @@ export class GameStateManager {
 							`[GSM] Entity ${entity.name} in hero expedition is affected by hero movement.`
 						);
 					} else if (
-						entity.expeditionAssignment === 'companion' &&
+						entity.expeditionAssignment?.type === 'companion' &&
 						player.companionExpedition.hasMoved
 					) {
 						isAffectedByMovingExpedition = true;

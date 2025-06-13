@@ -376,10 +376,10 @@ describe('GameStateManager - Rule Compliance Tests', () => {
 				p1CharHeroBoost = gameStateManager.objectFactory.createCard('char-p1-hero-boost', 'player1');
 
 				// Assign to expeditions
-				p1CharHero.expeditionAssignment = { playerId: 'player1', type: 'Hero' };
-				p1CharComp.expeditionAssignment = { playerId: 'player1', type: 'Companion' };
-				p2CharHero.expeditionAssignment = { playerId: 'player2', type: 'Hero' };
-				p1CharHeroBoost.expeditionAssignment = { playerId: 'player1', type: 'Hero' };
+				p1CharHero.expeditionAssignment = { playerId: 'player1', type: 'hero' };
+				p1CharComp.expeditionAssignment = { playerId: 'player1', type: 'companion' };
+				p2CharHero.expeditionAssignment = { playerId: 'player2', type: 'hero' };
+				p1CharHeroBoost.expeditionAssignment = { playerId: 'player1', type: 'hero' };
 				p1CharHeroBoost.counters.set(CounterType.Boost, 1);
 
 
@@ -393,13 +393,15 @@ describe('GameStateManager - Rule Compliance Tests', () => {
 
 			test('should correctly calculate stats for Player 1 Hero expedition', () => {
 				const stats = gameStateManager.calculateExpeditionStats('player1', 'hero');
-				// p1CharHero (F:1) + p1CharHeroBoost (F:1 + Boost:1 = F:2, M:1 + Boost:1 = M:2)
-				// Expected: Forest: 1 (p1CharHero) + 2 (p1CharHeroBoost) = 3
-				//           Mountain: 0 (p1CharHero) + 2 (p1CharHeroBoost) = 2
-				//           Water: 0
+				// p1CharHero (F:1, M:0, W:0) + p1CharHeroBoost (F:1, M:1, W:0) with 1 Boost counter
+				// Rule 2.5.1.b: Boost counters add +1 to each statistic
+				// p1CharHeroBoost with boost: F:1+1=2, M:1+1=2, W:0+1=1
+				// Expected: Forest: 1 (p1CharHero) + 2 (p1CharHeroBoost+boost) = 3
+				//           Mountain: 0 (p1CharHero) + 2 (p1CharHeroBoost+boost) = 2  
+				//           Water: 0 (p1CharHero) + 1 (p1CharHeroBoost+boost) = 1
 				expect(stats.forest).toBe(1 + 2); // p1CharHero.F + p1CharHeroBoost.F + p1CharHeroBoost.Boost
 				expect(stats.mountain).toBe(0 + 2); // p1CharHero.M + p1CharHeroBoost.M + p1CharHeroBoost.Boost
-				expect(stats.water).toBe(0);
+				expect(stats.water).toBe(0 + 1); // p1CharHero.W + p1CharHeroBoost.W + p1CharHeroBoost.Boost
 			});
 
 			test('should correctly calculate stats for Player 1 Companion expedition', () => {
@@ -428,12 +430,15 @@ describe('GameStateManager - Rule Compliance Tests', () => {
 			test('should not count characters with Asleep status', () => {
 				p1CharHero.statuses.add(StatusType.Asleep);
 				const stats = gameStateManager.calculateExpeditionStats('player1', 'hero');
-				// p1CharHero is Asleep (F:1), p1CharHeroBoost (F:1 + Boost:1 = F:2, M:1 + Boost:1 = M:2)
-				// Expected: Forest: 0 (p1CharHero is asleep) + 2 (p1CharHeroBoost) = 2
-				//           Mountain: 0 (p1CharHero is asleep) + 2 (p1CharHeroBoost) = 2
+				// p1CharHero is Asleep (not counted), p1CharHeroBoost (F:1, M:1, W:0) with 1 Boost counter
+				// Rule 2.5.1.b: Boost counters add +1 to each statistic
+				// p1CharHeroBoost with boost: F:1+1=2, M:1+1=2, W:0+1=1
+				// Expected: Forest: 0 (p1CharHero asleep) + 2 (p1CharHeroBoost+boost) = 2
+				//           Mountain: 0 (p1CharHero asleep) + 2 (p1CharHeroBoost+boost) = 2
+				//           Water: 0 (p1CharHero asleep) + 1 (p1CharHeroBoost+boost) = 1
 				expect(stats.forest).toBe(2);
 				expect(stats.mountain).toBe(2);
-				expect(stats.water).toBe(0);
+				expect(stats.water).toBe(1);
 			});
 
 			test('should count Gigantic character for BOTH hero and companion expeditions of its controller', () => {
@@ -455,7 +460,7 @@ describe('GameStateManager - Rule Compliance Tests', () => {
 				expect(compStats.forest).toBe(1); // Gigantic char F:1 should also count here
 
 				// Assign to hero expedition and re-test
-				p1GiganticChar.expeditionAssignment = { playerId: 'player1', type: 'Hero' };
+				p1GiganticChar.expeditionAssignment = { playerId: 'player1', type: 'hero' };
 				const heroStatsAssigned = gameStateManager.calculateExpeditionStats('player1', 'hero');
 				expect(heroStatsAssigned.forest).toBe(1);
 				const compStatsAssignedStillCounts = gameStateManager.calculateExpeditionStats('player1', 'companion');
@@ -487,9 +492,9 @@ describe('GameStateManager - Rule Compliance Tests', () => {
 				p1CharComp = gameStateManager.objectFactory.createCard('char-p1-comp', 'player1'); // Stats M:1
 				p2CharHero = gameStateManager.objectFactory.createCard('char-p2-hero', 'player2'); // Stats W:1
 
-				p1CharHero.expeditionAssignment = { playerId: 'player1', type: 'Hero' };
-				p1CharComp.expeditionAssignment = { playerId: 'player1', type: 'Companion' };
-				p2CharHero.expeditionAssignment = { playerId: 'player2', type: 'Hero' };
+				p1CharHero.expeditionAssignment = { playerId: 'player1', type: 'hero' };
+				p1CharComp.expeditionAssignment = { playerId: 'player1', type: 'companion' };
+				p2CharHero.expeditionAssignment = { playerId: 'player2', type: 'hero' };
 
 				sharedExpeditionZone.add(p1CharHero);
 				sharedExpeditionZone.add(p1CharComp);
@@ -503,6 +508,19 @@ describe('GameStateManager - Rule Compliance Tests', () => {
 			});
 
 			test('P1 Hero moved, P1 Comp not: p1CharHero to Reserve, p1CharComp stays', async () => {
+				// Verify character controller IDs match player ID
+				expect(p1CharHero.controllerId).toBe('player1');
+				expect(p1CharComp.controllerId).toBe('player1');
+				expect(p2CharHero.controllerId).toBe('player2');
+				
+				// Verify they're in expedition zone
+				expect(sharedExpeditionZone.findById(p1CharHero.objectId)).toBeDefined();
+				expect(sharedExpeditionZone.findById(p1CharComp.objectId)).toBeDefined();
+				
+				// Verify expedition assignments 
+				expect(p1CharHero.expeditionAssignment).toEqual({ playerId: 'player1', type: 'hero' });
+				expect(p1CharComp.expeditionAssignment).toEqual({ playerId: 'player1', type: 'companion' });
+				
 				p1.heroExpedition.hasMoved = true;
 				await gameStateManager.restPhase();
 
@@ -632,19 +650,19 @@ describe('GameStateManager - Rule Compliance Tests', () => {
 
 			// Setup characters in expeditions
 			p1HeroChar = gameStateManager.objectFactory.createCard(p1Deck[1].id, 'player1');
-			p1HeroChar.expeditionAssignment = { playerId: 'player1', type: 'Hero' };
+			p1HeroChar.expeditionAssignment = { playerId: 'player1', type: 'hero' };
 			sharedExpeditionZone.add(p1HeroChar);
 
 			p1CompanionChar = gameStateManager.objectFactory.createCard(p1Deck[2].id, 'player1');
-			p1CompanionChar.expeditionAssignment = { playerId: 'player1', type: 'Companion' };
+			p1CompanionChar.expeditionAssignment = { playerId: 'player1', type: 'companion' };
 			sharedExpeditionZone.add(p1CompanionChar);
 
 			p2HeroCharOpposing = gameStateManager.objectFactory.createCard(p2Deck[1].id, 'player2');
-			p2HeroCharOpposing.expeditionAssignment = { playerId: 'player2', type: 'Hero' };
+			p2HeroCharOpposing.expeditionAssignment = { playerId: 'player2', type: 'hero' };
 			sharedExpeditionZone.add(p2HeroCharOpposing);
 
 			p2CompanionCharOpposing = gameStateManager.objectFactory.createCard(p2Deck[2].id, 'player2');
-			p2CompanionCharOpposing.expeditionAssignment = { playerId: 'player2', type: 'Companion' };
+			p2CompanionCharOpposing.expeditionAssignment = { playerId: 'player2', type: 'companion' };
 			sharedExpeditionZone.add(p2CompanionCharOpposing);
 
 			// Ensure current characteristics are set up for stat calculation

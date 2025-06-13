@@ -1,16 +1,15 @@
 import { GameStateManager } from '../../GameStateManager';
-import { Player } from '../../Player';
+import type { IPlayer } from '../../types/game';
 import type { PlayerActionHandler } from '../../PlayerActionHandler';
-import type { CardDefinition, ICardInstance, IGameObject } from '../../types/objects';
+import type { ICardDefinition, ICardInstance, IGameObject } from '../../types/objects';
 import { CardType, GamePhase, ZoneIdentifier } from '../../types/enums';
-import { ObjectStore } from '../../ObjectStore';
 import { EventBus } from '../../EventBus';
 import { RuleAdjudicator } from '../../RuleAdjudicator';
 import { TurnManager } from '../../TurnManager';
 import { Zone } from '../../Zone';
 import { EffectProcessor } from '../../EffectProcessor';
 import { CardPlaySystem } from '../../CardPlaySystem';
-import { StatusHandler } from '../../StatusHandler';
+import { StatusEffectHandler } from '../../StatusEffectHandler';
 
 
 jest.mock('../../PlayerActionHandler');
@@ -19,7 +18,7 @@ jest.mock('../../RuleAdjudicator');
 jest.mock('../../TurnManager');
 jest.mock('../../EffectProcessor');
 jest.mock('../../CardPlaySystem');
-jest.mock('../../StatusHandler');
+jest.mock('../../StatusEffectHandler');
 
 
 const mockPlayerActionHandler = {
@@ -37,8 +36,8 @@ const mockPlayerActionHandler = {
 
 describe('GameStateManager', () => {
     let gsm: GameStateManager;
-    let player1: Player;
-    let player2: Player;
+    let player1: IPlayer;
+    let player2: IPlayer;
     let objectStore: ObjectStore;
     let eventBus: EventBus;
     let ruleAdjudicator: RuleAdjudicator;
