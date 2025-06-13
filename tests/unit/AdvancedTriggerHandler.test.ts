@@ -4,7 +4,11 @@ import { AdvancedTriggerHandler } from '../../src/engine/AdvancedTriggerHandler'
 import { GameStateManager } from '../../src/engine/GameStateManager';
 import { ObjectFactory } from '../../src/engine/ObjectFactory';
 import { EventBus } from '../../src/engine/EventBus';
-import type { IGameObject, IEmblemObject, ICurrentCharacteristics } from '../../src/engine/types/objects';
+import type {
+	IGameObject,
+	IEmblemObject,
+	ICurrentCharacteristics
+} from '../../src/engine/types/objects';
 import type { IAbility, ITrigger, IEffectStep } from '../../src/engine/types/abilities';
 import { AbilityType, CardType, ZoneIdentifier } from '../../src/engine/types/enums';
 import { GenericZone } from '../../src/engine/Zone';
@@ -21,9 +25,9 @@ describe('AdvancedTriggerHandler', () => {
 		definitionId: `def-${id}`,
 		name: `TestObject ${id}`,
 		type: CardType.Character,
-		baseCharacteristics: { abilities: abilities.map(a => ({...a})) },
+		baseCharacteristics: { abilities: abilities.map((a) => ({ ...a })) },
 		currentCharacteristics: {
-			abilities: abilities.map(a => ({...a})),
+			abilities: abilities.map((a) => ({ ...a })),
 			grantedAbilities: []
 		} as ICurrentCharacteristics,
 		ownerId: 'player1',
@@ -31,11 +35,15 @@ describe('AdvancedTriggerHandler', () => {
 		timestamp: Date.now(),
 		statuses: new Set(),
 		counters: new Map(),
-		abilities: abilities.map(a => ({...a})), // Live abilities
-		abilityActivationsToday: new Map(),
+		abilities: abilities.map((a) => ({ ...a })), // Live abilities
+		abilityActivationsToday: new Map()
 	});
 
-	const createMockAbility = (id: string, eventType: string, condition?: (payload: any, source: IGameObject, gsm: GameStateManager) => boolean): IAbility => ({
+	const createMockAbility = (
+		id: string,
+		eventType: string,
+		condition?: (payload: any, source: IGameObject, gsm: GameStateManager) => boolean
+	): IAbility => ({
 		abilityId: id,
 		abilityType: AbilityType.Reaction,
 		trigger: { eventType, condition: condition || jest.fn().mockReturnValue(true) }, // Default condition to true
@@ -43,12 +51,12 @@ describe('AdvancedTriggerHandler', () => {
 		text: `Reaction Ability ${id}`,
 		isSupportAbility: false,
 		reactionActivationsToday: 0,
-		sourceObjectId: '',
+		sourceObjectId: ''
 	});
 
 	const mockReactionEmblem = {
 		objectId: 'emblem-1',
-		name: 'Test Reaction Emblem',
+		name: 'Test Reaction Emblem'
 		// ... other IEmblemObject properties
 	} as IEmblemObject;
 
@@ -63,11 +71,11 @@ describe('AdvancedTriggerHandler', () => {
 		gsm = new GameStateManager([], [], eventBus) as jest.Mocked<GameStateManager>;
 		gsm.objectFactory = objectFactory;
 		gsm.state = {
-			sharedZones: { limbo: mockLimboZone },
+			sharedZones: { limbo: mockLimboZone }
 			// ... other gsm.state properties if needed by handler
 		} as any;
 		// Mock config for NIF limit
-        (gsm as any).config = { nothingIsForeverReactionLimit: 2 }; // Example limit of 2
+		(gsm as any).config = { nothingIsForeverReactionLimit: 2 }; // Example limit of 2
 
 		triggerHandler = new AdvancedTriggerHandler(gsm);
 	});
@@ -80,8 +88,7 @@ describe('AdvancedTriggerHandler', () => {
 
 			// Manually set reactionActivationsToday to the limit
 			reactionAbility.reactionActivationsToday = 2;
-            (gsm as any).config = { nothingIsForeverReactionLimit: 2 };
-
+			(gsm as any).config = { nothingIsForeverReactionLimit: 2 };
 
 			(triggerHandler as any).createEmblemForTriggeredAbility(reactionAbility, sourceObject, {});
 
@@ -95,12 +102,17 @@ describe('AdvancedTriggerHandler', () => {
 			reactionAbility.sourceObjectId = sourceObject.objectId;
 
 			reactionAbility.reactionActivationsToday = 0;
-            (gsm as any).config = { nothingIsForeverReactionLimit: 2 };
+			(gsm as any).config = { nothingIsForeverReactionLimit: 2 };
 
 			(triggerHandler as any).createEmblemForTriggeredAbility(reactionAbility, sourceObject, {});
 
 			expect(reactionAbility.reactionActivationsToday).toBe(1);
-			expect(objectFactory.createReactionEmblem).toHaveBeenCalledWith(reactionAbility, sourceObject, {}, expect.anything()); // LKI is 4th arg
+			expect(objectFactory.createReactionEmblem).toHaveBeenCalledWith(
+				reactionAbility,
+				sourceObject,
+				{},
+				expect.anything()
+			); // LKI is 4th arg
 			expect(mockLimboZone.add).toHaveBeenCalledWith(mockReactionEmblem);
 		});
 	});
@@ -115,7 +127,11 @@ describe('AdvancedTriggerHandler', () => {
 
 			// Manually call a processing method that would use createEmblemForTriggeredAbility
 			// For example, if processGenericEventTriggers is used:
-			gsm.getAllVisibleZones = jest.fn().mockReturnValue([new GenericZone('zone1', ZoneIdentifier.Expedition, 'visible').add(sourceObject) as any]);
+			gsm.getAllVisibleZones = jest
+				.fn()
+				.mockReturnValue([
+					new GenericZone('zone1', ZoneIdentifier.Expedition, 'visible').add(sourceObject) as any
+				]);
 			triggerHandler.processGenericEventTriggers('eventWithCond', eventPayload);
 
 			expect(conditionMock).toHaveBeenCalledWith(eventPayload, sourceObject, gsm);
@@ -130,7 +146,11 @@ describe('AdvancedTriggerHandler', () => {
 			reactionAbility.sourceObjectId = sourceObject.objectId;
 			const eventPayload = { data: 'test2' };
 
-			gsm.getAllVisibleZones = jest.fn().mockReturnValue([new GenericZone('zone1', ZoneIdentifier.Expedition, 'visible').add(sourceObject) as any]);
+			gsm.getAllVisibleZones = jest
+				.fn()
+				.mockReturnValue([
+					new GenericZone('zone1', ZoneIdentifier.Expedition, 'visible').add(sourceObject) as any
+				]);
 			triggerHandler.processGenericEventTriggers('eventNoCond', eventPayload);
 
 			expect(conditionMock).toHaveBeenCalledWith(eventPayload, sourceObject, gsm);
@@ -156,9 +176,11 @@ describe('AdvancedTriggerHandler', () => {
 			// Instead, we'll simulate the core logic of preparePhase relevant to this test.
 
 			// Simulate what gsm.preparePhase() does:
-			sourceObject.abilities.forEach(ab => ab.reactionActivationsToday = 0);
+			sourceObject.abilities.forEach((ab) => (ab.reactionActivationsToday = 0));
 			if (sourceObject.currentCharacteristics.grantedAbilities) {
-				sourceObject.currentCharacteristics.grantedAbilities.forEach(ab => ab.reactionActivationsToday = 0);
+				sourceObject.currentCharacteristics.grantedAbilities.forEach(
+					(ab) => (ab.reactionActivationsToday = 0)
+				);
 			}
 
 			expect(reactionAbility.reactionActivationsToday).toBe(0);
@@ -166,7 +188,9 @@ describe('AdvancedTriggerHandler', () => {
 			// To properly test the actual gsm.preparePhase(), it would be an integration test
 			// or GameStateManager.test.ts would cover this.
 			// This test serves to document the expected interaction for AdvancedTriggerHandler's NIF.
-			console.log("[Test Info] NIF reset test relies on simulated preparePhase logic for reactionActivationsToday.");
+			console.log(
+				'[Test Info] NIF reset test relies on simulated preparePhase logic for reactionActivationsToday.'
+			);
 		});
 	});
 
@@ -175,11 +199,36 @@ describe('AdvancedTriggerHandler', () => {
 		let reactionAbility: IAbility;
 
 		// Mock zone definitions to be returned by findZoneOfObject
-		const mockHeroZone = { zoneType: ZoneIdentifier.HeroZone, id: 'heroZoneP1', controllerId: 'player1', visibility: 'visible' } as any;
-		const mockHandZone = { zoneType: ZoneIdentifier.HandZone, id: 'handZoneP1', controllerId: 'player1', visibility: 'hidden' } as any;
-		const mockExpeditionZone = { zoneType: ZoneIdentifier.Expedition, id: 'expeditionShared', controllerId: 'shared', visibility: 'visible' } as any;
-		const mockLandmarkZone = { zoneType: ZoneIdentifier.LandmarkZone, id: 'landmarkP1', controllerId: 'player1', visibility: 'visible' } as any;
-		const mockReserveZone = { zoneType: ZoneIdentifier.ReserveZone, id: 'reserveP1', controllerId: 'player1', visibility: 'visible' } as any;
+		const mockHeroZone = {
+			zoneType: ZoneIdentifier.HeroZone,
+			id: 'heroZoneP1',
+			controllerId: 'player1',
+			visibility: 'visible'
+		} as any;
+		const mockHandZone = {
+			zoneType: ZoneIdentifier.HandZone,
+			id: 'handZoneP1',
+			controllerId: 'player1',
+			visibility: 'hidden'
+		} as any;
+		const mockExpeditionZone = {
+			zoneType: ZoneIdentifier.Expedition,
+			id: 'expeditionShared',
+			controllerId: 'shared',
+			visibility: 'visible'
+		} as any;
+		const mockLandmarkZone = {
+			zoneType: ZoneIdentifier.LandmarkZone,
+			id: 'landmarkP1',
+			controllerId: 'player1',
+			visibility: 'visible'
+		} as any;
+		const mockReserveZone = {
+			zoneType: ZoneIdentifier.ReserveZone,
+			id: 'reserveP1',
+			controllerId: 'player1',
+			visibility: 'visible'
+		} as any;
 
 		beforeEach(() => {
 			// Reset mocks for objectFactory and gsm methods for each test
@@ -228,28 +277,29 @@ describe('AdvancedTriggerHandler', () => {
 				gsm.getAllVisibleZones = jest.fn().mockReturnValue([containingZone as any]);
 			}
 
-
 			let finalPayload = eventPayload;
 			if (fromZoneTypeForLeaveEvent) {
 				finalPayload = { ...eventPayload, fromZone: { zoneType: fromZoneTypeForLeaveEvent } };
 			}
 
-
 			// Call a method that uses createEmblemForTriggeredAbility internally
 			// Using processGenericEventTriggers as a common pathway
 			if (eventType === 'leavePlay' && fromZoneTypeForLeaveEvent) {
-				triggerHandler.processLeavePlayTriggers(sourceObject, { zoneType: fromZoneTypeForLeaveEvent } as any, mockHandZone);
+				triggerHandler.processLeavePlayTriggers(
+					sourceObject,
+					{ zoneType: fromZoneTypeForLeaveEvent } as any,
+					mockHandZone
+				);
 			} else if (eventType === 'enterPlay' && objectZoneType) {
 				triggerHandler.processEnterPlayTriggers(sourceObject, { zoneType: objectZoneType } as any);
-			}
-			 else {
+			} else {
 				triggerHandler.processGenericEventTriggers(eventType, finalPayload);
 			}
 		};
 
 		// Hero Reactions
 		describe('Hero Reactions', () => {
-			beforeEach(() => reactionAbility = createMockAbility('heroReact', 'genericTestEvent'));
+			beforeEach(() => (reactionAbility = createMockAbility('heroReact', 'genericTestEvent')));
 
 			test('Hero in HeroZone with reaction -> emblem IS created', () => {
 				setupAndTrigger(CardType.Hero, ZoneIdentifier.HeroZone, reactionAbility);
@@ -263,7 +313,7 @@ describe('AdvancedTriggerHandler', () => {
 
 		// Non-Hero "In Play" Reactions
 		describe('Non-Hero "In Play" Reactions', () => {
-			beforeEach(() => reactionAbility = createMockAbility('nonHeroReact', 'genericTestEvent'));
+			beforeEach(() => (reactionAbility = createMockAbility('nonHeroReact', 'genericTestEvent')));
 
 			test('Non-Hero in ExpeditionZone with reaction -> emblem IS created', () => {
 				setupAndTrigger(CardType.Character, ZoneIdentifier.Expedition, reactionAbility);
@@ -308,19 +358,43 @@ describe('AdvancedTriggerHandler', () => {
 				reactionAbility = createMockAbility('leaveExpReact', 'leavePlay');
 				// For leave triggers, current zone of object might be its destination or limbo.
 				// The scope check relies on eventPayload.fromZone.zoneType.
-				setupAndTrigger(CardType.Character, undefined, reactionAbility, false, 'leavePlay', {}, ZoneIdentifier.Expedition);
+				setupAndTrigger(
+					CardType.Character,
+					undefined,
+					reactionAbility,
+					false,
+					'leavePlay',
+					{},
+					ZoneIdentifier.Expedition
+				);
 				expect(objectFactory.createReactionEmblem).toHaveBeenCalled();
 			});
 
 			test('Hero leaving HeroZone with "leavePlay" reaction -> emblem IS created', () => {
 				reactionAbility = createMockAbility('leaveHeroReact', 'leavePlay');
-				setupAndTrigger(CardType.Hero, undefined, reactionAbility, false, 'leavePlay', {}, ZoneIdentifier.HeroZone);
+				setupAndTrigger(
+					CardType.Hero,
+					undefined,
+					reactionAbility,
+					false,
+					'leavePlay',
+					{},
+					ZoneIdentifier.HeroZone
+				);
 				expect(objectFactory.createReactionEmblem).toHaveBeenCalled();
 			});
 
 			test('Non-Hero object leaving HandZone with "leavePlay" reaction -> emblem IS NOT created (invalid scope for reaction)', () => {
 				reactionAbility = createMockAbility('leaveHandReact', 'leavePlay');
-				setupAndTrigger(CardType.Character, undefined, reactionAbility, false, 'leavePlay', {}, ZoneIdentifier.HandZone);
+				setupAndTrigger(
+					CardType.Character,
+					undefined,
+					reactionAbility,
+					false,
+					'leavePlay',
+					{},
+					ZoneIdentifier.HandZone
+				);
 				expect(objectFactory.createReactionEmblem).not.toHaveBeenCalled();
 			});
 		});

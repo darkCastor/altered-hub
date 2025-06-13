@@ -87,7 +87,9 @@ export class PhaseManager {
 		await this.gameStateManager.resolveReactions();
 
 		// Morning Step 1: Draw cards (Rule 4.2.1.d)
-		for (const playerId of this.gameStateManager.getPlayerIdsInInitiativeOrder(this.gameStateManager.state.firstPlayerId)) {
+		for (const playerId of this.gameStateManager.getPlayerIdsInInitiativeOrder(
+			this.gameStateManager.state.firstPlayerId
+		)) {
 			await this.gameStateManager.drawCards(playerId, 2); // Draw 2 cards
 			// Note: Drawing cards can trigger reactions, which should be handled by drawCards or GameStateManager.
 			// For now, assuming drawCards and subsequent resolveReactions handle this.
@@ -96,31 +98,45 @@ export class PhaseManager {
 		// Resolve reactions after all players have drawn.
 		await this.gameStateManager.resolveReactions();
 
-
 		// Morning Step 2: Expand (Rule 4.2.1.e)
 		// Iterate through each player (respecting initiative order).
-		for (const playerId of this.gameStateManager.getPlayerIdsInInitiativeOrder(this.gameStateManager.state.firstPlayerId)) {
+		for (const playerId of this.gameStateManager.getPlayerIdsInInitiativeOrder(
+			this.gameStateManager.state.firstPlayerId
+		)) {
 			const player = this.gameStateManager.getPlayer(playerId);
 			if (player && !player.hasExpandedThisTurn) {
 				// PlayerActionHandler.getAvailableExpandAction already checks if player can expand (has cards, hasn't expanded).
 				// Now, we prompt for choice.
 				if (!player.hasExpandedThisTurn && player.zones.handZone.getCount() > 0) {
-					const choice = await this.gameStateManager.actionHandler.promptPlayerForExpandChoice(playerId);
+					const choice =
+						await this.gameStateManager.actionHandler.promptPlayerForExpandChoice(playerId);
 
 					if (choice.cardToExpandId) {
 						try {
-							await this.gameStateManager.playerActionHandler.executeExpandAction(playerId, choice.cardToExpandId);
-							console.log(`[PhaseManager] Player ${playerId} successfully expanded card ${choice.cardToExpandId}.`);
+							await this.gameStateManager.playerActionHandler.executeExpandAction(
+								playerId,
+								choice.cardToExpandId
+							);
+							console.log(
+								`[PhaseManager] Player ${playerId} successfully expanded card ${choice.cardToExpandId}.`
+							);
 							// Resolve reactions AFTER each individual expand action. (Rule 4.2.1.e)
 							await this.gameStateManager.resolveReactions();
 						} catch (error) {
-							console.error(`[PhaseManager] Error during expand action for player ${playerId} with card ${choice.cardToExpandId}:`, error);
+							console.error(
+								`[PhaseManager] Error during expand action for player ${playerId} with card ${choice.cardToExpandId}:`,
+								error
+							);
 						}
 					} else {
-						console.log(`[PhaseManager] Player ${playerId} chose not to expand or had no cards (choice was null).`);
+						console.log(
+							`[PhaseManager] Player ${playerId} chose not to expand or had no cards (choice was null).`
+						);
 					}
 				} else {
-					console.log(`[PhaseManager] Player ${playerId} has already expanded or has no cards in hand.`);
+					console.log(
+						`[PhaseManager] Player ${playerId} has already expanded or has no cards in hand.`
+					);
 				}
 			}
 		}
@@ -151,13 +167,13 @@ export class PhaseManager {
 
 	private handleAfternoon(): void {
 		// "At Afternoon" effects are triggered by setCurrentPhase(GamePhase.Afternoon).
-		console.log(
-			'PhaseManager: Afternoon. TurnManager will now be initialized for the phase.'
-		);
+		console.log('PhaseManager: Afternoon. TurnManager will now be initialized for the phase.');
 		if (this.gameStateManager.turnManager) {
 			this.gameStateManager.turnManager.startAfternoon();
 		} else {
-			console.error('PhaseManager: TurnManager not found on GameStateManager during handleAfternoon.');
+			console.error(
+				'PhaseManager: TurnManager not found on GameStateManager during handleAfternoon.'
+			);
 		}
 	}
 

@@ -3,7 +3,15 @@ import { GameStateManager } from '../../src/engine/GameStateManager';
 import { EventBus } from '../../src/engine/EventBus';
 import { ObjectFactory } from '../../src/engine/ObjectFactory'; // Added ObjectFactory import
 import { HandZone, GenericZone, DiscardPileZone, LimboZone, DeckZone } from '../../src/engine/Zone'; // Added Zone imports
-import { GamePhase, ZoneIdentifier, CardType, StatusType, CounterType, KeywordAbility, AbilityType } from '../../src/engine/types/enums'; // Explicitly ensuring AbilityType and KeywordAbility
+import {
+	GamePhase,
+	ZoneIdentifier,
+	CardType,
+	StatusType,
+	CounterType,
+	KeywordAbility,
+	AbilityType
+} from '../../src/engine/types/enums'; // Explicitly ensuring AbilityType and KeywordAbility
 import type { ICardDefinition } from '../../src/engine/types/cards';
 import type { IGameObject } from '../../src/engine/types/objects';
 import { isGameObject } from '../../src/engine/types/objects';
@@ -22,28 +30,156 @@ describe('GameStateManager - Rule Compliance Tests', () => {
 		eventBus = new EventBus();
 
 		// Simplified and explicit deck definitions for testing
-		const heroP1: ICardDefinition = { id: 'hero-001', name: 'Test Hero P1', type: CardType.Hero, subTypes: [], handCost: { total: 0, forest: 0, mountain: 0, water: 0 }, reserveCost: {total:0, forest: 0, mountain: 0, water: 0}, faction: 'Neutral', statistics: { forest: 1, mountain: 1, water: 1 }, abilities: [], rarity: 'Common', version: '1.0' };
-		const cardP1_1: ICardDefinition = { id: 'card-p1-001', name: 'Test Card P1-1', type: CardType.Spell, subTypes: [], handCost: { total: 1, forest: 0, mountain: 0, water: 0 }, reserveCost: {total:1, forest: 0, mountain: 0, water: 0}, faction: 'Neutral', statistics: {}, abilities: [], rarity: 'Common', version: '1.0' };
-		const heroP2: ICardDefinition = { id: 'hero-002', name: 'Test Hero P2', type: CardType.Hero, subTypes: [], handCost: { total: 0, forest: 0, mountain: 0, water: 0 }, reserveCost: {total:0, forest: 0, mountain: 0, water: 0}, faction: 'Neutral', statistics: { forest: 1, mountain: 1, water: 1 }, abilities: [], rarity: 'Common', version: '1.0' };
-		const cardP2_1: ICardDefinition = { id: 'card-p2-001', name: 'Test Card P2-1', type: CardType.Spell, subTypes: [], handCost: { total: 1, forest: 0, mountain: 0, water: 0 }, reserveCost: {total:1, forest: 0, mountain: 0, water: 0}, faction: 'Neutral', statistics: {}, abilities: [], rarity: 'Common', version: '1.0' };
+		const heroP1: ICardDefinition = {
+			id: 'hero-001',
+			name: 'Test Hero P1',
+			type: CardType.Hero,
+			subTypes: [],
+			handCost: { total: 0, forest: 0, mountain: 0, water: 0 },
+			reserveCost: { total: 0, forest: 0, mountain: 0, water: 0 },
+			faction: 'Neutral',
+			statistics: { forest: 1, mountain: 1, water: 1 },
+			abilities: [],
+			rarity: 'Common',
+			version: '1.0'
+		};
+		const cardP1_1: ICardDefinition = {
+			id: 'card-p1-001',
+			name: 'Test Card P1-1',
+			type: CardType.Spell,
+			subTypes: [],
+			handCost: { total: 1, forest: 0, mountain: 0, water: 0 },
+			reserveCost: { total: 1, forest: 0, mountain: 0, water: 0 },
+			faction: 'Neutral',
+			statistics: {},
+			abilities: [],
+			rarity: 'Common',
+			version: '1.0'
+		};
+		const heroP2: ICardDefinition = {
+			id: 'hero-002',
+			name: 'Test Hero P2',
+			type: CardType.Hero,
+			subTypes: [],
+			handCost: { total: 0, forest: 0, mountain: 0, water: 0 },
+			reserveCost: { total: 0, forest: 0, mountain: 0, water: 0 },
+			faction: 'Neutral',
+			statistics: { forest: 1, mountain: 1, water: 1 },
+			abilities: [],
+			rarity: 'Common',
+			version: '1.0'
+		};
+		const cardP2_1: ICardDefinition = {
+			id: 'card-p2-001',
+			name: 'Test Card P2-1',
+			type: CardType.Spell,
+			subTypes: [],
+			handCost: { total: 1, forest: 0, mountain: 0, water: 0 },
+			reserveCost: { total: 1, forest: 0, mountain: 0, water: 0 },
+			faction: 'Neutral',
+			statistics: {},
+			abilities: [],
+			rarity: 'Common',
+			version: '1.0'
+		};
 
 		// Add character cards that some tests expect
-		const charP1Hero: ICardDefinition = { id: 'char-p1-hero', name: 'P1 Hero Character', type: CardType.Character, subTypes: [], handCost: { total: 2, forest: 1, mountain: 0, water: 0 }, reserveCost: {total:2, forest: 1, mountain: 0, water: 0}, faction: 'Neutral', statistics: { forest: 1, mountain: 0, water: 0 }, abilities: [], rarity: 'Common', version: '1.0' };
-		const charP1Comp: ICardDefinition = { id: 'char-p1-comp', name: 'P1 Comp Character', type: CardType.Character, subTypes: [], handCost: { total: 2, forest: 0, mountain: 1, water: 0 }, reserveCost: {total:2, forest: 0, mountain: 1, water: 0}, faction: 'Neutral', statistics: { forest: 0, mountain: 1, water: 0 }, abilities: [], rarity: 'Common', version: '1.0' };
-		const charP2Hero: ICardDefinition = { id: 'char-p2-hero', name: 'P2 Hero Character', type: CardType.Character, subTypes: [], handCost: { total: 2, forest: 0, mountain: 0, water: 1 }, reserveCost: {total:2, forest: 0, mountain: 0, water: 1}, faction: 'Neutral', statistics: { forest: 0, mountain: 0, water: 1 }, abilities: [], rarity: 'Common', version: '1.0' };
-		const charP1HeroBoost: ICardDefinition = { id: 'char-p1-hero-boost', name: 'P1 Hero Boost Character', type: CardType.Character, subTypes: [], handCost: { total: 3, forest: 1, mountain: 1, water: 0 }, reserveCost: {total:3, forest: 1, mountain: 1, water: 0}, faction: 'Neutral', statistics: { forest: 1, mountain: 1, water: 0 }, abilities: [], rarity: 'Common', version: '1.0' };
+		const charP1Hero: ICardDefinition = {
+			id: 'char-p1-hero',
+			name: 'P1 Hero Character',
+			type: CardType.Character,
+			subTypes: [],
+			handCost: { total: 2, forest: 1, mountain: 0, water: 0 },
+			reserveCost: { total: 2, forest: 1, mountain: 0, water: 0 },
+			faction: 'Neutral',
+			statistics: { forest: 1, mountain: 0, water: 0 },
+			abilities: [],
+			rarity: 'Common',
+			version: '1.0'
+		};
+		const charP1Comp: ICardDefinition = {
+			id: 'char-p1-comp',
+			name: 'P1 Comp Character',
+			type: CardType.Character,
+			subTypes: [],
+			handCost: { total: 2, forest: 0, mountain: 1, water: 0 },
+			reserveCost: { total: 2, forest: 0, mountain: 1, water: 0 },
+			faction: 'Neutral',
+			statistics: { forest: 0, mountain: 1, water: 0 },
+			abilities: [],
+			rarity: 'Common',
+			version: '1.0'
+		};
+		const charP2Hero: ICardDefinition = {
+			id: 'char-p2-hero',
+			name: 'P2 Hero Character',
+			type: CardType.Character,
+			subTypes: [],
+			handCost: { total: 2, forest: 0, mountain: 0, water: 1 },
+			reserveCost: { total: 2, forest: 0, mountain: 0, water: 1 },
+			faction: 'Neutral',
+			statistics: { forest: 0, mountain: 0, water: 1 },
+			abilities: [],
+			rarity: 'Common',
+			version: '1.0'
+		};
+		const charP1HeroBoost: ICardDefinition = {
+			id: 'char-p1-hero-boost',
+			name: 'P1 Hero Boost Character',
+			type: CardType.Character,
+			subTypes: [],
+			handCost: { total: 3, forest: 1, mountain: 1, water: 0 },
+			reserveCost: { total: 3, forest: 1, mountain: 1, water: 0 },
+			faction: 'Neutral',
+			statistics: { forest: 1, mountain: 1, water: 0 },
+			abilities: [],
+			rarity: 'Common',
+			version: '1.0'
+		};
 
-		const player1Deck: ICardDefinition[] = [heroP1, cardP1_1, charP1Hero, charP1Comp, charP1HeroBoost];
+		const player1Deck: ICardDefinition[] = [
+			heroP1,
+			cardP1_1,
+			charP1Hero,
+			charP1Comp,
+			charP1HeroBoost
+		];
 		const player2Deck: ICardDefinition[] = [heroP2, cardP2_1, charP2Hero];
 
 		// Add enough filler cards to meet minimum deck size if initializeGame requires it (e.g., for drawing cards)
 		// Assuming a small number for tests to pass initialization, e.g., 6 cards to draw + some for mana.
 		// Actual game rules are 39 non-hero + 1 hero. For testing GameStateManager construction and basic init, 10 might be enough.
-		for(let i = player1Deck.length; i < 10; i++) { // Ensure enough cards
-			player1Deck.push({id: `p1-filler-${i}`, name: `P1 Filler ${i}`, type: CardType.Spell, subTypes: [], handCost: {total:1, forest:0,mountain:0,water:0}, reserveCost: {total:1, forest:0,mountain:0,water:0}, faction:'Neutral', abilities:[], rarity:'Common', version:'1.0', statistics: {}});
+		for (let i = player1Deck.length; i < 10; i++) {
+			// Ensure enough cards
+			player1Deck.push({
+				id: `p1-filler-${i}`,
+				name: `P1 Filler ${i}`,
+				type: CardType.Spell,
+				subTypes: [],
+				handCost: { total: 1, forest: 0, mountain: 0, water: 0 },
+				reserveCost: { total: 1, forest: 0, mountain: 0, water: 0 },
+				faction: 'Neutral',
+				abilities: [],
+				rarity: 'Common',
+				version: '1.0',
+				statistics: {}
+			});
 		}
-		for(let i = player2Deck.length; i < 10; i++) { // Ensure enough cards
-			player2Deck.push({id: `p2-filler-${i}`, name: `P2 Filler ${i}`, type: CardType.Spell, subTypes: [], handCost: {total:1, forest:0,mountain:0,water:0}, reserveCost: {total:1, forest:0,mountain:0,water:0}, faction:'Neutral', abilities:[], rarity:'Common', version:'1.0', statistics: {}});
+		for (let i = player2Deck.length; i < 10; i++) {
+			// Ensure enough cards
+			player2Deck.push({
+				id: `p2-filler-${i}`,
+				name: `P2 Filler ${i}`,
+				type: CardType.Spell,
+				subTypes: [],
+				handCost: { total: 1, forest: 0, mountain: 0, water: 0 },
+				reserveCost: { total: 1, forest: 0, mountain: 0, water: 0 },
+				faction: 'Neutral',
+				abilities: [],
+				rarity: 'Common',
+				version: '1.0',
+				statistics: {}
+			});
 		}
 
 		const playerDeckDefinitions = new Map<string, ICardDefinition[]>();
@@ -190,8 +326,34 @@ describe('GameStateManager - Rule Compliance Tests', () => {
 			const iterations = 50; // Run multiple times to check for randomness
 			for (let i = 0; i < iterations; i++) {
 				// Re-initialize GSM with fresh state for each iteration for a clean firstPlayerId selection
-				const p1Deck: ICardDefinition[] = [{ id: 'hero-p1', name: 'P1 Hero', type: CardType.Hero, statistics: {}, abilities:[], handCost:{total:0}, reserveCost:{total:0}, faction:'Neutral', rarity:'Common', version:'1'}];
-				const p2Deck: ICardDefinition[] = [{ id: 'hero-p2', name: 'P2 Hero', type: CardType.Hero, statistics: {}, abilities:[], handCost:{total:0}, reserveCost:{total:0}, faction:'Neutral', rarity:'Common', version:'1'}];
+				const p1Deck: ICardDefinition[] = [
+					{
+						id: 'hero-p1',
+						name: 'P1 Hero',
+						type: CardType.Hero,
+						statistics: {},
+						abilities: [],
+						handCost: { total: 0 },
+						reserveCost: { total: 0 },
+						faction: 'Neutral',
+						rarity: 'Common',
+						version: '1'
+					}
+				];
+				const p2Deck: ICardDefinition[] = [
+					{
+						id: 'hero-p2',
+						name: 'P2 Hero',
+						type: CardType.Hero,
+						statistics: {},
+						abilities: [],
+						handCost: { total: 0 },
+						reserveCost: { total: 0 },
+						faction: 'Neutral',
+						rarity: 'Common',
+						version: '1'
+					}
+				];
 				const playerDecks = new Map<string, ICardDefinition[]>();
 				playerDecks.set('player1', p1Deck);
 				playerDecks.set('player2', p2Deck);
@@ -205,27 +367,97 @@ describe('GameStateManager - Rule Compliance Tests', () => {
 			expect(playerCounts.player1).toBeGreaterThan(0);
 			expect(playerCounts.player2).toBeGreaterThan(0);
 			expect(playerCounts.player1 + playerCounts.player2).toBe(iterations);
-			console.log(`[Test] First player distribution over ${iterations} initializations: P1: ${playerCounts.player1}, P2: ${playerCounts.player2}`);
+			console.log(
+				`[Test] First player distribution over ${iterations} initializations: P1: ${playerCounts.player1}, P2: ${playerCounts.player2}`
+			);
 		});
 
 		test('Rule 4.1.h & 4.1.i: Hero is in Hero Zone (not deck), deck contains other cards and is shuffled', async () => {
 			// Setup with specific decks for player1
-			const heroDef = { id: 'hero-unique', name: 'My Hero', type: CardType.Hero, statistics: {}, abilities:[], handCost:{total:0}, reserveCost:{total:0}, faction:'Neutral', rarity:'Common', version:'1' };
-			const card1Def = { id: 'card1', name: 'Card 1', type: CardType.Spell, statistics: {}, abilities:[], handCost:{total:0}, reserveCost:{total:0}, faction:'Neutral', rarity:'Common', version:'1' };
-			const card2Def = { id: 'card2', name: 'Card 2', type: CardType.Spell, statistics: {}, abilities:[], handCost:{total:0}, reserveCost:{total:0}, faction:'Neutral', rarity:'Common', version:'1' };
+			const heroDef = {
+				id: 'hero-unique',
+				name: 'My Hero',
+				type: CardType.Hero,
+				statistics: {},
+				abilities: [],
+				handCost: { total: 0 },
+				reserveCost: { total: 0 },
+				faction: 'Neutral',
+				rarity: 'Common',
+				version: '1'
+			};
+			const card1Def = {
+				id: 'card1',
+				name: 'Card 1',
+				type: CardType.Spell,
+				statistics: {},
+				abilities: [],
+				handCost: { total: 0 },
+				reserveCost: { total: 0 },
+				faction: 'Neutral',
+				rarity: 'Common',
+				version: '1'
+			};
+			const card2Def = {
+				id: 'card2',
+				name: 'Card 2',
+				type: CardType.Spell,
+				statistics: {},
+				abilities: [],
+				handCost: { total: 0 },
+				reserveCost: { total: 0 },
+				faction: 'Neutral',
+				rarity: 'Common',
+				version: '1'
+			};
 			const p1RealDeck: ICardDefinition[] = [heroDef, card1Def, card2Def];
-			
+
 			// Add enough cards for 6 draw + 3 mana orbs
 			for (let i = 3; i < 12; i++) {
-				p1RealDeck.push({ id: `extra-${i}`, name: `Extra ${i}`, type: CardType.Spell, statistics: {}, abilities:[], handCost:{total:0}, reserveCost:{total:0}, faction:'Neutral', rarity:'Common', version:'1' });
+				p1RealDeck.push({
+					id: `extra-${i}`,
+					name: `Extra ${i}`,
+					type: CardType.Spell,
+					statistics: {},
+					abilities: [],
+					handCost: { total: 0 },
+					reserveCost: { total: 0 },
+					faction: 'Neutral',
+					rarity: 'Common',
+					version: '1'
+				});
 			}
 
 			const playerDecks = new Map<string, ICardDefinition[]>();
 			playerDecks.set('player1', p1RealDeck);
-			const p2Deck = [{ id: 'hero-p2', name: 'P2 Hero', type: CardType.Hero, statistics: {}, abilities:[], handCost:{total:0}, reserveCost:{total:0}, faction:'Neutral', rarity:'Common', version:'1'}];
+			const p2Deck = [
+				{
+					id: 'hero-p2',
+					name: 'P2 Hero',
+					type: CardType.Hero,
+					statistics: {},
+					abilities: [],
+					handCost: { total: 0 },
+					reserveCost: { total: 0 },
+					faction: 'Neutral',
+					rarity: 'Common',
+					version: '1'
+				}
+			];
 			// Add enough cards for P2 too
 			for (let i = 1; i < 12; i++) {
-				p2Deck.push({ id: `p2-extra-${i}`, name: `P2 Extra ${i}`, type: CardType.Spell, statistics: {}, abilities:[], handCost:{total:0}, reserveCost:{total:0}, faction:'Neutral', rarity:'Common', version:'1' });
+				p2Deck.push({
+					id: `p2-extra-${i}`,
+					name: `P2 Extra ${i}`,
+					type: CardType.Spell,
+					statistics: {},
+					abilities: [],
+					handCost: { total: 0 },
+					reserveCost: { total: 0 },
+					faction: 'Neutral',
+					rarity: 'Common',
+					version: '1'
+				});
 			}
 			playerDecks.set('player2', p2Deck);
 
@@ -239,7 +471,7 @@ describe('GameStateManager - Rule Compliance Tests', () => {
 
 			const deckCards = player1.zones.deckZone.getAll();
 			expect(deckCards.length).toBe(5); // Should be 12 - 1 (hero) - 6 (drawn) = 5 (mana orbs come from hand)
-			expect(deckCards.some(c => c.definitionId === heroDef.id)).toBe(false); // Hero should not be in deck
+			expect(deckCards.some((c) => c.definitionId === heroDef.id)).toBe(false); // Hero should not be in deck
 			// Don't check for specific cards since they may have been drawn or used for mana
 
 			// Check for shuffle (probabilistic, check if order is not always the same if we could run it multiple times,
@@ -251,8 +483,34 @@ describe('GameStateManager - Rule Compliance Tests', () => {
 
 		test('Rule 4.1: Expedition counters should be placed in corresponding regions', async () => {
 			// This test was here before, re-running with potentially new setup from playerDeckDefinitions
-			const p1Deck: ICardDefinition[] = [{ id: 'hero-p1', name: 'P1 Hero', type: CardType.Hero, statistics: {}, abilities:[], handCost:{total:0}, reserveCost:{total:0}, faction:'Neutral', rarity:'Common', version:'1'}];
-			const p2Deck: ICardDefinition[] = [{ id: 'hero-p2', name: 'P2 Hero', type: CardType.Hero, statistics: {}, abilities:[], handCost:{total:0}, reserveCost:{total:0}, faction:'Neutral', rarity:'Common', version:'1'}];
+			const p1Deck: ICardDefinition[] = [
+				{
+					id: 'hero-p1',
+					name: 'P1 Hero',
+					type: CardType.Hero,
+					statistics: {},
+					abilities: [],
+					handCost: { total: 0 },
+					reserveCost: { total: 0 },
+					faction: 'Neutral',
+					rarity: 'Common',
+					version: '1'
+				}
+			];
+			const p2Deck: ICardDefinition[] = [
+				{
+					id: 'hero-p2',
+					name: 'P2 Hero',
+					type: CardType.Hero,
+					statistics: {},
+					abilities: [],
+					handCost: { total: 0 },
+					reserveCost: { total: 0 },
+					faction: 'Neutral',
+					rarity: 'Common',
+					version: '1'
+				}
+			];
 			const playerDecks = new Map<string, ICardDefinition[]>();
 			playerDecks.set('player1', p1Deck);
 			playerDecks.set('player2', p2Deck);
@@ -373,7 +631,10 @@ describe('GameStateManager - Rule Compliance Tests', () => {
 				p1CharHero = gameStateManager.objectFactory.createCard('char-p1-hero', 'player1');
 				p1CharComp = gameStateManager.objectFactory.createCard('char-p1-comp', 'player1');
 				p2CharHero = gameStateManager.objectFactory.createCard('char-p2-hero', 'player2');
-				p1CharHeroBoost = gameStateManager.objectFactory.createCard('char-p1-hero-boost', 'player1');
+				p1CharHeroBoost = gameStateManager.objectFactory.createCard(
+					'char-p1-hero-boost',
+					'player1'
+				);
 
 				// Assign to expeditions
 				p1CharHero.expeditionAssignment = { playerId: 'player1', type: 'hero' };
@@ -381,7 +642,6 @@ describe('GameStateManager - Rule Compliance Tests', () => {
 				p2CharHero.expeditionAssignment = { playerId: 'player2', type: 'hero' };
 				p1CharHeroBoost.expeditionAssignment = { playerId: 'player1', type: 'hero' };
 				p1CharHeroBoost.counters.set(CounterType.Boost, 1);
-
 
 				// Add to shared expedition zone
 				const sharedExpeditionZone = gameStateManager.state.sharedZones.expedition;
@@ -397,7 +657,7 @@ describe('GameStateManager - Rule Compliance Tests', () => {
 				// Rule 2.5.1.b: Boost counters add +1 to each statistic
 				// p1CharHeroBoost with boost: F:1+1=2, M:1+1=2, W:0+1=1
 				// Expected: Forest: 1 (p1CharHero) + 2 (p1CharHeroBoost+boost) = 3
-				//           Mountain: 0 (p1CharHero) + 2 (p1CharHeroBoost+boost) = 2  
+				//           Mountain: 0 (p1CharHero) + 2 (p1CharHeroBoost+boost) = 2
 				//           Water: 0 (p1CharHero) + 1 (p1CharHeroBoost+boost) = 1
 				expect(stats.forest).toBe(1 + 2); // p1CharHero.F + p1CharHeroBoost.F + p1CharHeroBoost.Boost
 				expect(stats.mountain).toBe(0 + 2); // p1CharHero.M + p1CharHeroBoost.M + p1CharHeroBoost.Boost
@@ -463,7 +723,10 @@ describe('GameStateManager - Rule Compliance Tests', () => {
 				p1GiganticChar.expeditionAssignment = { playerId: 'player1', type: 'hero' };
 				const heroStatsAssigned = gameStateManager.calculateExpeditionStats('player1', 'hero');
 				expect(heroStatsAssigned.forest).toBe(1);
-				const compStatsAssignedStillCounts = gameStateManager.calculateExpeditionStats('player1', 'companion');
+				const compStatsAssignedStillCounts = gameStateManager.calculateExpeditionStats(
+					'player1',
+					'companion'
+				);
 				expect(compStatsAssignedStillCounts.forest).toBe(1);
 			});
 		});
@@ -512,16 +775,42 @@ describe('GameStateManager - Rule Compliance Tests', () => {
 				expect(p1CharHero.controllerId).toBe('player1');
 				expect(p1CharComp.controllerId).toBe('player1');
 				expect(p2CharHero.controllerId).toBe('player2');
-				
+
 				// Verify they're in expedition zone
 				expect(sharedExpeditionZone.findById(p1CharHero.objectId)).toBeDefined();
 				expect(sharedExpeditionZone.findById(p1CharComp.objectId)).toBeDefined();
-				
-				// Verify expedition assignments 
+
+				// Verify expedition assignments
 				expect(p1CharHero.expeditionAssignment).toEqual({ playerId: 'player1', type: 'hero' });
 				expect(p1CharComp.expeditionAssignment).toEqual({ playerId: 'player1', type: 'companion' });
-				
+
+				// Verify character has no blocking statuses
+				expect(p1CharHero.statuses.has('Anchored')).toBe(false);
+				expect(p1CharHero.statuses.has('Asleep')).toBe(false);
+				expect(p1CharHero.currentCharacteristics.isGigantic).toBeFalsy();
+
 				p1.heroExpedition.hasMoved = true;
+
+				// Test the restPhase logic step by step
+				const expeditionZone = gameStateManager.state.sharedZones.expedition;
+				const playerEntitiesInExpedition = expeditionZone
+					.getAll()
+					.filter((e) => e.controllerId === p1.id && e.type === CardType.Character);
+
+				console.log('DEBUGGING REST PHASE LOGIC:');
+				console.log('- playerEntitiesInExpedition.length:', playerEntitiesInExpedition.length);
+				console.log(
+					'- p1CharHero in entities?',
+					playerEntitiesInExpedition.some((e) => e.objectId === p1CharHero.objectId)
+				);
+
+				for (const entity of playerEntitiesInExpedition) {
+					console.log(`- Entity ${entity.name} (${entity.objectId}):`);
+					console.log(`  - expeditionAssignment:`, entity.expeditionAssignment);
+					console.log(`  - isGigantic:`, entity.currentCharacteristics.isGigantic);
+					console.log(`  - p1.heroExpedition.hasMoved:`, p1.heroExpedition.hasMoved);
+				}
+
 				await gameStateManager.restPhase();
 
 				expect(p1.zones.reserveZone.findById(p1CharHero.objectId)).toBeDefined();
@@ -577,7 +866,8 @@ describe('GameStateManager - Rule Compliance Tests', () => {
 			test('Eternal entity stays in expedition even if its expedition moved', async () => {
 				// Mock isEternal to return true for p1CharHero
 				const originalIsEternal = gameStateManager.keywordHandler.isEternal;
-				gameStateManager.keywordHandler.isEternal = (obj) => obj.objectId === p1CharHero.objectId || originalIsEternal(obj);
+				gameStateManager.keywordHandler.isEternal = (obj) =>
+					obj.objectId === p1CharHero.objectId || originalIsEternal(obj);
 
 				p1.heroExpedition.hasMoved = true;
 				await gameStateManager.restPhase();
@@ -621,14 +911,80 @@ describe('GameStateManager - Rule Compliance Tests', () => {
 		beforeEach(async () => {
 			// GSM constructor now expects Map<string, ICardDefinition[]>
 			const p1Deck: ICardDefinition[] = [
-				{ id: 'hero-p1', name: 'P1 Hero', type: CardType.Hero, statistics: {}, abilities:[], handCost:{total:0}, reserveCost:{total:0}, faction:'Neutral', rarity:'Common', version:'1'},
-				{ id: 'c1', name: 'P1 Char Hero', type: CardType.Character, statistics: { forest: 5, mountain: 0, water: 0 }, abilities:[], handCost:{total:0}, reserveCost:{total:0}, faction:'Neutral', rarity:'Common', version:'1'},
-				{ id: 'c2', name: 'P1 Char Comp', type: CardType.Character, statistics: { mountain: 5, forest: 0, water: 0 }, abilities:[], handCost:{total:0}, reserveCost:{total:0}, faction:'Neutral', rarity:'Common', version:'1'},
+				{
+					id: 'hero-p1',
+					name: 'P1 Hero',
+					type: CardType.Hero,
+					statistics: {},
+					abilities: [],
+					handCost: { total: 0 },
+					reserveCost: { total: 0 },
+					faction: 'Neutral',
+					rarity: 'Common',
+					version: '1'
+				},
+				{
+					id: 'c1',
+					name: 'P1 Char Hero',
+					type: CardType.Character,
+					statistics: { forest: 5, mountain: 0, water: 0 },
+					abilities: [],
+					handCost: { total: 0 },
+					reserveCost: { total: 0 },
+					faction: 'Neutral',
+					rarity: 'Common',
+					version: '1'
+				},
+				{
+					id: 'c2',
+					name: 'P1 Char Comp',
+					type: CardType.Character,
+					statistics: { mountain: 5, forest: 0, water: 0 },
+					abilities: [],
+					handCost: { total: 0 },
+					reserveCost: { total: 0 },
+					faction: 'Neutral',
+					rarity: 'Common',
+					version: '1'
+				}
 			];
 			const p2Deck: ICardDefinition[] = [
-				{ id: 'hero-p2', name: 'P2 Hero', type: CardType.Hero, statistics: {}, abilities:[], handCost:{total:0}, reserveCost:{total:0}, faction:'Neutral', rarity:'Common', version:'1'},
-				{ id: 'c3', name: 'P2 Char Hero Opp', type: CardType.Character, statistics: { forest: 3, mountain: 0, water: 0 }, abilities:[], handCost:{total:0}, reserveCost:{total:0}, faction:'Neutral', rarity:'Common', version:'1'},
-				{ id: 'c4', name: 'P2 Char Comp Opp', type: CardType.Character, statistics: { mountain: 3, forest: 0, water: 0 }, abilities:[], handCost:{total:0}, reserveCost:{total:0}, faction:'Neutral', rarity:'Common', version:'1'},
+				{
+					id: 'hero-p2',
+					name: 'P2 Hero',
+					type: CardType.Hero,
+					statistics: {},
+					abilities: [],
+					handCost: { total: 0 },
+					reserveCost: { total: 0 },
+					faction: 'Neutral',
+					rarity: 'Common',
+					version: '1'
+				},
+				{
+					id: 'c3',
+					name: 'P2 Char Hero Opp',
+					type: CardType.Character,
+					statistics: { forest: 3, mountain: 0, water: 0 },
+					abilities: [],
+					handCost: { total: 0 },
+					reserveCost: { total: 0 },
+					faction: 'Neutral',
+					rarity: 'Common',
+					version: '1'
+				},
+				{
+					id: 'c4',
+					name: 'P2 Char Comp Opp',
+					type: CardType.Character,
+					statistics: { mountain: 3, forest: 0, water: 0 },
+					abilities: [],
+					handCost: { total: 0 },
+					reserveCost: { total: 0 },
+					faction: 'Neutral',
+					rarity: 'Common',
+					version: '1'
+				}
 			];
 			const playerDecks = new Map<string, ICardDefinition[]>();
 			playerDecks.set('player1', p1Deck);
@@ -644,8 +1000,22 @@ describe('GameStateManager - Rule Compliance Tests', () => {
 
 			// Clear existing adventure regions and set up a simple one for testing
 			adventureZone.clear();
-			adventureZone.add({ id: 'region1', instanceId: 'region1', type: 'NeutralRegion', faceDown:false, terrains: ['forest'], ownerId:'shared'});
-			adventureZone.add({ id: 'region2', instanceId: 'region2', type: 'NeutralRegion', faceDown:false, terrains: ['mountain'], ownerId:'shared'});
+			adventureZone.add({
+				id: 'region1',
+				instanceId: 'region1',
+				type: 'NeutralRegion',
+				faceDown: false,
+				terrains: ['forest'],
+				ownerId: 'shared'
+			});
+			adventureZone.add({
+				id: 'region2',
+				instanceId: 'region2',
+				type: 'NeutralRegion',
+				faceDown: false,
+				terrains: ['mountain'],
+				ownerId: 'shared'
+			});
 			// Add more regions if needed for multi-step movement tests
 
 			// Setup characters in expeditions
@@ -666,7 +1036,7 @@ describe('GameStateManager - Rule Compliance Tests', () => {
 			sharedExpeditionZone.add(p2CompanionCharOpposing);
 
 			// Ensure current characteristics are set up for stat calculation
-			[p1HeroChar, p1CompanionChar, p2HeroCharOpposing, p2CompanionCharOpposing].forEach(obj => {
+			[p1HeroChar, p1CompanionChar, p2HeroCharOpposing, p2CompanionCharOpposing].forEach((obj) => {
 				gameStateManager.ruleAdjudicator.applyAllPassiveAbilities(); // Applies base characteristics to current
 			});
 		});
@@ -678,7 +1048,6 @@ describe('GameStateManager - Rule Compliance Tests', () => {
 			// To make P1 Companion face P2 Companion in Region2 (index 1), P1 Comp pos=0, P2 Comp pos=0 (target index for P2 Comp is totalRegions-1-pos = 2-1-0 = 1)
 			p1.companionExpedition.position = 0;
 			p2.companionExpedition.position = 0;
-
 
 			await gameStateManager.progressPhase();
 
@@ -728,12 +1097,75 @@ describe('GameStateManager - Rule Compliance Tests', () => {
 
 		beforeEach(async () => {
 			const p1Deck: ICardDefinition[] = [
-				{ id: 'hero-p1', name: 'P1 Hero', type: CardType.Hero, statistics: {}, abilities:[], handCost:{total:0}, reserveCost:{total:0}, faction:'Neutral', rarity:'Common', version:'1', reserveLimit: 2, landmarkLimit: 1},
-				{ id: 'r1', name: 'ReserveItem1', type: CardType.Spell, abilities:[], handCost:{total:0}, reserveCost:{total:0}, faction:'Neutral', rarity:'Common', version:'1'},
-				{ id: 'r2', name: 'ReserveItem2', type: CardType.Spell, abilities:[], handCost:{total:0}, reserveCost:{total:0}, faction:'Neutral', rarity:'Common', version:'1'},
-				{ id: 'r3', name: 'ReserveItem3', type: CardType.Spell, abilities:[], handCost:{total:0}, reserveCost:{total:0}, faction:'Neutral', rarity:'Common', version:'1'},
-				{ id: 'l1', name: 'LandmarkItem1', type: CardType.LandmarkPermanent, abilities:[], handCost:{total:0}, reserveCost:{total:0}, faction:'Neutral', rarity:'Common', version:'1'},
-				{ id: 'l2', name: 'LandmarkItem2', type: CardType.LandmarkPermanent, abilities:[], handCost:{total:0}, reserveCost:{total:0}, faction:'Neutral', rarity:'Common', version:'1'},
+				{
+					id: 'hero-p1',
+					name: 'P1 Hero',
+					type: CardType.Hero,
+					statistics: {},
+					abilities: [],
+					handCost: { total: 0 },
+					reserveCost: { total: 0 },
+					faction: 'Neutral',
+					rarity: 'Common',
+					version: '1',
+					reserveLimit: 2,
+					landmarkLimit: 1
+				},
+				{
+					id: 'r1',
+					name: 'ReserveItem1',
+					type: CardType.Spell,
+					abilities: [],
+					handCost: { total: 0 },
+					reserveCost: { total: 0 },
+					faction: 'Neutral',
+					rarity: 'Common',
+					version: '1'
+				},
+				{
+					id: 'r2',
+					name: 'ReserveItem2',
+					type: CardType.Spell,
+					abilities: [],
+					handCost: { total: 0 },
+					reserveCost: { total: 0 },
+					faction: 'Neutral',
+					rarity: 'Common',
+					version: '1'
+				},
+				{
+					id: 'r3',
+					name: 'ReserveItem3',
+					type: CardType.Spell,
+					abilities: [],
+					handCost: { total: 0 },
+					reserveCost: { total: 0 },
+					faction: 'Neutral',
+					rarity: 'Common',
+					version: '1'
+				},
+				{
+					id: 'l1',
+					name: 'LandmarkItem1',
+					type: CardType.LandmarkPermanent,
+					abilities: [],
+					handCost: { total: 0 },
+					reserveCost: { total: 0 },
+					faction: 'Neutral',
+					rarity: 'Common',
+					version: '1'
+				},
+				{
+					id: 'l2',
+					name: 'LandmarkItem2',
+					type: CardType.LandmarkPermanent,
+					abilities: [],
+					handCost: { total: 0 },
+					reserveCost: { total: 0 },
+					faction: 'Neutral',
+					rarity: 'Common',
+					version: '1'
+				}
 			];
 			const playerDecks = new Map<string, ICardDefinition[]>();
 			playerDecks.set('player1', p1Deck);
@@ -742,16 +1174,18 @@ describe('GameStateManager - Rule Compliance Tests', () => {
 			await gameStateManager.initializeGame(); // This places the Hero
 
 			p1 = gameStateManager.getPlayer('player1')!;
-			hero = p1.zones.heroZone.getAll().find(obj => isGameObject(obj) && obj.type === CardType.Hero) as IGameObject;
+			hero = p1.zones.heroZone
+				.getAll()
+				.find((obj) => isGameObject(obj) && obj.type === CardType.Hero) as IGameObject;
 
 			// Populate reserve and landmark zones
 			for (let i = 0; i < 3; i++) {
-				const item = gameStateManager.objectFactory.createCard(p1Deck[i+1].id, 'player1'); // r1, r2, r3
+				const item = gameStateManager.objectFactory.createCard(p1Deck[i + 1].id, 'player1'); // r1, r2, r3
 				item.timestamp = Date.now() + i; // Ensure unique timestamps for predictable discard if simulation relies on it
 				p1.zones.reserveZone.add(item);
 			}
 			for (let i = 0; i < 2; i++) {
-				const item = gameStateManager.objectFactory.createCard(p1Deck[i+4].id, 'player1'); // l1, l2
+				const item = gameStateManager.objectFactory.createCard(p1Deck[i + 4].id, 'player1'); // l1, l2
 				item.timestamp = Date.now() + i + 10;
 				p1.zones.landmarkZone.add(item);
 			}
@@ -765,19 +1199,21 @@ describe('GameStateManager - Rule Compliance Tests', () => {
 			// Simulate player chooses to keep r1, r2 (so r3 is discarded)
 			// Simulate player chooses to keep l1 (so l2 is sacrificed)
 			const mockPlayerChooses = mock()
-				.mockImplementationOnce(async (_playerId, objects, _limit, zoneType) => { // Reserve
+				.mockImplementationOnce(async (_playerId, objects, _limit, zoneType) => {
+					// Reserve
 					expect(zoneType).toBe('reserve');
 					expect(objects.length).toBe(3);
 					// Simulate keeping the two with smallest timestamps if that's the sim logic, or specific ones.
 					// Let's say our mock PAH keeps the first two it's given (which might be sorted by GSM or not)
 					// For this test, let's be explicit: discard r3 (objectId: def-r3 if created that way)
-					const r3 = objects.find((o:IGameObject) => o.definitionId === 'r3');
+					const r3 = objects.find((o: IGameObject) => o.definitionId === 'r3');
 					return r3 ? [r3.objectId] : []; // Returns IDs of objects to discard
 				})
-				.mockImplementationOnce(async (_playerId, objects, _limit, zoneType) => { // Landmark
+				.mockImplementationOnce(async (_playerId, objects, _limit, zoneType) => {
+					// Landmark
 					expect(zoneType).toBe('landmark');
 					expect(objects.length).toBe(2);
-					const l2 = objects.find((o:IGameObject) => o.definitionId === 'l2');
+					const l2 = objects.find((o: IGameObject) => o.definitionId === 'l2');
 					return l2 ? [l2.objectId] : []; // Returns IDs of objects to sacrifice
 				});
 			gameStateManager.actionHandler.playerChoosesObjectsToKeep = mockPlayerChooses;
@@ -790,30 +1226,32 @@ describe('GameStateManager - Rule Compliance Tests', () => {
 			expect(p1.zones.discardPileZone.getCount()).toBe(2);
 
 			// Verify specific cards
-			expect(p1.zones.reserveZone.getAll().some(o => o.definitionId === 'r3')).toBe(false);
-			expect(p1.zones.discardPileZone.getAll().some(o => o.definitionId === 'r3')).toBe(true);
-			expect(p1.zones.landmarkZone.getAll().some(o => o.definitionId === 'l2')).toBe(false);
-			expect(p1.zones.discardPileZone.getAll().some(o => o.definitionId === 'l2')).toBe(true);
+			expect(p1.zones.reserveZone.getAll().some((o) => o.definitionId === 'r3')).toBe(false);
+			expect(p1.zones.discardPileZone.getAll().some((o) => o.definitionId === 'r3')).toBe(true);
+			expect(p1.zones.landmarkZone.getAll().some((o) => o.definitionId === 'l2')).toBe(false);
+			expect(p1.zones.discardPileZone.getAll().some((o) => o.definitionId === 'l2')).toBe(true);
 		});
 
 		test('should use hero currentCharacteristics for limits if available', async () => {
 			// Modify hero's currentCharacteristics to have different limits
-			if(hero) {
+			if (hero) {
 				hero.currentCharacteristics.reserveLimit = 1;
 				// No need to applyAllPassiveAbilities as cleanupPhase reads directly
 			}
 
 			const mockPlayerChooses = mock()
-				.mockImplementationOnce(async (_playerId, objects, limit, _zoneType) => { // Reserve
+				.mockImplementationOnce(async (_playerId, objects, limit, _zoneType) => {
+					// Reserve
 					expect(limit).toBe(1);
 					// Player has 3, limit 1, should discard 2. Let's say r2, r3.
-					const r2 = objects.find((o:IGameObject) => o.definitionId === 'r2');
-					const r3 = objects.find((o:IGameObject) => o.definitionId === 'r3');
-					return [r2?.objectId, r3?.objectId].filter(id => id) as string[];
+					const r2 = objects.find((o: IGameObject) => o.definitionId === 'r2');
+					const r3 = objects.find((o: IGameObject) => o.definitionId === 'r3');
+					return [r2?.objectId, r3?.objectId].filter((id) => id) as string[];
 				})
-				.mockImplementationOnce(async (_playerId, objects, limit, _zoneType) => { // Landmark (limit still 1 from base)
+				.mockImplementationOnce(async (_playerId, objects, limit, _zoneType) => {
+					// Landmark (limit still 1 from base)
 					expect(limit).toBe(1);
-					const l2 = objects.find((o:IGameObject) => o.definitionId === 'l2');
+					const l2 = objects.find((o: IGameObject) => o.definitionId === 'l2');
 					return l2 ? [l2.objectId] : [];
 				});
 			gameStateManager.actionHandler.playerChoosesObjectsToKeep = mockPlayerChooses;
@@ -837,7 +1275,8 @@ describe('moveEntity - Counter Handling (Rule 2.5.j & related)', () => {
 	const landmarkDefId = 'test-landmark-counters';
 	const seasonedLandmarkDefId = 'seasoned-landmark-counters';
 
-	beforeEach(() => { // Removed async
+	beforeEach(() => {
+		// Removed async
 		eventBusLocal = new EventBus();
 		testPlayerId = 'player1';
 
@@ -845,77 +1284,138 @@ describe('moveEntity - Counter Handling (Rule 2.5.j & related)', () => {
 		testCardDefs = [
 			// No hero needed for these specific tests if not running full initializeGame
 			{
-				id: charDefId, name: 'Test Character', type: CardType.Character, subTypes: [],
+				id: charDefId,
+				name: 'Test Character',
+				type: CardType.Character,
+				subTypes: [],
 				handCost: 1, // Keep simple handCost/reserveCost as numbers for ICardDefinition
-				reserveCost: 1, faction: 'Neutral', statistics: { forest: 1, mountain: 1, water: 1 },
-				abilities: [], rarity: 'Common', version: '1.0'
+				reserveCost: 1,
+				faction: 'Neutral',
+				statistics: { forest: 1, mountain: 1, water: 1 },
+				abilities: [],
+				rarity: 'Common',
+				version: '1.0'
 			},
 			{
-				id: seasonedCharDefId, name: 'Seasoned Character', type: CardType.Character, subTypes: [],
-				handCost: 1, reserveCost: 1, faction: 'Neutral', statistics: { forest: 1, mountain: 1, water: 1 },
-				abilities: [{ abilityId: 'seasonedAb', type: AbilityType.Passive, keyword: KeywordAbility.Seasoned, effect: {steps: []} }], // Using KeywordAbility directly
-				rarity: 'Common', version: '1.0'
+				id: seasonedCharDefId,
+				name: 'Seasoned Character',
+				type: CardType.Character,
+				subTypes: [],
+				handCost: 1,
+				reserveCost: 1,
+				faction: 'Neutral',
+				statistics: { forest: 1, mountain: 1, water: 1 },
+				abilities: [
+					{
+						abilityId: 'seasonedAb',
+						type: AbilityType.Passive,
+						keyword: KeywordAbility.Seasoned,
+						effect: { steps: [] }
+					}
+				], // Using KeywordAbility directly
+				rarity: 'Common',
+				version: '1.0'
 			},
 			{
-				id: landmarkDefId, name: 'Test Landmark', type: CardType.LandmarkPermanent, subTypes: [],
-				handCost: 1, reserveCost: 1, faction: 'Neutral', statistics: {},
-				abilities: [], rarity: 'Common', version: '1.0'
+				id: landmarkDefId,
+				name: 'Test Landmark',
+				type: CardType.LandmarkPermanent,
+				subTypes: [],
+				handCost: 1,
+				reserveCost: 1,
+				faction: 'Neutral',
+				statistics: {},
+				abilities: [],
+				rarity: 'Common',
+				version: '1.0'
 			},
 			{
-				id: seasonedLandmarkDefId, name: 'Seasoned Landmark', type: CardType.LandmarkPermanent, subTypes: [],
-				handCost: 1, reserveCost: 1, faction: 'Neutral', statistics: {},
-				abilities: [{ abilityId: 'seasonedLandAb',type: AbilityType.Passive, keyword: KeywordAbility.Seasoned, effect: {steps: []} }], // Using KeywordAbility directly
-				rarity: 'Common', version: '1.0'
-			},
+				id: seasonedLandmarkDefId,
+				name: 'Seasoned Landmark',
+				type: CardType.LandmarkPermanent,
+				subTypes: [],
+				handCost: 1,
+				reserveCost: 1,
+				faction: 'Neutral',
+				statistics: {},
+				abilities: [
+					{
+						abilityId: 'seasonedLandAb',
+						type: AbilityType.Passive,
+						keyword: KeywordAbility.Seasoned,
+						effect: { steps: [] }
+					}
+				], // Using KeywordAbility directly
+				rarity: 'Common',
+				version: '1.0'
+			}
 		];
 
 		// Minimal playerDeckDefinitions for GameStateManager constructor, may not be strictly needed if not calling initializeGame
 		const playerDeckDefinitions = new Map<string, ICardDefinition[]>();
 		playerDeckDefinitions.set(testPlayerId, []); // Empty deck for player1
-		playerDeckDefinitions.set('player2', []);    // Empty deck for player2
+		playerDeckDefinitions.set('player2', []); // Empty deck for player2
 
 		gsm = new GameStateManager(playerDeckDefinitions, eventBusLocal);
 
 		// Manually setup ObjectFactory with definitions needed for these tests
-		const cardDefinitionsForFactory = new Map<string, ICardDefinition>(testCardDefs.map(def => [def.id, def]));
+		const cardDefinitionsForFactory = new Map<string, ICardDefinition>(
+			testCardDefs.map((def) => [def.id, def])
+		);
 		gsm.objectFactory = new ObjectFactory(cardDefinitionsForFactory);
 		// Ensure allCardDefinitions is also set on gsm if other parts of GSM use it directly
 		(gsm as any).allCardDefinitions = cardDefinitionsForFactory;
 
-
 		// Manually setup basic player state and zones, bypassing full initializeGame
 		const player1Zones = {
 			handZone: new HandZone(`${testPlayerId}-hand`, testPlayerId),
-			reserveZone: new GenericZone(`${testPlayerId}-reserve`, ZoneIdentifier.Reserve, 'visible', testPlayerId),
+			reserveZone: new GenericZone(
+				`${testPlayerId}-reserve`,
+				ZoneIdentifier.Reserve,
+				'visible',
+				testPlayerId
+			),
 			discardPileZone: new DiscardPileZone(`${testPlayerId}-discard`, testPlayerId),
-			landmarkZone: new GenericZone(`${testPlayerId}-landmark`, ZoneIdentifier.Landmark, 'visible', testPlayerId),
+			landmarkZone: new GenericZone(
+				`${testPlayerId}-landmark`,
+				ZoneIdentifier.Landmark,
+				'visible',
+				testPlayerId
+			)
 			// other zones as needed by tests
 		};
 		gsm.state.players.set(testPlayerId, {
 			id: testPlayerId,
-			zones: player1Zones,
+			zones: player1Zones
 			// ... other minimal player properties
 		} as any);
 
 		// Setup shared zones if they are used directly by moveEntity or createAndPlaceObject
-		gsm.state.sharedZones.expedition = new GenericZone('shared-expedition', ZoneIdentifier.Expedition, 'visible', 'shared');
+		gsm.state.sharedZones.expedition = new GenericZone(
+			'shared-expedition',
+			ZoneIdentifier.Expedition,
+			'visible',
+			'shared'
+		);
 		gsm.state.sharedZones.limbo = new LimboZone(); // LimboZone might have specific logic
 
 		// Ensure ruleAdjudicator is present if applyAllPassiveAbilities is called
 		// gsm.ruleAdjudicator = new RuleAdjudicator(gsm); // Already created in GSM constructor
-
 	});
 
 	// Adjusted createAndPlaceObject to use the manually set up gsm and its objectFactory
-	const createAndPlaceObject = (defId: string, zoneIdentifier: ZoneIdentifier, initialCounters?: Map<CounterType, number>): IGameObject => {
+	const createAndPlaceObject = (
+		defId: string,
+		zoneIdentifier: ZoneIdentifier,
+		initialCounters?: Map<CounterType, number>
+	): IGameObject => {
 		const player = gsm.getPlayer(testPlayerId)!;
 		expect(player).toBeDefined(); // Ensure player setup worked
 
 		// Use the gsm.objectFactory that was manually set up
 		const object = gsm.objectFactory.createCard(defId, testPlayerId);
 		expect(object).toBeDefined();
-		if(!object) throw new Error(`Failed to create object for defId: ${defId}`);
-
+		if (!object) throw new Error(`Failed to create object for defId: ${defId}`);
 
 		if (initialCounters) {
 			object.counters = new Map(initialCounters);
@@ -939,7 +1439,9 @@ describe('moveEntity - Counter Handling (Rule 2.5.j & related)', () => {
 		} else if (zoneIdentifier === ZoneIdentifier.DiscardPile) {
 			targetZone = player.zones.discardPileZone;
 		} else {
-			throw new Error(`Test setup: Target zone ${zoneIdentifier} not handled in createAndPlaceObject`);
+			throw new Error(
+				`Test setup: Target zone ${zoneIdentifier} not handled in createAndPlaceObject`
+			);
 		}
 
 		expect(targetZone).toBeDefined();
@@ -971,12 +1473,16 @@ describe('moveEntity - Counter Handling (Rule 2.5.j & related)', () => {
 			[CounterType.Boost, 2],
 			[CounterType.Kelon, 3]
 		]);
-		const char = createAndPlaceObject(seasonedCharDefId, ZoneIdentifier.Expedition, initialCounters);
+		const char = createAndPlaceObject(
+			seasonedCharDefId,
+			ZoneIdentifier.Expedition,
+			initialCounters
+		);
 		// Manually ensure the Seasoned keyword is on currentCharacteristics for the test
 		// This should ideally be handled by RuleAdjudicator + ObjectFactory from card def abilities
-		if (char.currentCharacteristics.keywords) char.currentCharacteristics.keywords.add(KeywordAbility.Seasoned);
+		if (char.currentCharacteristics.keywords)
+			char.currentCharacteristics.keywords.add(KeywordAbility.Seasoned);
 		else char.currentCharacteristics.keywords = new Set([KeywordAbility.Seasoned]);
-
 
 		const fromZone = gsm.state.sharedZones.expedition;
 		const toZone = gsm.getPlayer(testPlayerId)!.zones.reserveZone;
@@ -995,15 +1501,25 @@ describe('moveEntity - Counter Handling (Rule 2.5.j & related)', () => {
 			[CounterType.Boost, 2],
 			[CounterType.Kelon, 3]
 		]);
-		const landmark = createAndPlaceObject(seasonedLandmarkDefId, ZoneIdentifier.Landmark, initialCounters);
+		const landmark = createAndPlaceObject(
+			seasonedLandmarkDefId,
+			ZoneIdentifier.Landmark,
+			initialCounters
+		);
 		// Manually ensure the Seasoned keyword
-		if (landmark.currentCharacteristics.keywords) landmark.currentCharacteristics.keywords.add(KeywordAbility.Seasoned);
+		if (landmark.currentCharacteristics.keywords)
+			landmark.currentCharacteristics.keywords.add(KeywordAbility.Seasoned);
 		else landmark.currentCharacteristics.keywords = new Set([KeywordAbility.Seasoned]);
 
 		const fromZone = gsm.getPlayer(testPlayerId)!.zones.landmarkZone;
 		const toZone = gsm.getPlayer(testPlayerId)!.zones.reserveZone;
 
-		const movedLandmark = gsm.moveEntity(landmark.objectId, fromZone, toZone, testPlayerId) as IGameObject;
+		const movedLandmark = gsm.moveEntity(
+			landmark.objectId,
+			fromZone,
+			toZone,
+			testPlayerId
+		) as IGameObject;
 
 		expect(movedLandmark).toBeDefined();
 		expect(isGameObject(movedLandmark)).toBe(true);

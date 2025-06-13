@@ -259,7 +259,11 @@ describe('GameStateManager - Status Rule Compliance (Rule 2.4)', () => {
 		await gsm.restPhase();
 
 		expect(sharedExpeditionZone.findById(fleetingCharId)).toBeUndefined();
-		expect(reserveZone.getAll().find(o => isGameObject(o) && o.definitionId === cardDef_FleetingChar.id)).toBeUndefined();
+		expect(
+			reserveZone
+				.getAll()
+				.find((o) => isGameObject(o) && o.definitionId === cardDef_FleetingChar.id)
+		).toBeUndefined();
 		const fleetingCharInDiscard = discardPile
 			.getAll()
 			.find((o) => isGameObject(o) && o.definitionId === cardDef_FleetingChar.id);
@@ -398,11 +402,11 @@ describe('GameStateManager - Status Rule Compliance (Rule 2.4)', () => {
 
 		test('Rule 2.4.5.a (T-cost): Character becomes Exhausted after paying a T (Exhaust me) cost', async () => {
 			const player = gsm.getPlayer(P1)!;
-		const charInst = gsm.objectFactory.createCardInstance(cardDef_CharWithTapAbility.id, P1);
+			const charInst = gsm.objectFactory.createCardInstance(cardDef_CharWithTapAbility.id, P1);
 			const charObject = gsm.objectFactory.createGameObject(charInst, P1);
-		charObject.expeditionAssignment = { playerId: P1, type: 'hero' };
-		gsm.state.sharedZones.expedition.add(charObject);
-		// gsm.ruleAdjudicator.applyAllPassiveAbilities(); // Not strictly needed if abilities are on def
+			charObject.expeditionAssignment = { playerId: P1, type: 'hero' };
+			gsm.state.sharedZones.expedition.add(charObject);
+			// gsm.ruleAdjudicator.applyAllPassiveAbilities(); // Not strictly needed if abilities are on def
 
 			expect(charObject.statuses.has(StatusType.Exhausted)).toBe(false); // Starts ready
 
@@ -431,8 +435,8 @@ describe('GameStateManager - Status Rule Compliance (Rule 2.4)', () => {
 				gsm.objectFactory.createCardInstance(cardDef_NormalChar.id, P1),
 				P1
 			);
-		charObject.expeditionAssignment = { playerId: P1, type: 'hero' };
-		gsm.state.sharedZones.expedition.add(charObject);
+			charObject.expeditionAssignment = { playerId: P1, type: 'hero' };
+			gsm.state.sharedZones.expedition.add(charObject);
 			charObject.statuses.add(StatusType.Asleep); // Pre-set Asleep status
 			expect(charObject.statuses.has(StatusType.Asleep)).toBe(true);
 
@@ -462,8 +466,8 @@ describe('GameStateManager - Status Rule Compliance (Rule 2.4)', () => {
 				gsm.objectFactory.createCardInstance(cardDef_NormalChar.id, P1),
 				P1
 			);
-		charObject.expeditionAssignment = { playerId: P1, type: 'hero' };
-		gsm.state.sharedZones.expedition.add(charObject);
+			charObject.expeditionAssignment = { playerId: P1, type: 'hero' };
+			gsm.state.sharedZones.expedition.add(charObject);
 			expect(charObject.statuses.has(StatusType.Asleep)).toBe(false); // Not Asleep
 
 			// Action: Apply an effect that removes StatusType.Asleep.
@@ -563,9 +567,12 @@ describe('GameStateManager - Status Rule Compliance (Rule 2.4)', () => {
 			await gsm.preparePhase(); // This method should iterate and remove Exhausted status
 
 			// Assertion
-			const charAfterPrepare = gsm.state.sharedZones.expedition.getAll().find(
-				o => isGameObject(o) && o.objectId === exhaustedCharInExp.objectId && o.controllerId === P1
-			);
+			const charAfterPrepare = gsm.state.sharedZones.expedition
+				.getAll()
+				.find(
+					(o) =>
+						isGameObject(o) && o.objectId === exhaustedCharInExp.objectId && o.controllerId === P1
+				);
 			expect(charAfterPrepare).toBeDefined();
 			expect(charAfterPrepare?.statuses.has(StatusType.Exhausted)).toBe(false);
 

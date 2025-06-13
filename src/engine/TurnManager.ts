@@ -63,8 +63,9 @@ export class TurnManager {
 		// but passes priority to the next player who hasn't passed yet.
 		// Or, if the current player was the only one active, they might get another turn.
 
-		const activePlayers = this.gsm.getPlayerIds()
-			.map(pid => this.gsm.getPlayer(pid))
+		const activePlayers = this.gsm
+			.getPlayerIds()
+			.map((pid) => this.gsm.getPlayer(pid))
 			.filter((p): p is IPlayer => !!p && !p.hasPassedTurn);
 
 		if (activePlayers.length === 0) {
@@ -120,10 +121,10 @@ export class TurnManager {
 			return;
 		}
 
-		const allPlayersPassed = this.gsm.getPlayerIds()
-		.map(pid => this.gsm.getPlayer(pid))
-		.every((player): player is IPlayer => !!player && player.hasPassedTurn);
-
+		const allPlayersPassed = this.gsm
+			.getPlayerIds()
+			.map((pid) => this.gsm.getPlayer(pid))
+			.every((player): player is IPlayer => !!player && player.hasPassedTurn);
 
 		if (allPlayersPassed) {
 			console.log('TurnManager: All players have passed in Afternoon. Advancing to next phase.');

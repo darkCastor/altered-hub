@@ -5,7 +5,6 @@ import { ZoneIdentifier, CardType, StatusType } from './types/enums'; // Added C
 import { AbilityType, type IAbility } from './types/abilities'; // Added IAbility
 import { isGameObject } from './types/objects';
 
-
 /**
  * Handles advanced trigger symbols and timing
  * Rule 7.1.1 - Trigger Symbols: ⚇ ⚈ ⚁ At [Phase]
@@ -24,23 +23,28 @@ export class AdvancedTriggerHandler {
 		eventPayload: any,
 		eventType: string // Added eventType to help determine zone for scope check
 	): IEmblemObject | null {
-
 		// Determine the zone to use for scope checking
 		let zoneIdForScopeCheck: ZoneIdentifier | undefined;
-		const isLeaveEvent = eventType === 'leavePlay' || eventType === 'goToReserve' || eventPayload?.fromZone?.zoneType;
+		const isLeaveEvent =
+			eventType === 'leavePlay' || eventType === 'goToReserve' || eventPayload?.fromZone?.zoneType;
 
 		if (isLeaveEvent && eventPayload?.fromZone?.zoneType) {
 			zoneIdForScopeCheck = eventPayload.fromZone.zoneType;
-		} else if (eventPayload?.zone?.zoneType && (eventType === 'enterPlay' || eventType === 'objectEntersZone')) { // objectEntersZone is hypothetical
+		} else if (
+			eventPayload?.zone?.zoneType &&
+			(eventType === 'enterPlay' || eventType === 'objectEntersZone')
+		) {
+			// objectEntersZone is hypothetical
 			zoneIdForScopeCheck = eventPayload.zone.zoneType;
-		}
-		 else {
+		} else {
 			const currentZone = this.gsm.findZoneOfObject(sourceObject.objectId);
 			zoneIdForScopeCheck = currentZone?.zoneType;
 		}
 
 		if (!this._canAbilityTrigger(triggeredAbility, sourceObject, zoneIdForScopeCheck, eventType)) {
-			console.log(`[TriggerHandler] Scope check failed for ability ${triggeredAbility.abilityId} on ${sourceObject.name} in zone ${zoneIdForScopeCheck}. Not creating emblem.`);
+			console.log(
+				`[TriggerHandler] Scope check failed for ability ${triggeredAbility.abilityId} on ${sourceObject.name} in zone ${zoneIdForScopeCheck}. Not creating emblem.`
+			);
 			return null;
 		}
 
@@ -81,20 +85,29 @@ export class AdvancedTriggerHandler {
 		console.log(
 			`[TriggerHandler] Created reaction emblem ${emblem.name} (ID: ${emblem.objectId}) for ${sourceObject.name} and added to Limbo.`
 		);
-		this.gsm.eventBus.publish('reactionEmblemCreated', { emblem, sourceAbility: triggeredAbility, sourceObject, eventPayload });
+		this.gsm.eventBus.publish('reactionEmblemCreated', {
+			emblem,
+			sourceAbility: triggeredAbility,
+			sourceObject,
+			eventPayload
+		});
 		return emblem;
 	}
-
 
 	/**
 	 * Processes ⚇ "When entering play" triggers
 	 * Rule 7.1.1.a - Triggers when an object enters a visible zone
 	 */
 	public processEnterPlayTriggers(object: IGameObject, zone: IZone): void {
-		console.log(`[TriggerHandler] Processing enter play triggers for ${object.name} in zone ${zone.id}`);
+		console.log(
+			`[TriggerHandler] Processing enter play triggers for ${object.name} in zone ${zone.id}`
+		);
 
 		// Combine base and granted abilities for trigger checking
-		const allAbilities = [...object.abilities, ...(object.currentCharacteristics.grantedAbilities || [])];
+		const allAbilities = [
+			...object.abilities,
+			...(object.currentCharacteristics.grantedAbilities || [])
+		];
 
 		for (const ability of allAbilities) {
 			if (
@@ -103,8 +116,13 @@ export class AdvancedTriggerHandler {
 			) {
 				const triggerPayload = { object, zone }; // object is the one entering play
 				// Conditional Triggers (Rule 6.3.b, 6.3.k)
-				if (ability.trigger.condition && !ability.trigger.condition(triggerPayload, object, this.gsm)) {
-					console.log(`[TriggerHandler] Condition not met for ability ${ability.abilityId} on ${object.name}.`);
+				if (
+					ability.trigger.condition &&
+					!ability.trigger.condition(triggerPayload, object, this.gsm)
+				) {
+					console.log(
+						`[TriggerHandler] Condition not met for ability ${ability.abilityId} on ${object.name}.`
+					);
 					continue;
 				}
 				this.createEmblemForTriggeredAbility(ability, object, triggerPayload, 'enterPlay');
@@ -119,16 +137,26 @@ export class AdvancedTriggerHandler {
 	 * Rule 7.1.1.b - Triggers when an object leaves a visible zone
 	 */
 	public processLeavePlayTriggers(object: IGameObject, fromZone: IZone, toZone: IZone): void {
-		console.log(`[TriggerHandler] Processing leave play triggers for ${object.name} from ${fromZone.id} to ${toZone.id}`);
-		const allAbilities = [...object.abilities, ...(object.currentCharacteristics.grantedAbilities || [])];
+		console.log(
+			`[TriggerHandler] Processing leave play triggers for ${object.name} from ${fromZone.id} to ${toZone.id}`
+		);
+		const allAbilities = [
+			...object.abilities,
+			...(object.currentCharacteristics.grantedAbilities || [])
+		];
 		for (const ability of allAbilities) {
 			if (
 				ability.abilityType === AbilityType.Reaction &&
 				ability.trigger?.eventType === 'leavePlay'
 			) {
 				const triggerPayload = { object, fromZone, toZone };
-				if (ability.trigger.condition && !ability.trigger.condition(triggerPayload, object, this.gsm)) {
-					console.log(`[TriggerHandler] Condition not met for ability ${ability.abilityId} on ${object.name}.`);
+				if (
+					ability.trigger.condition &&
+					!ability.trigger.condition(triggerPayload, object, this.gsm)
+				) {
+					console.log(
+						`[TriggerHandler] Condition not met for ability ${ability.abilityId} on ${object.name}.`
+					);
 					continue;
 				}
 				this.createEmblemForTriggeredAbility(ability, object, triggerPayload, 'leavePlay');
@@ -141,16 +169,26 @@ export class AdvancedTriggerHandler {
 	 * Rule 7.1.1.c - Triggers specifically when moving to Reserve zone
 	 */
 	public processGoToReserveTriggers(object: IGameObject, fromZone: IZone): void {
-		console.log(`[TriggerHandler] Processing go to reserve triggers for ${object.name} from zone ${fromZone.id}`);
-		const allAbilities = [...object.abilities, ...(object.currentCharacteristics.grantedAbilities || [])];
+		console.log(
+			`[TriggerHandler] Processing go to reserve triggers for ${object.name} from zone ${fromZone.id}`
+		);
+		const allAbilities = [
+			...object.abilities,
+			...(object.currentCharacteristics.grantedAbilities || [])
+		];
 		for (const ability of allAbilities) {
 			if (
 				ability.abilityType === AbilityType.Reaction &&
 				ability.trigger?.eventType === 'goToReserve'
 			) {
 				const triggerPayload = { object, fromZone };
-				if (ability.trigger.condition && !ability.trigger.condition(triggerPayload, object, this.gsm)) {
-					console.log(`[TriggerHandler] Condition not met for ability ${ability.abilityId} on ${object.name}.`);
+				if (
+					ability.trigger.condition &&
+					!ability.trigger.condition(triggerPayload, object, this.gsm)
+				) {
+					console.log(
+						`[TriggerHandler] Condition not met for ability ${ability.abilityId} on ${object.name}.`
+					);
 					continue;
 				}
 				this.createEmblemForTriggeredAbility(ability, object, triggerPayload, 'goToReserve');
@@ -179,15 +217,23 @@ export class AdvancedTriggerHandler {
 	 * Processes phase triggers for a specific object
 	 */
 	private processObjectPhaseTriggersForPhase(object: IGameObject, phaseName: string): void {
-		const allAbilities = [...object.abilities, ...(object.currentCharacteristics.grantedAbilities || [])];
+		const allAbilities = [
+			...object.abilities,
+			...(object.currentCharacteristics.grantedAbilities || [])
+		];
 		for (const ability of allAbilities) {
 			if (
 				ability.abilityType === AbilityType.Reaction &&
 				ability.trigger?.eventType === `at${phaseName}` // e.g., "atMorning", "atNoon"
 			) {
 				const triggerPayload = { phase: phaseName, objectId: object.objectId };
-				if (ability.trigger.condition && !ability.trigger.condition(triggerPayload, object, this.gsm)) {
-					console.log(`[TriggerHandler] Condition not met for ability ${ability.abilityId} on ${object.name} for phase ${phaseName}.`);
+				if (
+					ability.trigger.condition &&
+					!ability.trigger.condition(triggerPayload, object, this.gsm)
+				) {
+					console.log(
+						`[TriggerHandler] Condition not met for ability ${ability.abilityId} on ${object.name} for phase ${phaseName}.`
+					);
 					continue;
 				}
 				this.createEmblemForTriggeredAbility(ability, object, triggerPayload, `at${phaseName}`);
@@ -206,11 +252,22 @@ export class AdvancedTriggerHandler {
 		for (const zone of this.getAllVisibleZones()) {
 			for (const entity of zone.getAll()) {
 				if (isGameObject(entity)) {
-					const allAbilities = [...entity.abilities, ...(entity.currentCharacteristics.grantedAbilities || [])];
+					const allAbilities = [
+						...entity.abilities,
+						...(entity.currentCharacteristics.grantedAbilities || [])
+					];
 					for (const ability of allAbilities) {
-						if (ability.abilityType === AbilityType.Reaction && ability.trigger?.eventType === eventType) {
-							if (ability.trigger.condition && !ability.trigger.condition(eventPayload, entity, this.gsm)) {
-								console.log(`[TriggerHandler] Condition not met for ability ${ability.abilityId} on ${entity.name} for event ${eventType}.`);
+						if (
+							ability.abilityType === AbilityType.Reaction &&
+							ability.trigger?.eventType === eventType
+						) {
+							if (
+								ability.trigger.condition &&
+								!ability.trigger.condition(eventPayload, entity, this.gsm)
+							) {
+								console.log(
+									`[TriggerHandler] Condition not met for ability ${ability.abilityId} on ${entity.name} for event ${eventType}.`
+								);
 								continue;
 							}
 							this.createEmblemForTriggeredAbility(ability, entity, eventPayload, eventType);
@@ -271,7 +328,9 @@ export class AdvancedTriggerHandler {
 		eventType: string // eventType might be used for more nuanced LKI later if needed
 	): boolean {
 		if (zoneIdForScopeCheck === undefined) {
-			console.warn(`[TriggerHandler._canAbilityTrigger] Zone for scope check is undefined for ${sourceObject.name} (event: ${eventType}). Denying trigger.`);
+			console.warn(
+				`[TriggerHandler._canAbilityTrigger] Zone for scope check is undefined for ${sourceObject.name} (event: ${eventType}). Denying trigger.`
+			);
 			return false; // Cannot determine scope if zone is unknown
 		}
 
@@ -291,7 +350,10 @@ export class AdvancedTriggerHandler {
 		} else {
 			// Non-Hero objects' abilities (that are not support abilities, handled above)
 			// trigger only if they are in Expedition or LandmarkZone.
-			return zoneIdForScopeCheck === ZoneIdentifier.Expedition || zoneIdForScopeCheck === ZoneIdentifier.LandmarkZone;
+			return (
+				zoneIdForScopeCheck === ZoneIdentifier.Expedition ||
+				zoneIdForScopeCheck === ZoneIdentifier.LandmarkZone
+			);
 		}
 		// Default to false if none of the above permissive conditions are met.
 		// This line is technically unreachable due to prior conditions but good for safety.

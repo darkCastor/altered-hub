@@ -17,12 +17,22 @@ describe('KeywordAbilityHandler', () => {
 		name: 'Defender Char',
 		type: CardType.Character,
 		subTypes: [],
-		handCost: { total: 1 }, reserveCost: { total: 1 },
+		handCost: { total: 1 },
+		reserveCost: { total: 1 },
 		faction: 'Neutral',
 		statistics: { forest: 1, mountain: 1, water: 1 },
-		abilities: [{ abilityId: 'abil-def', text: 'Defender', keyword: KeywordAbility.Defender, abilityType: 'keyword', effect: {steps:[]}, isSupportAbility: false }],
+		abilities: [
+			{
+				abilityId: 'abil-def',
+				text: 'Defender',
+				keyword: KeywordAbility.Defender,
+				abilityType: 'keyword',
+				effect: { steps: [] },
+				isSupportAbility: false
+			}
+		],
 		rarity: 'Common',
-		version: '1.0',
+		version: '1.0'
 	};
 
 	const cardDefNonDefender: ICardDefinition = {
@@ -30,12 +40,13 @@ describe('KeywordAbilityHandler', () => {
 		name: 'Non-Defender Char',
 		type: CardType.Character,
 		subTypes: [],
-		handCost: { total: 1 }, reserveCost: { total: 1 },
+		handCost: { total: 1 },
+		reserveCost: { total: 1 },
 		faction: 'Neutral',
 		statistics: { forest: 1, mountain: 1, water: 1 },
 		abilities: [],
 		rarity: 'Common',
-		version: '1.0',
+		version: '1.0'
 	};
 
 	beforeEach(async () => {

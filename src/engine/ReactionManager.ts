@@ -12,7 +12,11 @@ export class ReactionManager {
 	private objectFactory: ObjectFactory;
 	private effectProcessor: EffectProcessor;
 
-	constructor(gsm: GameStateManager, objectFactory: ObjectFactory, effectProcessor: EffectProcessor) {
+	constructor(
+		gsm: GameStateManager,
+		objectFactory: ObjectFactory,
+		effectProcessor: EffectProcessor
+	) {
 		this.gameStateManager = gsm;
 		this.objectFactory = objectFactory;
 		this.effectProcessor = effectProcessor;
@@ -105,18 +109,17 @@ export class ReactionManager {
 				currentPlayerId = playerIds[0];
 			}
 
-
 			for (let i = 0; i < playerIds.length; i++) {
 				const reactionsInLimbo = this.getReactionsInLimbo(gameState);
-				const playerReactions = reactionsInLimbo.filter(
-					(r) => r.controllerId === currentPlayerId
-				);
+				const playerReactions = reactionsInLimbo.filter((r) => r.controllerId === currentPlayerId);
 
 				if (playerReactions.length > 0) {
 					// Simplified: Automatically select the first available reaction.
 					const reactionToPlay = playerReactions[0];
 
-					console.log(`Player ${currentPlayerId} plays reaction: ${reactionToPlay.definitionId} (Source: ${reactionToPlay.name})`);
+					console.log(
+						`Player ${currentPlayerId} plays reaction: ${reactionToPlay.definitionId} (Source: ${reactionToPlay.name})`
+					);
 
 					if (reactionToPlay.boundEffect) {
 						await this.effectProcessor.resolveEffect(
@@ -145,14 +148,16 @@ export class ReactionManager {
 		// Clean up any remaining reactions if the loop terminates because no one played anything.
 		// This is implicitly handled by the loop condition, but if there's a rule for unplayed reactions after everyone passes,
 		// it could be added here. The original `processReactions` had logic for this.
-        // For now, if reactionPlayedInLastFullPass is false, it means no reactions were played by anyone.
-        if (!reactionPlayedInLastFullPass) {
-            const remainingReactions = this.getReactionsInLimbo(gameState);
-            if (remainingReactions.length > 0) {
-                console.log(`[ReactionManager] Reaction loop ended. ${remainingReactions.length} reaction(s) remain in Limbo and will be removed.`);
-                remainingReactions.forEach(r => gameState.sharedZones.limbo.remove(r.objectId));
-            }
-        }
+		// For now, if reactionPlayedInLastFullPass is false, it means no reactions were played by anyone.
+		if (!reactionPlayedInLastFullPass) {
+			const remainingReactions = this.getReactionsInLimbo(gameState);
+			if (remainingReactions.length > 0) {
+				console.log(
+					`[ReactionManager] Reaction loop ended. ${remainingReactions.length} reaction(s) remain in Limbo and will be removed.`
+				);
+				remainingReactions.forEach((r) => gameState.sharedZones.limbo.remove(r.objectId));
+			}
+		}
 	}
 
 	private getReactionsInLimbo(gameState: IGameState): IEmblemObject[] {
@@ -174,7 +179,9 @@ export class ReactionManager {
 			objects.push(...player.zones.reserveZone.getAll().filter(isGameObject)); // For support abilities
 		});
 		// Shared zones
-		objects.push(...this.gameStateManager.state.sharedZones.expedition.getAll().filter(isGameObject));
+		objects.push(
+			...this.gameStateManager.state.sharedZones.expedition.getAll().filter(isGameObject)
+		);
 		// Adventure and Limbo zones are generally not sources of reaction abilities from objects within them.
 		return objects;
 	}

@@ -1,6 +1,13 @@
 import type { IZone } from './types/zones';
 import { ObjectFactory } from './ObjectFactory';
-import { GamePhase, ZoneIdentifier, StatusType, CardType, CounterType, KeywordAbility } from './types/enums';
+import {
+	GamePhase,
+	ZoneIdentifier,
+	StatusType,
+	CardType,
+	CounterType,
+	KeywordAbility
+} from './types/enums';
 import type { EventBus } from './EventBus';
 import { GenericZone, HandZone, DiscardPileZone, LimboZone, DeckZone } from './Zone';
 import type { IGameObject, IEmblemObject } from './types/objects'; // Added IEmblemObject
@@ -105,7 +112,9 @@ export class GameStateManager {
 		for (const [playerId, player] of this.state.players) {
 			const deckDefs = this.playerDeckDefinitions.get(playerId);
 			if (!deckDefs) {
-				throw new Error(`Deck definitions not found for player ${playerId} during game initialization.`);
+				throw new Error(
+					`Deck definitions not found for player ${playerId} during game initialization.`
+				);
 			}
 			await this.initializePlayerState(playerId, player, deckDefs);
 		}
@@ -118,7 +127,7 @@ export class GameStateManager {
 			this.state.currentPlayerId = this.state.firstPlayerId;
 			console.log(`[GSM] Randomly selected first player: ${this.state.firstPlayerId}`);
 		} else {
-			throw new Error("Cannot determine first player: No players in game.");
+			throw new Error('Cannot determine first player: No players in game.');
 		}
 
 		console.log('[GSM] Game initialized with players:', playerIds);
@@ -165,7 +174,11 @@ export class GameStateManager {
 		adventureZone.add(companionRegion as ZoneEntity);
 	}
 
-	private async initializePlayerState(playerId: string, player: IPlayer, deckDefs: ICardDefinition[]): Promise<void> {
+	private async initializePlayerState(
+		playerId: string,
+		player: IPlayer,
+		deckDefs: ICardDefinition[]
+	): Promise<void> {
 		// Rule 4.1.h: Heroes should be revealed and placed in Hero zones
 		const heroDefinition = this.placeHeroInZone(playerId, deckDefs);
 
@@ -195,7 +208,7 @@ export class GameStateManager {
 		const player = this.getPlayer(playerId);
 		if (!player) throw new Error(`Player ${playerId} not found for hero placement.`);
 
-		const heroDefinition = deckDefs.find(def => def.type === CardType.Hero);
+		const heroDefinition = deckDefs.find((def) => def.type === CardType.Hero);
 		if (!heroDefinition) {
 			throw new Error(`No Hero card found in deck for player ${playerId}.`);
 		}
@@ -208,14 +221,20 @@ export class GameStateManager {
 		return heroDefinition; // Return the definition so it can be excluded from the deck
 	}
 
-	private initializePlayerDeck(playerId: string, deckDefs: ICardDefinition[], heroToExclude?: ICardDefinition): void {
+	private initializePlayerDeck(
+		playerId: string,
+		deckDefs: ICardDefinition[],
+		heroToExclude?: ICardDefinition
+	): void {
 		const player = this.getPlayer(playerId);
 		if (!player) throw new Error(`Player ${playerId} not found for deck initialization.`);
 
 		const deckZone = player.zones.deckZone as DeckZone;
 		deckZone.clear(); // Clear any existing cards (e.g., from previous test setups)
 
-		const cardsForDeck = deckDefs.filter(def => def !== heroToExclude && def.type !== CardType.Hero);
+		const cardsForDeck = deckDefs.filter(
+			(def) => def !== heroToExclude && def.type !== CardType.Hero
+		);
 
 		if (cardsForDeck.length === 0) {
 			console.warn(`[GSM] Player ${playerId} has no non-hero cards in their deck list.`);
@@ -227,7 +246,9 @@ export class GameStateManager {
 		});
 
 		deckZone.shuffle();
-		console.log(`[GSM] Initialized and shuffled deck for player ${playerId} with ${deckZone.getCount()} cards.`);
+		console.log(
+			`[GSM] Initialized and shuffled deck for player ${playerId} with ${deckZone.getCount()} cards.`
+		);
 	}
 
 	private async initializeManaOrbsFromHand(playerId: string): Promise<void> {
@@ -242,7 +263,9 @@ export class GameStateManager {
 		const cardsToSelectFrom = handZone.getAll().filter(isGameObject); // Ensure we are working with GameObjects
 
 		if (cardsToSelectFrom.length < 3) {
-			console.warn(`[GSM] Player ${playerId} has fewer than 3 cards in hand (${cardsToSelectFrom.length}) to choose for mana orbs. Taking all available.`);
+			console.warn(
+				`[GSM] Player ${playerId} has fewer than 3 cards in hand (${cardsToSelectFrom.length}) to choose for mana orbs. Taking all available.`
+			);
 			// Take all available cards from hand if less than 3
 			for (const card of cardsToSelectFrom) {
 				const manaOrb = this.moveEntity(card.objectId, handZone, manaZone, playerId) as IGameObject;
@@ -255,7 +278,9 @@ export class GameStateManager {
 					// or upon entering ManaZone designated for such orbs.
 				}
 			}
-			console.log(`[GSM] Initialized ${cardsToSelectFrom.length} mana orbs for player ${playerId} from hand.`);
+			console.log(
+				`[GSM] Initialized ${cardsToSelectFrom.length} mana orbs for player ${playerId} from hand.`
+			);
 			return;
 		}
 
@@ -456,7 +481,9 @@ export class GameStateManager {
 			if (isMovingToDiscardPile || isMovingToHiddenZone) {
 				// No counters are kept if moving to Discard Pile or a hidden zone (Hand/Deck).
 				// This covers the exception in 2.5.k and general behavior for hidden zones.
-				console.log(`[GSM.moveEntity] ${sourceGameObject.name} moving to Discard/Hidden zone, all counters lost.`);
+				console.log(
+					`[GSM.moveEntity] ${sourceGameObject.name} moving to Discard/Hidden zone, all counters lost.`
+				);
 			} else {
 				// Not moving to Discard Pile or a Hidden Zone, so counters might be kept.
 				const fromReserve = fromZone.zoneType === ZoneIdentifier.Reserve;
@@ -471,26 +498,39 @@ export class GameStateManager {
 					for (const [type, amount] of sourceGameObject.counters.entries()) {
 						countersToKeep.set(type, amount);
 					}
-					console.log(`[GSM.moveEntity] ${sourceGameObject.name} moving from Reserve/Limbo, keeping all ${countersToKeep.size} types of counters.`);
+					console.log(
+						`[GSM.moveEntity] ${sourceGameObject.name} moving from Reserve/Limbo, keeping all ${countersToKeep.size} types of counters.`
+					);
 				} else if (fromExpedition || fromLandmark) {
 					// Generally, counters are lost (Rule 2.5.j) unless an exception applies.
 					if (toReserve) {
 						// Check for Seasoned (Rule 7.4.6.b)
-						// Assuming currentCharacteristics.keywords is populated by RuleAdjudicator if available
-						const isSeasoned = sourceGameObject.currentCharacteristics?.keywords?.has(KeywordAbility.Seasoned) ||
-										   sourceGameObject.abilities.some(a => a.keyword === KeywordAbility.Seasoned);
+						// Check both currentCharacteristics.keywords (if it's a Set) and base abilities
+						const hasSeasonedInKeywords =
+							sourceGameObject.currentCharacteristics?.keywords instanceof Set &&
+							sourceGameObject.currentCharacteristics.keywords.has(KeywordAbility.Seasoned);
+						const hasSeasonedInAbilities = sourceGameObject.abilities.some(
+							(a) => a.keyword === KeywordAbility.Seasoned
+						);
+						const isSeasoned = hasSeasonedInKeywords || hasSeasonedInAbilities;
 
 						if (isSeasoned) {
 							const boostCount = sourceGameObject.counters.get(CounterType.Boost);
 							if (boostCount && boostCount > 0) {
 								countersToKeep.set(CounterType.Boost, boostCount);
-								console.log(`[GSM.moveEntity] Seasoned ${sourceGameObject.name} moving to Reserve, keeping ${boostCount} Boost counters.`);
+								console.log(
+									`[GSM.moveEntity] Seasoned ${sourceGameObject.name} moving to Reserve, keeping ${boostCount} Boost counters.`
+								);
 							} else {
-								console.log(`[GSM.moveEntity] Seasoned ${sourceGameObject.name} moving to Reserve, but has no Boost counters to keep.`);
+								console.log(
+									`[GSM.moveEntity] Seasoned ${sourceGameObject.name} moving to Reserve, but has no Boost counters to keep.`
+								);
 							}
 							// Other counters on a Seasoned character are lost unless another rule saves them.
 						} else {
-							console.log(`[GSM.moveEntity] Non-Seasoned ${sourceGameObject.name} moving from Expedition/Landmark to Reserve, losing all counters.`);
+							console.log(
+								`[GSM.moveEntity] Non-Seasoned ${sourceGameObject.name} moving from Expedition/Landmark to Reserve, losing all counters.`
+							);
 						}
 					} else {
 						// Moving from Expedition/Landmark to a zone other than Reserve, Discard, or Hidden (e.g., another visible zone via an effect)
@@ -499,7 +539,9 @@ export class GameStateManager {
 						// but 2.5.j is about leaving "play zones". Limbo isn't strictly a play zone.
 						// However, if Limbo is a temporary holding, keeping counters makes sense.
 						// For now, stick to explicit rules: if not to Reserve (Seasoned) or from Reserve/Limbo (general keep), counters are lost.
-						console.log(`[GSM.moveEntity] ${sourceGameObject.name} moving from Expedition/Landmark to ${finalDestinationZone.zoneType}, losing all counters (Rule 2.5.j).`);
+						console.log(
+							`[GSM.moveEntity] ${sourceGameObject.name} moving from Expedition/Landmark to ${finalDestinationZone.zoneType}, losing all counters (Rule 2.5.j).`
+						);
 					}
 				} else {
 					// Moving from other zones like Mana, Hero zone, etc.
@@ -507,7 +549,9 @@ export class GameStateManager {
 					// And not Reserve/Limbo for 2.5.k.
 					// Default behavior here would be to lose counters unless a specific effect or rule states otherwise.
 					// This path is less common for objects with counters that are moving.
-					console.log(`[GSM.moveEntity] ${sourceGameObject.name} moving from ${fromZone.zoneType}, losing counters by default.`);
+					console.log(
+						`[GSM.moveEntity] ${sourceGameObject.name} moving from ${fromZone.zoneType}, losing counters by default.`
+					);
 				}
 			}
 		}
@@ -567,7 +611,7 @@ export class GameStateManager {
 		for (const player of this.state.players.values()) {
 			yield player.zones.discardPileZone; // Corrected: discardPile -> discardPileZone
 			yield player.zones.manaZone;
-			yield player.zones.reserveZone;    // Corrected: reserve -> reserveZone (using the primary, not alias)
+			yield player.zones.reserveZone; // Corrected: reserve -> reserveZone (using the primary, not alias)
 			yield player.zones.landmarkZone;
 			yield player.zones.heroZone;
 		}
@@ -597,14 +641,18 @@ export class GameStateManager {
 		const playerIds = Array.from(this.state.players.keys());
 		const startIndex = playerIds.indexOf(startingPlayerId);
 		if (startIndex === -1) {
-			console.warn(`[GSM] startingPlayerId ${startingPlayerId} not found in playerIds. Defaulting to full list.`);
+			console.warn(
+				`[GSM] startingPlayerId ${startingPlayerId} not found in playerIds. Defaulting to full list.`
+			);
 			return playerIds; // Should not happen with valid startingPlayerId
 		}
 		return [...playerIds.slice(startIndex), ...playerIds.slice(0, startIndex)];
 	}
 
 	public async resolveReactions(): Promise<void> {
-		console.log('[GameStateManager] resolveReactions called. Delegating to ReactionManager.resolveReactions...');
+		console.log(
+			'[GameStateManager] resolveReactions called. Delegating to ReactionManager.resolveReactions...'
+		);
 		// The ReactionManager.checkForTriggers should be called by the EventBus or specific game event handlers
 		// right before resolveReactions might be needed.
 		// For example, an event like 'afterEffectResolved' or 'cardPlayed' could trigger 'checkForTriggers',
@@ -774,9 +822,11 @@ export class GameStateManager {
 		const expeditionZone = this.state.sharedZones.expedition;
 
 		for (const player of this.state.players.values()) {
-			const playerEntitiesInExpedition = expeditionZone.getAll().filter((e): e is IGameObject =>
-				isGameObject(e) && e.controllerId === player.id &&
-				(e.type === CardType.Character || e.type === CardType.Gear) // Assuming Gear can also be in expeditions
+			const playerEntitiesInExpedition = expeditionZone.getAll().filter(
+				(e): e is IGameObject =>
+					isGameObject(e) &&
+					e.controllerId === player.id &&
+					(e.type === CardType.Character || e.type === CardType.Gear) // Assuming Gear can also be in expeditions
 			);
 
 			for (const entity of playerEntitiesInExpedition) {
@@ -793,10 +843,7 @@ export class GameStateManager {
 				} else {
 					// Non-Gigantic: check specific expedition assignment
 					// Assumes CardPlaySystem sets entity.expeditionAssignment
-					if (
-						entity.expeditionAssignment?.type === 'hero' &&
-						player.heroExpedition.hasMoved
-					) {
+					if (entity.expeditionAssignment?.type === 'hero' && player.heroExpedition.hasMoved) {
 						isAffectedByMovingExpedition = true;
 						console.log(
 							`[GSM] Entity ${entity.name} in hero expedition is affected by hero movement.`
@@ -809,11 +856,16 @@ export class GameStateManager {
 						console.log(
 							`[GSM] Entity ${entity.name} in companion expedition is affected by companion movement.`
 						);
-					} else if (!entity.expeditionAssignment && (player.heroExpedition.hasMoved || player.companionExpedition.hasMoved)) {
+					} else if (
+						!entity.expeditionAssignment &&
+						(player.heroExpedition.hasMoved || player.companionExpedition.hasMoved)
+					) {
 						// Fallback for entities without explicit assignment (e.g. older system state or if CardPlaySystem hasn't set it)
 						// This maintains previous behavior for unassigned entities if ANY expedition moved.
 						// Ideally, all non-Gigantic entities in expeditionZone should have expeditionAssignment.
-						console.warn(`[GSM] Entity ${entity.name} lacks expeditionAssignment, using anyExpeditionMoved logic.`);
+						console.warn(
+							`[GSM] Entity ${entity.name} lacks expeditionAssignment, using anyExpeditionMoved logic.`
+						);
 						isAffectedByMovingExpedition = true;
 					}
 				}
@@ -824,9 +876,7 @@ export class GameStateManager {
 
 					// Check if status effects prevent going to Reserve (Rule 2.4.1 Anchored, 2.4.3 Asleep)
 					if (statusResults.anchored || statusResults.asleep) {
-						console.log(
-							`[GSM] Entity ${entity.name} not moved to Reserve due to Anchored/Asleep.`
-						);
+						console.log(`[GSM] Entity ${entity.name} not moved to Reserve due to Anchored/Asleep.`);
 						continue;
 					}
 
@@ -865,18 +915,24 @@ export class GameStateManager {
 			const player = this.getPlayer(playerId);
 			if (!player) continue;
 
-			const hero = player.zones.heroZone.getAll().find(obj => isGameObject(obj) && obj.type === CardType.Hero) as IGameObject | undefined;
+			const hero = player.zones.heroZone
+				.getAll()
+				.find((obj) => isGameObject(obj) && obj.type === CardType.Hero) as IGameObject | undefined;
 			// Rule 4.2.5.c: Default limits if hero not found or hero has no specified limits.
 			// These defaults (2 for reserve, 2 for landmark) are common, but could also be game constants.
-			const reserveLimit = hero?.currentCharacteristics.reserveLimit ?? hero?.baseCharacteristics.reserveLimit ?? 2;
-			const landmarkLimit = hero?.currentCharacteristics.landmarkLimit ?? hero?.baseCharacteristics.landmarkLimit ?? 2;
+			const reserveLimit =
+				hero?.currentCharacteristics.reserveLimit ?? hero?.baseCharacteristics.reserveLimit ?? 2;
+			const landmarkLimit =
+				hero?.currentCharacteristics.landmarkLimit ?? hero?.baseCharacteristics.landmarkLimit ?? 2;
 
 			// --- Reserve Clean-up ---
 			const reserveZone = player.zones.reserveZone;
 			const reserveObjects = reserveZone.getAll().filter(isGameObject);
 
 			if (reserveObjects.length > reserveLimit) {
-				console.log(`[GSM] Player ${playerId} Reserve: ${reserveObjects.length}/${reserveLimit}. Choosing objects to keep.`);
+				console.log(
+					`[GSM] Player ${playerId} Reserve: ${reserveObjects.length}/${reserveLimit}. Choosing objects to keep.`
+				);
 				// PlayerActionHandler returns IDs of objects TO DISCARD
 				const objectsToDiscardIds = await this.actionHandler.playerChoosesObjectsToKeep(
 					playerId,
@@ -885,7 +941,7 @@ export class GameStateManager {
 					'reserve'
 				);
 				for (const objectIdToDiscard of objectsToDiscardIds) {
-					const objectToDiscard = reserveObjects.find(obj => obj.objectId === objectIdToDiscard);
+					const objectToDiscard = reserveObjects.find((obj) => obj.objectId === objectIdToDiscard);
 					if (objectToDiscard) {
 						console.log(
 							`[GSM] Player ${playerId} discarding ${objectToDiscard.name} (${objectToDiscard.definitionId}) from Reserve.`
@@ -905,7 +961,9 @@ export class GameStateManager {
 			const landmarkObjects = landmarkZone.getAll().filter(isGameObject);
 
 			if (landmarkObjects.length > landmarkLimit) {
-				console.log(`[GSM] Player ${playerId} Landmark: ${landmarkObjects.length}/${landmarkLimit}. Choosing objects to keep.`);
+				console.log(
+					`[GSM] Player ${playerId} Landmark: ${landmarkObjects.length}/${landmarkLimit}. Choosing objects to keep.`
+				);
 				// PlayerActionHandler returns IDs of objects TO SACRIFICE (which means discard)
 				const objectsToSacrificeIds = await this.actionHandler.playerChoosesObjectsToKeep(
 					playerId,
@@ -914,7 +972,9 @@ export class GameStateManager {
 					'landmark'
 				);
 				for (const objectIdToSacrifice of objectsToSacrificeIds) {
-					const objectToSacrifice = landmarkObjects.find(obj => obj.objectId === objectIdToSacrifice);
+					const objectToSacrifice = landmarkObjects.find(
+						(obj) => obj.objectId === objectIdToSacrifice
+					);
 					if (objectToSacrifice) {
 						console.log(
 							`[GSM] Player ${playerId} sacrificing ${objectToSacrifice.name} (${objectToSacrifice.definitionId}) from Landmark.`
@@ -947,12 +1007,12 @@ export class GameStateManager {
 		const expeditionZone = this.state.sharedZones.expedition;
 		const stats: ITerrainStats = { forest: 0, mountain: 0, water: 0 };
 
-		const allPlayerCharactersInExpedition = expeditionZone.getAll().filter(
-			(e): e is IGameObject =>
-				isGameObject(e) &&
-				e.controllerId === playerId &&
-				e.type === CardType.Character
-		);
+		const allPlayerCharactersInExpedition = expeditionZone
+			.getAll()
+			.filter(
+				(e): e is IGameObject =>
+					isGameObject(e) && e.controllerId === playerId && e.type === CardType.Character
+			);
 
 		for (const entity of allPlayerCharactersInExpedition) {
 			// Rule 2.4.3.a: Asleep characters' stats are not counted.
@@ -990,7 +1050,8 @@ export class GameStateManager {
 
 				// Rule 2.5.1.b: Add boost counters
 				const boostCount = entity.counters.get(CounterType.Boost) || 0;
-				if (boostCount > 0) { // Only add if there are boost counters
+				if (boostCount > 0) {
+					// Only add if there are boost counters
 					stats.forest += boostCount;
 					stats.mountain += boostCount;
 					stats.water += boostCount;
@@ -1023,10 +1084,11 @@ export class GameStateManager {
 			// Original logic was: if (player.heroExpedition.canMove || player.companionExpedition.canMove) { ... }
 			// which meant if EITHER could move, it would proceed. We want to skip if BOTH are blocked.
 			if (!player.heroExpedition.canMove && !player.companionExpedition.canMove) {
-				console.log(`[GSM] Player ${player.id}'s hero and companion expeditions cannot move (e.g. due to Defender).`);
+				console.log(
+					`[GSM] Player ${player.id}'s hero and companion expeditions cannot move (e.g. due to Defender).`
+				);
 				continue; // Skip this player if both expeditions are blocked
 			}
-
 
 			// Calculate expedition statistics
 			const heroStats = this.calculateExpeditionStats(player.id, 'hero');
@@ -1048,7 +1110,11 @@ export class GameStateManager {
 					if (currentHeroPos < totalRegions) {
 						const targetHeroRegion = adventureRegions[currentHeroPos];
 						const heroRegionTerrains = targetHeroRegion?.terrains || [];
-						const heroMovementResult = this.expeditionShouldMove(heroStats, oppHeroStats, heroRegionTerrains);
+						const heroMovementResult = this.expeditionShouldMove(
+							heroStats,
+							oppHeroStats,
+							heroRegionTerrains
+						);
 
 						if (heroMovementResult.shouldMove) {
 							player.heroExpedition.position++;
@@ -1067,7 +1133,11 @@ export class GameStateManager {
 						const targetCompanionRegionIndex = totalRegions - 1 - currentCompanionPos;
 						const targetCompanionRegion = adventureRegions[targetCompanionRegionIndex];
 						const companionRegionTerrains = targetCompanionRegion?.terrains || [];
-						const companionMovementResult = this.expeditionShouldMove(companionStats, oppCompanionStats, companionRegionTerrains);
+						const companionMovementResult = this.expeditionShouldMove(
+							companionStats,
+							oppCompanionStats,
+							companionRegionTerrains
+						);
 
 						if (companionMovementResult.shouldMove) {
 							player.companionExpedition.position++;
@@ -1179,7 +1249,10 @@ export class GameStateManager {
 	/**
 	 * Find a card in any zone by instance ID
 	 */
-	public findCardInAnyZone(instanceId: string, preferredZone?: ZoneIdentifier): IGameObject | ICardInstance | undefined {
+	public findCardInAnyZone(
+		instanceId: string,
+		preferredZone?: ZoneIdentifier
+	): IGameObject | ICardInstance | undefined {
 		// First check preferred zone if specified
 		if (preferredZone) {
 			for (const player of this.state.players.values()) {
@@ -1201,7 +1274,7 @@ export class GameStateManager {
 		for (const player of this.state.players.values()) {
 			const handCard = player.zones.handZone.findById(instanceId);
 			if (handCard) return handCard;
-			
+
 			const deckCard = player.zones.deckZone.findById(instanceId);
 			if (deckCard) return deckCard;
 		}
@@ -1264,8 +1337,8 @@ export class GameStateManager {
 	 * Play a card from hand with options
 	 */
 	public async playerPlaysCardFromHand(
-		playerId: string, 
-		cardInstanceId: string, 
+		playerId: string,
+		cardInstanceId: string,
 		options?: {
 			useAlternativeCostKeyword?: KeywordAbility;
 			fromZone?: ZoneIdentifier;
@@ -1273,7 +1346,7 @@ export class GameStateManager {
 		}
 	): Promise<{ success: boolean; error?: string }> {
 		console.log(`[GSM] Player ${playerId} plays card ${cardInstanceId} with options:`, options);
-		
+
 		// For now, return success - full implementation would involve CardPlaySystem
 		return { success: true };
 	}
@@ -1287,7 +1360,7 @@ export class GameStateManager {
 		abilityId: string
 	): Promise<{ success: boolean; error?: string }> {
 		console.log(`[GSM] Player ${playerId} activates ability ${abilityId} on ${objectId}`);
-		
+
 		// For now, return success - full implementation would involve ability resolution
 		return { success: true };
 	}
@@ -1302,11 +1375,15 @@ export class GameStateManager {
 		playingPlayerId: string // Player playing the card
 	): Promise<void> {
 		if (!this.ruleAdjudicator) {
-			console.warn('[GSM.handlePassives] RuleAdjudicator not available. Skipping passive grants on play.');
+			console.warn(
+				'[GSM.handlePassives] RuleAdjudicator not available. Skipping passive grants on play.'
+			);
 			return;
 		}
 		if (!this.objectFactory) {
-			console.warn('[GSM.handlePassives] ObjectFactory not available. Skipping passive grants on play.');
+			console.warn(
+				'[GSM.handlePassives] ObjectFactory not available. Skipping passive grants on play.'
+			);
 			return;
 		}
 
@@ -1317,7 +1394,9 @@ export class GameStateManager {
 		);
 
 		if (passiveGrants.length > 0) {
-			console.log(`[GSM.handlePassives] Found ${passiveGrants.length} passive grants for ${playedCardObject.name} (ID: ${playedCardObject.objectId})`);
+			console.log(
+				`[GSM.handlePassives] Found ${passiveGrants.length} passive grants for ${playedCardObject.name} (ID: ${playedCardObject.objectId})`
+			);
 		}
 
 		for (const passiveInfo of passiveGrants) {
@@ -1334,23 +1413,24 @@ export class GameStateManager {
 						// It could be the player playing the card, or the controller of the source of the passive.
 						// For gaining counters/status on the playedCardObject, this might be less critical than for other effects.
 						// Let's assume the effect is enacted by the controller of the passive source.
-						controllerId: passiveInfo.sourceObject.controllerId,
+						controllerId: passiveInfo.sourceObject.controllerId
 					}
 				};
-			} else { // type === 'status'
+			} else {
+				// type === 'status'
 				effectStep = {
 					verb: 'gain_status', // Assuming EffectType.GainStatus maps to this string
 					target: { type: 'SpecificObject', objectId: playedCardObject.objectId }, // TargetType.SpecificObject
 					parameters: {
 						statusType: passiveInfo.itemToGrant.statusType,
-						controllerId: passiveInfo.sourceObject.controllerId,
+						controllerId: passiveInfo.sourceObject.controllerId
 					}
 				};
 			}
 
 			const effectToBind: IEffect = {
 				steps: [effectStep],
-				sourceObjectId: passiveInfo.sourceObject.objectId, // The passive ability's source is the source of this effect
+				sourceObjectId: passiveInfo.sourceObject.objectId // The passive ability's source is the source of this effect
 			};
 
 			const triggerPayloadForEmblem = {
@@ -1374,14 +1454,17 @@ export class GameStateManager {
 
 			if (emblem) {
 				this.state.sharedZones.limbo.add(emblem);
-				console.log(`[GSM.handlePassives] Created Emblem-Reaction ${emblem.name} (ID: ${emblem.objectId}) in Limbo for passive grant.`);
+				console.log(
+					`[GSM.handlePassives] Created Emblem-Reaction ${emblem.name} (ID: ${emblem.objectId}) in Limbo for passive grant.`
+				);
 			} else {
-				console.error(`[GSM.handlePassives] Failed to create Emblem-Reaction for passive grant from ${passiveInfo.sourceObject.name}.`);
+				console.error(
+					`[GSM.handlePassives] Failed to create Emblem-Reaction for passive grant from ${passiveInfo.sourceObject.name}.`
+				);
 			}
 		}
 		// No need to call resolveReactions here; CardPlaySystem will call it after this method returns.
 	}
-
 
 	/**
 	 * Add aliases for test compatibility
@@ -1405,7 +1488,7 @@ export class GameStateManager {
 			addToZone: (obj: IGameObject, zoneId: ZoneIdentifier, playerId: string) => {
 				const player = this.getPlayer(playerId);
 				if (!player) return;
-				
+
 				const zone = this.getZoneByIdentifier(player, zoneId);
 				if (zone) {
 					zone.add(obj);
@@ -1481,13 +1564,17 @@ export class GameStateManager {
 
 		if (deckZone.getCount() === 0) {
 			if (discardPileZone.getCount() > 0) {
-				console.log(`[GSM.resupplyPlayer] Player ${playerId} deck empty. Reshuffling discard pile.`);
+				console.log(
+					`[GSM.resupplyPlayer] Player ${playerId} deck empty. Reshuffling discard pile.`
+				);
 				const discardedEntities = discardPileZone.getAll();
 				// Important: Clear the discard pile *before* adding cards back to deck,
 				// especially if createCardInstance might refer to the original entity temporarily.
-				discardedEntities.forEach(e => discardPileZone.remove(isGameObject(e) ? e.objectId : e.instanceId));
+				discardedEntities.forEach((e) =>
+					discardPileZone.remove(isGameObject(e) ? e.objectId : e.instanceId)
+				);
 
-				const cardsToReshuffle: ICardInstance[] = discardedEntities.map(e => {
+				const cardsToReshuffle: ICardInstance[] = discardedEntities.map((e) => {
 					// Ensure we're creating fresh instances for the deck
 					return this.objectFactory.createCardInstance(e.definitionId, e.ownerId);
 				});
@@ -1495,27 +1582,40 @@ export class GameStateManager {
 				deckZone.addBottom(cardsToReshuffle); // Add to bottom then shuffle
 				deckZone.shuffle();
 				this.eventBus.publish('deckReshuffled', { playerId, count: cardsToReshuffle.length });
-				console.log(`[GSM.resupplyPlayer] Player ${playerId} reshuffled ${cardsToReshuffle.length} cards from discard to deck.`);
+				console.log(
+					`[GSM.resupplyPlayer] Player ${playerId} reshuffled ${cardsToReshuffle.length} cards from discard to deck.`
+				);
 			}
 		}
 
 		if (deckZone.getCount() === 0) {
-			console.log(`[GSM.resupplyPlayer] Player ${playerId} deck is still empty after attempting reshuffle. Cannot resupply.`);
+			console.log(
+				`[GSM.resupplyPlayer] Player ${playerId} deck is still empty after attempting reshuffle. Cannot resupply.`
+			);
 			return null;
 		}
 
 		const cardToMoveInstance = deckZone.removeTop(); // removeTop should return ICardInstance
 		if (!cardToMoveInstance) {
 			// Should not happen if getCount() > 0, but as a safeguard.
-			console.warn(`[GSM.resupplyPlayer] Deck was not empty but failed to remove top card for player ${playerId}.`);
+			console.warn(
+				`[GSM.resupplyPlayer] Deck was not empty but failed to remove top card for player ${playerId}.`
+			);
 			return null;
 		}
 
 		// moveEntity will convert ICardInstance to IGameObject when moving to a visible zone like Reserve.
-		const movedObject = this.moveEntity(cardToMoveInstance.instanceId, deckZone, reserveZone, playerId) as IGameObject | null;
+		const movedObject = this.moveEntity(
+			cardToMoveInstance.instanceId,
+			deckZone,
+			reserveZone,
+			playerId
+		) as IGameObject | null;
 
 		if (movedObject) {
-			console.log(`[GSM.resupplyPlayer] Player ${playerId} resupplied ${movedObject.name} (ID: ${movedObject.objectId}) to Reserve.`);
+			console.log(
+				`[GSM.resupplyPlayer] Player ${playerId} resupplied ${movedObject.name} (ID: ${movedObject.objectId}) to Reserve.`
+			);
 			// Event for card moving to reserve is handled by moveEntity's 'entityMoved'
 			// Specific 'cardResupplied' event might be useful if more specific data is needed.
 			// this.eventBus.publish('cardResupplied', { playerId, card: movedObject });
@@ -1531,11 +1631,17 @@ export class GameStateManager {
 			return;
 		}
 		object.counters.set(type, (object.counters.get(type) || 0) + amount);
-		console.log(`[GSM.addCounters] Added ${amount} ${type} counters to ${object.name} (ID: ${objectId}). Total: ${object.counters.get(type)}`);
+		console.log(
+			`[GSM.addCounters] Added ${amount} ${type} counters to ${object.name} (ID: ${objectId}). Total: ${object.counters.get(type)}`
+		);
 		if (type === CounterType.Boost) {
 			this.statusHandler.updateBoostedStatus(object);
 		}
-		this.eventBus.publish('countersChanged', { objectId, type, newAmount: object.counters.get(type) });
+		this.eventBus.publish('countersChanged', {
+			objectId,
+			type,
+			newAmount: object.counters.get(type)
+		});
 	}
 
 	public removeCounters(objectId: string, type: CounterType, amount: number): void {
@@ -1549,16 +1655,24 @@ export class GameStateManager {
 		const amountToRemove = Math.min(amount, currentAmount);
 		if (amountToRemove > 0) {
 			object.counters.set(type, currentAmount - amountToRemove);
-			console.log(`[GSM.removeCounters] Removed ${amountToRemove} ${type} counters from ${object.name} (ID: ${objectId}). Remaining: ${object.counters.get(type)}`);
+			console.log(
+				`[GSM.removeCounters] Removed ${amountToRemove} ${type} counters from ${object.name} (ID: ${objectId}). Remaining: ${object.counters.get(type)}`
+			);
 			if (object.counters.get(type) === 0) {
 				object.counters.delete(type); // Clean up if zero
 			}
 			if (type === CounterType.Boost) {
 				this.statusHandler.updateBoostedStatus(object);
 			}
-			this.eventBus.publish('countersChanged', { objectId, type, newAmount: object.counters.get(type) });
+			this.eventBus.publish('countersChanged', {
+				objectId,
+				type,
+				newAmount: object.counters.get(type)
+			});
 		} else {
-			console.log(`[GSM.removeCounters] No ${type} counters to remove from ${object.name} (ID: ${objectId}).`);
+			console.log(
+				`[GSM.removeCounters] No ${type} counters to remove from ${object.name} (ID: ${objectId}).`
+			);
 		}
 	}
 
@@ -1567,17 +1681,26 @@ export class GameStateManager {
 		const currentIndex = playerIds.indexOf(currentPlayerId);
 		// Ensure the player is found, though in normal operation it always should be.
 		if (currentIndex === -1) {
-			console.warn(`[GameStateManager.getNextPlayerId] Player ID ${currentPlayerId} not found. Defaulting to the first player.`);
+			console.warn(
+				`[GameStateManager.getNextPlayerId] Player ID ${currentPlayerId} not found. Defaulting to the first player.`
+			);
 			return playerIds[0];
 		}
 		const nextIndex = (currentIndex + 1) % playerIds.length;
 		return playerIds[nextIndex];
 	}
 
-	public async playerChoosesReaction(playerId: string, availableReactions: IEmblemObject[]): Promise<IEmblemObject | null> {
-		console.log(`[GameStateManager] Player ${playerId} is choosing a reaction from ${availableReactions.length} available.`);
+	public async playerChoosesReaction(
+		playerId: string,
+		availableReactions: IEmblemObject[]
+	): Promise<IEmblemObject | null> {
+		console.log(
+			`[GameStateManager] Player ${playerId} is choosing a reaction from ${availableReactions.length} available.`
+		);
 		if (availableReactions.length === 0) {
-			console.log(`[GameStateManager] No reactions available for player ${playerId} to choose from.`);
+			console.log(
+				`[GameStateManager] No reactions available for player ${playerId} to choose from.`
+			);
 			return null;
 		}
 		// In a real UI, player would select one. For now, pick the first.
@@ -1587,7 +1710,9 @@ export class GameStateManager {
 		// For now, let's make it always pick the first to ensure the main path is tested.
 		// Later, this can be: const choice = await this.actionHandler.playerChoosesReaction(playerId, availableReactions);
 		const choice = availableReactions[0];
-		console.log(`[GameStateManager] Player ${playerId} (conceptually) chose: ${choice.name} (ID: ${choice.objectId})`);
+		console.log(
+			`[GameStateManager] Player ${playerId} (conceptually) chose: ${choice.name} (ID: ${choice.objectId})`
+		);
 		return choice;
 	}
 }

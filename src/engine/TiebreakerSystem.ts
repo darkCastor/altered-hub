@@ -41,7 +41,7 @@ export class TiebreakerSystem {
 		}
 
 		// Identify all players who achieved a score of 7 or more
-		const potentialWinners = playerIds.filter(pid => (playerScores.get(pid) ?? 0) >= 7);
+		const potentialWinners = playerIds.filter((pid) => (playerScores.get(pid) ?? 0) >= 7);
 
 		if (potentialWinners.length === 0) {
 			return null; // Should not happen if maxScore >= 7, but as a safeguard
@@ -59,14 +59,19 @@ export class TiebreakerSystem {
 		const highestScoringPlayer = potentialWinners[0];
 		const secondHighestScoringPlayer = potentialWinners[1]; // Exists because potentialWinners.length > 1
 
-		if ((playerScores.get(highestScoringPlayer) ?? 0) > (playerScores.get(secondHighestScoringPlayer) ?? 0)) {
+		if (
+			(playerScores.get(highestScoringPlayer) ?? 0) >
+			(playerScores.get(secondHighestScoringPlayer) ?? 0)
+		) {
 			// One player has a strictly higher score (and both are >= 7)
 			return highestScoringPlayer;
 		} else {
 			// Multiple players tied at the highest score (and score is >= 7)
 			// Filter for those who are actually tied at the maxScore among potential winners.
 			const actualMaxScore = playerScores.get(highestScoringPlayer) ?? 0;
-			const playersAtMaxScore = potentialWinners.filter(pid => (playerScores.get(pid) ?? 0) === actualMaxScore);
+			const playersAtMaxScore = potentialWinners.filter(
+				(pid) => (playerScores.get(pid) ?? 0) === actualMaxScore
+			);
 
 			this.initiateTiebreaker(playersAtMaxScore);
 			return null; // Tiebreaker in progress
@@ -206,12 +211,12 @@ export class TiebreakerSystem {
 		const stats: ITerrainStats = { forest: 0, mountain: 0, water: 0 };
 		const expeditionZone = this.gsm.state.sharedZones.expedition;
 
-		const playerCharactersInExpedition = expeditionZone.getAll().filter(
-			(e): e is IGameObject =>
-				isGameObject(e) &&
-				e.controllerId === playerId &&
-				e.type === CardType.Character
-		);
+		const playerCharactersInExpedition = expeditionZone
+			.getAll()
+			.filter(
+				(e): e is IGameObject =>
+					isGameObject(e) && e.controllerId === playerId && e.type === CardType.Character
+			);
 
 		for (const entity of playerCharactersInExpedition) {
 			// Skip Asleep characters (Rule 2.4.3)
@@ -223,7 +228,9 @@ export class TiebreakerSystem {
 			// Rule 7.4.4.l: A Gigantic Character’s statistics are counted twice in a tiebreaker.
 			if (entity.currentCharacteristics.isGigantic === true) {
 				statMultiplier = 2;
-				console.log(`[TiebreakerSystem] Gigantic character ${entity.name} (Player: ${playerId}) stats counted twice for tiebreaker.`);
+				console.log(
+					`[TiebreakerSystem] Gigantic character ${entity.name} (Player: ${playerId}) stats counted twice for tiebreaker.`
+				);
 			}
 
 			if (entityStats) {
@@ -238,7 +245,9 @@ export class TiebreakerSystem {
 			stats.mountain += boostCount * statMultiplier;
 			stats.water += boostCount * statMultiplier;
 		}
-		console.log(`[TiebreakerSystem] Player ${playerId} total Arena Stats: F:${stats.forest}, M:${stats.mountain}, W:${stats.water}`);
+		console.log(
+			`[TiebreakerSystem] Player ${playerId} total Arena Stats: F:${stats.forest}, M:${stats.mountain}, W:${stats.water}`
+		);
 		return stats;
 	}
 
@@ -357,22 +366,26 @@ export class TiebreakerSystem {
 			// Process character status effects but don't move to Reserve
 			// since Arena combat continues
 			const sharedExpeditionZone = this.gsm.state.sharedZones.expedition;
-			const playerExpeditionChars = sharedExpeditionZone.getAll().filter(
-				(e): e is IGameObject =>
-					isGameObject(e) &&
-					e.controllerId === playerId &&
-					e.type === CardType.Character
-			);
+			const playerExpeditionChars = sharedExpeditionZone
+				.getAll()
+				.filter(
+					(e): e is IGameObject =>
+						isGameObject(e) && e.controllerId === playerId && e.type === CardType.Character
+				);
 
 			for (const char of playerExpeditionChars) {
 				// Remove temporary statuses
 				if (char.statuses.has(StatusType.Anchored)) {
 					char.statuses.delete(StatusType.Anchored);
-					console.log(`[TiebreakerSystem] Removed Anchored from ${char.name} during Tiebreaker Rest.`);
+					console.log(
+						`[TiebreakerSystem] Removed Anchored from ${char.name} during Tiebreaker Rest.`
+					);
 				}
 				if (char.statuses.has(StatusType.Asleep)) {
 					char.statuses.delete(StatusType.Asleep);
-					console.log(`[TiebreakerSystem] Removed Asleep from ${char.name} during Tiebreaker Rest.`);
+					console.log(
+						`[TiebreakerSystem] Removed Asleep from ${char.name} during Tiebreaker Rest.`
+					);
 				}
 			}
 		}

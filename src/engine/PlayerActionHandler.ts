@@ -1,6 +1,13 @@
 import type { GameStateManager } from './GameStateManager';
 import type { IGameObject, ICardInstance, IEmblemObject } from './types/objects';
-import { GamePhase, CardType, StatusType, ZoneIdentifier, AbilityType, KeywordAbility } from './types/enums';
+import {
+	GamePhase,
+	CardType,
+	StatusType,
+	ZoneIdentifier,
+	AbilityType,
+	KeywordAbility
+} from './types/enums';
 import { isGameObject } from './types/objects';
 import type { TargetInfo } from './CardPlaySystem'; // Assuming TargetInfo is in CardPlaySystem
 // import type { TargetRequirement } from './CardPlaySystem'; // If defined there
@@ -32,7 +39,11 @@ export class PlayerActionHandler {
 				if (!definition) continue;
 
 				// Normal Play Action
-				const canPlayCheckNormal = await this.gsm.cardPlaySystem.canPlayCard(playerId, currentCardId, ZoneIdentifier.Hand);
+				const canPlayCheckNormal = await this.gsm.cardPlaySystem.canPlayCard(
+					playerId,
+					currentCardId,
+					ZoneIdentifier.Hand
+				);
 				if (canPlayCheckNormal.isPlayable) {
 					actions.push({
 						type: 'playCard',
@@ -46,10 +57,16 @@ export class PlayerActionHandler {
 				}
 
 				// Scout Play Action
-				const scoutAbility = definition.abilities.find(ab => ab.keyword === KeywordAbility.Scout);
+				const scoutAbility = definition.abilities.find((ab) => ab.keyword === KeywordAbility.Scout);
 				if (scoutAbility && scoutAbility.keywordValue !== undefined) {
 					const scoutCostX = scoutAbility.keywordValue;
-					const canPlayCheckScout = await this.gsm.cardPlaySystem.canPlayCard(playerId, currentCardId, ZoneIdentifier.Hand, true, scoutCostX);
+					const canPlayCheckScout = await this.gsm.cardPlaySystem.canPlayCard(
+						playerId,
+						currentCardId,
+						ZoneIdentifier.Hand,
+						true,
+						scoutCostX
+					);
 					if (canPlayCheckScout.isPlayable) {
 						actions.push({
 							type: 'playCard',
@@ -66,8 +83,13 @@ export class PlayerActionHandler {
 			}
 			// From Reserve
 			for (const cardInReserve of player.zones.reserveZone.getAll()) {
-				if (isGameObject(cardInReserve)) { // Cards in reserve are IGameObjects
-					const canPlayCheck = await this.gsm.cardPlaySystem.canPlayCard(playerId, cardInReserve.objectId, ZoneIdentifier.Reserve);
+				if (isGameObject(cardInReserve)) {
+					// Cards in reserve are IGameObjects
+					const canPlayCheck = await this.gsm.cardPlaySystem.canPlayCard(
+						playerId,
+						cardInReserve.objectId,
+						ZoneIdentifier.Reserve
+					);
 					if (canPlayCheck.isPlayable) {
 						actions.push({
 							type: 'playCard',
@@ -84,7 +106,8 @@ export class PlayerActionHandler {
 		}
 
 		// Activate Ability Actions (Quick Actions)
-		if (isCurrentPlayer) { // Simplified: only current player can activate abilities for now
+		if (isCurrentPlayer) {
+			// Simplified: only current player can activate abilities for now
 			const activatableAbilities = await this.getActivatableQuickActions(playerId);
 			actions.push(...activatableAbilities);
 		}
@@ -95,7 +118,12 @@ export class PlayerActionHandler {
 		}
 
 		// Expand Action (Morning only)
-		if (currentPhase === GamePhase.Morning && isCurrentPlayer && !player.hasExpandedThisTurn && player.zones.handZone.getCount() > 0) {
+		if (
+			currentPhase === GamePhase.Morning &&
+			isCurrentPlayer &&
+			!player.hasExpandedThisTurn &&
+			player.zones.handZone.getCount() > 0
+		) {
 			actions.push({
 				type: 'expandMana',
 				description: 'Expand a card from your hand to your Mana zone.'
@@ -104,11 +132,12 @@ export class PlayerActionHandler {
 		}
 
 		// Mana Conversion
-		if (isCurrentPlayer) { // Typically on player's turn
+		if (isCurrentPlayer) {
+			// Typically on player's turn
 			const manaZone = player.zones.manaZone;
 			const allManaOrbs = manaZone.getAll().filter(isGameObject);
-			const readyOrbs = allManaOrbs.filter(orb => !orb.statuses.has(StatusType.Exhausted));
-			const exhaustedOrbs = allManaOrbs.filter(orb => orb.statuses.has(StatusType.Exhausted));
+			const readyOrbs = allManaOrbs.filter((orb) => !orb.statuses.has(StatusType.Exhausted));
+			const exhaustedOrbs = allManaOrbs.filter((orb) => orb.statuses.has(StatusType.Exhausted));
 
 			for (const readyOrb of readyOrbs) {
 				for (const exhaustedOrb of exhaustedOrbs) {
@@ -138,13 +167,13 @@ export class PlayerActionHandler {
 			player.zones.heroZone,
 			this.gsm.state.sharedZones.expedition,
 			player.zones.landmarkZone,
-			player.zones.reserveZone,
+			player.zones.reserveZone
 		];
 
 		for (const zone of zonesToScan) {
-			const playerObjects = zone.getAll().filter(
-				(e): e is IGameObject => isGameObject(e) && e.controllerId === playerId
-			);
+			const playerObjects = zone
+				.getAll()
+				.filter((e): e is IGameObject => isGameObject(e) && e.controllerId === playerId);
 			const zoneType = zone.zoneType; // Get zoneType for easier access
 
 			for (const sourceObject of playerObjects) {
@@ -168,42 +197,45 @@ export class PlayerActionHandler {
 					} else if (sourceObject.type === CardType.Hero) {
 						// Hero QAs only from HeroZone
 						if (zoneType !== ZoneIdentifier.HeroZone) continue;
-					} else { // Non-Hero, not in Reserve
+					} else {
+						// Non-Hero, not in Reserve
 						// Non-Hero QAs only from Expedition or LandmarkZone
-						if (zoneType !== ZoneIdentifier.Expedition && zoneType !== ZoneIdentifier.LandmarkZone) continue;
+						if (zoneType !== ZoneIdentifier.Expedition && zoneType !== ZoneIdentifier.LandmarkZone)
+							continue;
 						// Also, support abilities cannot be used from these zones (implicit by not being Reserve)
 						if (ability.isSupportAbility) continue;
 					}
 
-					const currentActivations = sourceObject.abilityActivationsToday?.get(ability.abilityId) || 0;
+					const currentActivations =
+						sourceObject.abilityActivationsToday?.get(ability.abilityId) || 0;
 					if (currentActivations >= activationLimit) continue;
 
 					let canPayAllCosts = true;
 					if (ability.cost) {
-					let totalManaCost = 0;
-					if (ability.cost?.mana) {
-						totalManaCost += ability.cost.mana;
-					}
+						let totalManaCost = 0;
+						if (ability.cost?.mana) {
+							totalManaCost += ability.cost.mana;
+						}
 
-					// Hypothetical: If this ability targets, and we've selected a target.
-					// This part is conceptual for demonstrating Tough integration, as full target
-					// selection isn't part of getAvailableActions yet for all action types.
-					// We would loop through resolved targets if the ability has them.
-					// For now, let's assume a hypothetical single opponentTargetObject if the ability implies targeting.
+						// Hypothetical: If this ability targets, and we've selected a target.
+						// This part is conceptual for demonstrating Tough integration, as full target
+						// selection isn't part of getAvailableActions yet for all action types.
+						// We would loop through resolved targets if the ability has them.
+						// For now, let's assume a hypothetical single opponentTargetObject if the ability implies targeting.
 
-					// Example: const potentialTargets = this.resolvePotentialTargets(ability.effect, sourceObject, playerId);
-					// for (const pTarget of potentialTargets) {
-					//    if (pTarget.controllerId !== playerId && this.gsm.keywordAbilityHandler) { ... }
-					// }
-					// For this subtask, we'll just illustrate with a placeholder check.
+						// Example: const potentialTargets = this.resolvePotentialTargets(ability.effect, sourceObject, playerId);
+						// for (const pTarget of potentialTargets) {
+						//    if (pTarget.controllerId !== playerId && this.gsm.keywordAbilityHandler) { ... }
+						// }
+						// For this subtask, we'll just illustrate with a placeholder check.
 
-					let currentAdditionalToughCost = 0;
-					let toughCheckPassed = true; // Assume true unless a Tough target makes it false
+						let currentAdditionalToughCost = 0;
+						let toughCheckPassed = true; // Assume true unless a Tough target makes it false
 
-					// --- Conceptual Tough Check Start (Illustrative) ---
-					// In a real scenario, you'd identify actual potential targets of the ability.
-					// For demonstration, let's imagine 'hypotheticalOpponentTargetWithTough' is one such target.
-					/*
+						// --- Conceptual Tough Check Start (Illustrative) ---
+						// In a real scenario, you'd identify actual potential targets of the ability.
+						// For demonstration, let's imagine 'hypotheticalOpponentTargetWithTough' is one such target.
+						/*
 					if (hypotheticalOpponentTargetWithTough && hypotheticalOpponentTargetWithTough.controllerId !== playerId && this.gsm.keywordAbilityHandler) {
 						const toughValue = this.getToughValue(hypotheticalOpponentTargetWithTough); // Helper to get X
 						if (toughValue > 0) {
@@ -215,56 +247,61 @@ export class PlayerActionHandler {
 						}
 					}
 					*/
-					// --- Conceptual Tough Check End ---
+						// --- Conceptual Tough Check End ---
 
-					if (!toughCheckPassed) {
-						// If any chosen/required Tough target cannot be paid for, this specific action variant isn't available.
-						// This might mean skipping this action, or if the ability can be used without that target,
-						// generating a different version of the action. For now, assume it makes this variant invalid.
-						continue;
-					}
+						if (!toughCheckPassed) {
+							// If any chosen/required Tough target cannot be paid for, this specific action variant isn't available.
+							// This might mean skipping this action, or if the ability can be used without that target,
+							// generating a different version of the action. For now, assume it makes this variant invalid.
+							continue;
+						}
 
-					totalManaCost += currentAdditionalToughCost;
+						totalManaCost += currentAdditionalToughCost;
 
-					if (ability.cost?.mana && ability.cost.mana > 0) { // Original mana cost check
-						if (!this.gsm.manaSystem.canPayMana(playerId, totalManaCost)) { // Check total including Tough
+						if (ability.cost?.mana && ability.cost.mana > 0) {
+							// Original mana cost check
+							if (!this.gsm.manaSystem.canPayMana(playerId, totalManaCost)) {
+								// Check total including Tough
 								canPayAllCosts = false;
 							}
-					} else if (currentAdditionalToughCost > 0) { // No base mana cost, but Tough cost exists
-						if (!this.gsm.manaSystem.canPayMana(playerId, currentAdditionalToughCost)) {
-							canPayAllCosts = false;
-						}
+						} else if (currentAdditionalToughCost > 0) {
+							// No base mana cost, but Tough cost exists
+							if (!this.gsm.manaSystem.canPayMana(playerId, currentAdditionalToughCost)) {
+								canPayAllCosts = false;
+							}
 						}
 
-
-					if (ability.cost?.exhaustSelf) {
+						if (ability.cost?.exhaustSelf) {
 							if (sourceObject.statuses.has(StatusType.Exhausted)) canPayAllCosts = false;
 						}
-					if (ability.cost?.discardSelfFromReserve) {
-							if (zone.zoneType !== ZoneIdentifier.Reserve || sourceObject.statuses.has(StatusType.Exhausted)) {
+						if (ability.cost?.discardSelfFromReserve) {
+							if (
+								zone.zoneType !== ZoneIdentifier.Reserve ||
+								sourceObject.statuses.has(StatusType.Exhausted)
+							) {
 								canPayAllCosts = false;
 							}
 						}
 						// TODO: Add other cost checks (sacrifice, spendCounters)
 					}
 
-
 					if (canPayAllCosts) {
-					let description = `Use QA: ${ability.text || ability.abilityId} from ${sourceObject.name}`;
-					if (currentAdditionalToughCost > 0) {
-						description += ` (Cost: ${totalManaCost}, incl. Tough ${currentAdditionalToughCost})`;
-					} else if (ability.cost?.mana) {
-						description += ` (Cost: ${ability.cost.mana})`;
-					}
+						let description = `Use QA: ${ability.text || ability.abilityId} from ${sourceObject.name}`;
+						if (currentAdditionalToughCost > 0) {
+							description += ` (Cost: ${totalManaCost}, incl. Tough ${currentAdditionalToughCost})`;
+						} else if (ability.cost?.mana) {
+							description += ` (Cost: ${ability.cost.mana})`;
+						}
 
 						availableQuickActions.push({
 							type: 'quickAction',
 							abilityId: ability.abilityId,
 							sourceObjectId: sourceObject.objectId,
-						description: description,
-						cost: totalManaCost > 0 ? totalManaCost : (ability.cost?.mana || 0), // Ensure cost reflects total
-						additionalToughCost: currentAdditionalToughCost > 0 ? currentAdditionalToughCost : undefined,
-						// TODO: Add actual target(s) chosen that resulted in this cost
+							description: description,
+							cost: totalManaCost > 0 ? totalManaCost : ability.cost?.mana || 0, // Ensure cost reflects total
+							additionalToughCost:
+								currentAdditionalToughCost > 0 ? currentAdditionalToughCost : undefined
+							// TODO: Add actual target(s) chosen that resulted in this cost
 						});
 					}
 				}
@@ -278,7 +315,8 @@ export class PlayerActionHandler {
 	 */
 	public async executeAction(playerId: string, action: PlayerAction): Promise<boolean> {
 		// Basic check, more nuanced checks per action type might be needed
-		if (this.gsm.state.currentPlayerId !== playerId &&
+		if (
+			this.gsm.state.currentPlayerId !== playerId &&
 			action.type !== 'convertManaOrb' && // Allow mana conversion if applicable out of turn
 			action.type !== 'expandMana' // Expand mana is phase-specific, not turn-specific necessarily
 		) {
@@ -290,11 +328,16 @@ export class PlayerActionHandler {
 
 		switch (action.type) {
 			case 'pass':
-				if (this.gsm.state.currentPhase !== GamePhase.Afternoon || this.gsm.state.currentPlayerId !== playerId) {
+				if (
+					this.gsm.state.currentPhase !== GamePhase.Afternoon ||
+					this.gsm.state.currentPlayerId !== playerId
+				) {
 					throw new Error('Cannot pass turn outside of Afternoon phase or if not current player.');
 				}
-				if(this.gsm.turnManager) this.gsm.turnManager.playerPasses(playerId); // Check if turnManager is set
-				else console.warn("[PlayerActionHandler] TurnManager not available on GSM for pass action.");
+				if (this.gsm.turnManager)
+					this.gsm.turnManager.playerPasses(playerId); // Check if turnManager is set
+				else
+					console.warn('[PlayerActionHandler] TurnManager not available on GSM for pass action.');
 				console.log(`[PlayerActionHandler] ${playerId} passed their turn`);
 				turnEnds = true;
 				break;
@@ -312,7 +355,9 @@ export class PlayerActionHandler {
 					action.useScoutCost,
 					action.scoutCostValue
 				);
-				console.log(`[PlayerActionHandler] ${playerId} played card: ${action.cardDefinitionId || action.cardId}${action.useScoutCost ? ' using Scout' : ''}`);
+				console.log(
+					`[PlayerActionHandler] ${playerId} played card: ${action.cardDefinitionId || action.cardId}${action.useScoutCost ? ' using Scout' : ''}`
+				);
 				turnEnds = true;
 				break;
 
@@ -320,16 +365,24 @@ export class PlayerActionHandler {
 				if (!action.abilityId || !action.sourceObjectId) {
 					throw new Error('Action quickAction missing abilityId or sourceObjectId.');
 				}
-				await this.executeActivateAbilityAction(playerId, action.sourceObjectId, action.abilityId, action.targets);
-				console.log(`[PlayerActionHandler] ${playerId} used quick action: ${action.abilityId} on ${action.sourceObjectId}`);
+				await this.executeActivateAbilityAction(
+					playerId,
+					action.sourceObjectId,
+					action.abilityId,
+					action.targets
+				);
+				console.log(
+					`[PlayerActionHandler] ${playerId} used quick action: ${action.abilityId} on ${action.sourceObjectId}`
+				);
 				turnEnds = false;
 				break;
 
 			case 'expandMana':
 				// cardToExpandId should be part of the action if a specific card is chosen prior to execution
-				if (!action.cardToExpandId && !action.cardId) throw new Error('No card specified for expandMana action.');
+				if (!action.cardToExpandId && !action.cardId)
+					throw new Error('No card specified for expandMana action.');
 				const cardToExpand = action.cardToExpandId || action.cardId; // Use cardId if cardToExpandId isn't filled
-				if(!cardToExpand) throw new Error('No card ID found for expandMana action.');
+				if (!cardToExpand) throw new Error('No card ID found for expandMana action.');
 				await this.executeExpandAction(playerId, cardToExpand);
 				console.log(`[PlayerActionHandler] Player ${playerId} expanded a card to mana.`);
 				turnEnds = false;
@@ -339,7 +392,11 @@ export class PlayerActionHandler {
 				if (!action.sourceOrbId || !action.targetOrbId) {
 					throw new Error('Action convertManaOrb missing sourceOrbId or targetOrbId.');
 				}
-				const converted = this.gsm.manaSystem.convertMana(playerId, action.sourceOrbId, action.targetOrbId);
+				const converted = this.gsm.manaSystem.convertMana(
+					playerId,
+					action.sourceOrbId,
+					action.targetOrbId
+				);
 				if (!converted) {
 					console.warn(`[PlayerActionHandler] Mana conversion failed for player ${playerId}.`);
 				} else {
@@ -370,7 +427,15 @@ export class PlayerActionHandler {
 		scoutRawCost?: number
 		// Tough cost payment will be handled inside CardPlaySystem.playCard or EffectProcessor if it's for effect targets
 	): Promise<void> {
-		await this.gsm.cardPlaySystem.playCard(playerId, cardId, fromZone, selectedExpeditionType, targets, isScoutPlay, scoutRawCost);
+		await this.gsm.cardPlaySystem.playCard(
+			playerId,
+			cardId,
+			fromZone,
+			selectedExpeditionType,
+			targets,
+			isScoutPlay,
+			scoutRawCost
+		);
 		await this.gsm.resolveReactions(this.gsm.state);
 	}
 
@@ -393,9 +458,10 @@ export class PlayerActionHandler {
 			...(sourceObject.currentCharacteristics.abilities || []),
 			...(sourceObject.currentCharacteristics.grantedAbilities || [])
 		];
-		const ability = allAbilities.find(a => a.abilityId === abilityId);
+		const ability = allAbilities.find((a) => a.abilityId === abilityId);
 
-		if (!ability) throw new Error(`Ability ${abilityId} not found on source object ${sourceObjectId}.`);
+		if (!ability)
+			throw new Error(`Ability ${abilityId} not found on source object ${sourceObjectId}.`);
 		if (ability.abilityType !== AbilityType.QuickAction) {
 			throw new Error(`Ability ${abilityId} on ${sourceObjectId} is not a QuickAction.`);
 		}
@@ -403,7 +469,9 @@ export class PlayerActionHandler {
 		const activationLimit = (this.gsm.config as any)?.nothingIsForeverLimit ?? 100;
 		const currentActivations = sourceObject.abilityActivationsToday?.get(abilityId) || 0;
 		if (currentActivations >= activationLimit) {
-			throw new Error(`Quick action ${abilityId} on ${sourceObjectId} has reached its daily activation limit.`);
+			throw new Error(
+				`Quick action ${abilityId} on ${sourceObjectId} has reached its daily activation limit.`
+			);
 		}
 
 		// Step 1: Determine all costs and check if they can be paid (Rule 6.4.c, 6.4.d)
@@ -428,19 +496,29 @@ export class PlayerActionHandler {
 
 		if (combinedManaCost > 0 && !this.gsm.manaSystem.canPayMana(playerId, combinedManaCost)) {
 			canPayAll = false;
-			console.warn(`[PlayerActionHandler] Cannot pay total mana cost ${combinedManaCost} for QA ${abilityId}.`);
+			console.warn(
+				`[PlayerActionHandler] Cannot pay total mana cost ${combinedManaCost} for QA ${abilityId}.`
+			);
 		}
 
 		if (ability.cost?.exhaustSelf && sourceObject.statuses.has(StatusType.Exhausted)) {
 			canPayAll = false;
-			console.warn(`[PlayerActionHandler] Cannot pay exhaustSelf cost for QA ${abilityId}: ${sourceObject.name} already exhausted.`);
+			console.warn(
+				`[PlayerActionHandler] Cannot pay exhaustSelf cost for QA ${abilityId}: ${sourceObject.name} already exhausted.`
+			);
 		}
 
 		if (ability.cost?.discardSelfFromReserve) {
 			const objectZone = this.gsm.findZoneOfObject(sourceObject.objectId);
-			if (!objectZone || objectZone.zoneType !== ZoneIdentifier.Reserve || sourceObject.statuses.has(StatusType.Exhausted)) {
+			if (
+				!objectZone ||
+				objectZone.zoneType !== ZoneIdentifier.Reserve ||
+				sourceObject.statuses.has(StatusType.Exhausted)
+			) {
 				canPayAll = false;
-				console.warn(`[PlayerActionHandler] Cannot pay discardSelfFromReserve cost for QA ${abilityId}.`);
+				console.warn(
+					`[PlayerActionHandler] Cannot pay discardSelfFromReserve cost for QA ${abilityId}.`
+				);
 			}
 		}
 
@@ -448,51 +526,84 @@ export class PlayerActionHandler {
 			const currentCounters = sourceObject.counters.get(ability.cost.spendCounters.type) || 0;
 			if (currentCounters < ability.cost.spendCounters.amount) {
 				canPayAll = false;
-				console.warn(`[PlayerActionHandler] Cannot pay spendCounters cost for QA ${abilityId}: needs ${ability.cost.spendCounters.amount} ${ability.cost.spendCounters.type}, has ${currentCounters}.`);
+				console.warn(
+					`[PlayerActionHandler] Cannot pay spendCounters cost for QA ${abilityId}: needs ${ability.cost.spendCounters.amount} ${ability.cost.spendCounters.type}, has ${currentCounters}.`
+				);
 			}
 		}
 		// TODO: Check other cost types like sacrifice
 
 		if (!canPayAll) {
-			throw new Error(`Player ${playerId} cannot pay all costs for QA ${abilityId} on ${sourceObject.name}.`);
+			throw new Error(
+				`Player ${playerId} cannot pay all costs for QA ${abilityId} on ${sourceObject.name}.`
+			);
 		}
 
 		// Step 2: Pay all costs simultaneously (Rule 6.4.a)
 		if (combinedManaCost > 0) {
 			await this.gsm.manaSystem.spendMana(playerId, combinedManaCost);
-			console.log(`[PlayerActionHandler] Player ${playerId} paid total ${combinedManaCost} mana for QA ${abilityId}.`);
+			console.log(
+				`[PlayerActionHandler] Player ${playerId} paid total ${combinedManaCost} mana for QA ${abilityId}.`
+			);
 		}
 		if (ability.cost?.exhaustSelf) {
 			sourceObject.statuses.add(StatusType.Exhausted);
-			this.gsm.eventBus.publish('objectStatusChanged', { object: sourceObject, status: StatusType.Exhausted, added: true });
+			this.gsm.eventBus.publish('objectStatusChanged', {
+				object: sourceObject,
+				status: StatusType.Exhausted,
+				added: true
+			});
 			console.log(`[PlayerActionHandler] Exhausted ${sourceObject.name} for QA ${abilityId}.`);
 		}
 		if (ability.cost?.discardSelfFromReserve) {
 			// Re-fetch player in case of changes, though unlikely for this operation sequence
 			const currentSourcePlayer = this.gsm.getPlayer(playerId);
-			if (currentSourcePlayer) { // Check if player still exists
-				this.gsm.moveEntity(sourceObjectId, currentSourcePlayer.zones.reserveZone, currentSourcePlayer.zones.discardPileZone, playerId);
-				console.log(`[PlayerActionHandler] Discarded ${sourceObject.name} from Reserve for QA ${abilityId}.`);
+			if (currentSourcePlayer) {
+				// Check if player still exists
+				this.gsm.moveEntity(
+					sourceObjectId,
+					currentSourcePlayer.zones.reserveZone,
+					currentSourcePlayer.zones.discardPileZone,
+					playerId
+				);
+				console.log(
+					`[PlayerActionHandler] Discarded ${sourceObject.name} from Reserve for QA ${abilityId}.`
+				);
 			} else {
 				// This case should be rare, implies player was removed mid-action.
 				throw new Error(`Player ${playerId} not found when attempting to discard from reserve.`);
 			}
 		}
 		if (ability.cost?.spendCounters) {
-			this.gsm.removeCounters(sourceObject.objectId, ability.cost.spendCounters.type, ability.cost.spendCounters.amount);
-			console.log(`[PlayerActionHandler] Spent ${ability.cost.spendCounters.amount} ${ability.cost.spendCounters.type} counters from ${sourceObject.name} for QA ${abilityId}.`);
+			this.gsm.removeCounters(
+				sourceObject.objectId,
+				ability.cost.spendCounters.type,
+				ability.cost.spendCounters.amount
+			);
+			console.log(
+				`[PlayerActionHandler] Spent ${ability.cost.spendCounters.amount} ${ability.cost.spendCounters.type} counters from ${sourceObject.name} for QA ${abilityId}.`
+			);
 		}
 		// TODO: Pay other cost types
 
 		// Step 3: Resolve effect
-		await this.gsm.effectProcessor.resolveEffect(ability.effect, sourceObject, targets, (ability as any)._triggerPayload );
-		console.log(`[PlayerActionHandler] Resolved effect for QA ${abilityId} from ${sourceObject.name}.`);
+		await this.gsm.effectProcessor.resolveEffect(
+			ability.effect,
+			sourceObject,
+			targets,
+			(ability as any)._triggerPayload
+		);
+		console.log(
+			`[PlayerActionHandler] Resolved effect for QA ${abilityId} from ${sourceObject.name}.`
+		);
 
 		if (!sourceObject.abilityActivationsToday) {
 			sourceObject.abilityActivationsToday = new Map<string, number>();
 		}
 		sourceObject.abilityActivationsToday.set(abilityId, currentActivations + 1);
-		console.log(`[PlayerActionHandler] Incremented QA count for ${abilityId} on ${sourceObject.name} to ${currentActivations + 1}.`);
+		console.log(
+			`[PlayerActionHandler] Incremented QA count for ${abilityId} on ${sourceObject.name} to ${currentActivations + 1}.`
+		);
 
 		await this.gsm.resolveReactions(this.gsm.state);
 	}
@@ -507,7 +618,6 @@ export class PlayerActionHandler {
 	// private async payManaCost(playerId: string, cost: number): Promise<void> { ... }
 	// private getAvailableQuickActions(playerId: string): PlayerAction[] { ... } // Old synchronous version
 	// private async executeQuickAction(playerId: string, abilityId: string, sourceObjectId: string): Promise<void> { ... } // Old version
-
 
 	/**
 	 * Gets available expand action for a player.
@@ -532,7 +642,7 @@ export class PlayerActionHandler {
 		// The PhaseManager will simulate this choice for now.
 		return {
 			type: 'expandMana',
-			description: 'Expand a card from your hand to your Mana zone.',
+			description: 'Expand a card from your hand to your Mana zone.'
 		};
 	}
 
@@ -564,7 +674,9 @@ export class PlayerActionHandler {
 		);
 
 		if (!movedEntity || !isGameObject(movedEntity)) {
-			throw new Error(`Failed to move card ${cardIdToExpand} to mana zone or it did not become a GameObject.`);
+			throw new Error(
+				`Failed to move card ${cardIdToExpand} to mana zone or it did not become a GameObject.`
+			);
 		}
 		const newManaOrb = movedEntity as IGameObject;
 
@@ -579,21 +691,30 @@ export class PlayerActionHandler {
 
 		player.hasExpandedThisTurn = true; // Set flag
 
-		console.log(`[PlayerActionHandler] Player ${playerId} expanded card ${cardIdToExpand} into a Mana Orb ${newManaOrb.objectId}.`);
+		console.log(
+			`[PlayerActionHandler] Player ${playerId} expanded card ${cardIdToExpand} into a Mana Orb ${newManaOrb.objectId}.`
+		);
 	}
 
-	public async chooseReaction(playerId: string, availableReactions: IEmblemObject[]): Promise<string | null> {
+	public async chooseReaction(
+		playerId: string,
+		availableReactions: IEmblemObject[]
+	): Promise<string | null> {
 		if (availableReactions.length === 0) {
 			return null;
 		}
 		// TODO: Implement actual player choice mechanism here.
 		// For now, mimics the old behavior: sorts by timestamp and picks the oldest.
-		console.log(`[PlayerActionHandler] Player ${playerId} needs to choose a reaction from ${availableReactions.length} available.`);
+		console.log(
+			`[PlayerActionHandler] Player ${playerId} needs to choose a reaction from ${availableReactions.length} available.`
+		);
 
 		availableReactions.sort((a, b) => a.timestamp - b.timestamp);
 		const chosenReaction = availableReactions[0];
 
-		console.log(`[PlayerActionHandler] Auto-choosing oldest reaction: ${chosenReaction.name} (ID: ${chosenReaction.objectId}) for player ${playerId}.`);
+		console.log(
+			`[PlayerActionHandler] Auto-choosing oldest reaction: ${chosenReaction.name} (ID: ${chosenReaction.objectId}) for player ${playerId}.`
+		);
 		return chosenReaction.objectId;
 	}
 
@@ -608,8 +729,11 @@ export class PlayerActionHandler {
 		objectsInZone: IGameObject[],
 		limit: number,
 		zoneType: 'reserve' | 'landmark' // To slightly customize logging if needed
-	): Promise<string[]> { // Returns IDs of objects to discard/sacrifice
-		console.log(`[PlayerActionHandler] Player ${playerId} choosing for ${zoneType} zone. Have ${objectsInZone.length}, limit ${limit}.`);
+	): Promise<string[]> {
+		// Returns IDs of objects to discard/sacrifice
+		console.log(
+			`[PlayerActionHandler] Player ${playerId} choosing for ${zoneType} zone. Have ${objectsInZone.length}, limit ${limit}.`
+		);
 
 		if (objectsInZone.length <= limit) {
 			return []; // No objects to discard
@@ -623,16 +747,22 @@ export class PlayerActionHandler {
 		// if that sort is maintained before calling this, this simulation would discard the lowest value items.
 		// For robustness, let's assume objectsInZone might not be pre-sorted in a specific way the player desires.
 		// A simple simulation: keep the objects with the smallest timestamps.
-		const sortedObjects = [...objectsInZone].sort((a, b) => (a.timestamp ?? 0) - (b.timestamp ?? 0));
+		const sortedObjects = [...objectsInZone].sort(
+			(a, b) => (a.timestamp ?? 0) - (b.timestamp ?? 0)
+		);
 
 		const objectsToKeep = sortedObjects.slice(0, limit);
 		const objectsToDiscard = sortedObjects.slice(limit);
 
-		const keptIds = objectsToKeep.map(obj => obj.objectId);
-		const discardIds = objectsToDiscard.map(obj => obj.objectId);
+		const keptIds = objectsToKeep.map((obj) => obj.objectId);
+		const discardIds = objectsToDiscard.map((obj) => obj.objectId);
 
-		console.log(`[PlayerActionHandler] Player ${playerId} (simulated) keeping in ${zoneType}: ${objectsToKeep.map(o => o.name + '(' + o.objectId.substring(0,3) + ')').join(', ')}`);
-		console.log(`[PlayerActionHandler] Player ${playerId} (simulated) discarding from ${zoneType}: ${objectsToDiscard.map(o => o.name + '(' + o.objectId.substring(0,3) + ')').join(', ')}`);
+		console.log(
+			`[PlayerActionHandler] Player ${playerId} (simulated) keeping in ${zoneType}: ${objectsToKeep.map((o) => o.name + '(' + o.objectId.substring(0, 3) + ')').join(', ')}`
+		);
+		console.log(
+			`[PlayerActionHandler] Player ${playerId} (simulated) discarding from ${zoneType}: ${objectsToDiscard.map((o) => o.name + '(' + o.objectId.substring(0, 3) + ')').join(', ')}`
+		);
 
 		return discardIds;
 	}
@@ -642,22 +772,30 @@ export class PlayerActionHandler {
 	 * For this subtask, simulates the choice.
 	 * Rule 4.2.1.e
 	 */
-	public async promptPlayerForExpandChoice(playerId: string): Promise<{ cardToExpandId: string | null }> {
+	public async promptPlayerForExpandChoice(
+		playerId: string
+	): Promise<{ cardToExpandId: string | null }> {
 		const player = this.gsm.getPlayer(playerId);
 		if (!player) {
-			console.warn(`[PlayerActionHandler.promptPlayerForExpandChoice] Player ${playerId} not found.`);
+			console.warn(
+				`[PlayerActionHandler.promptPlayerForExpandChoice] Player ${playerId} not found.`
+			);
 			return { cardToExpandId: null };
 		}
 
 		const handCards = player.zones.handZone.getAll();
 		if (handCards.length === 0) {
-			console.log(`[PlayerActionHandler.promptPlayerForExpandChoice] Player ${playerId} has no cards in hand to expand.`);
+			console.log(
+				`[PlayerActionHandler.promptPlayerForExpandChoice] Player ${playerId} has no cards in hand to expand.`
+			);
 			return { cardToExpandId: null };
 		}
 
 		// Simulate player decision (50% chance to expand)
 		if (Math.random() < 0.5) {
-			console.log(`[PlayerActionHandler.promptPlayerForExpandChoice] Player ${playerId} (simulated) chose NOT to expand.`);
+			console.log(
+				`[PlayerActionHandler.promptPlayerForExpandChoice] Player ${playerId} (simulated) chose NOT to expand.`
+			);
 			return { cardToExpandId: null };
 		}
 
@@ -667,7 +805,9 @@ export class PlayerActionHandler {
 		// Card in hand can be ICardInstance or IGameObject. We need instanceId for executeExpandAction if it's ICardInstance.
 		const chosenCardId = isGameObject(chosenCard) ? chosenCard.objectId : chosenCard.instanceId;
 
-		console.log(`[PlayerActionHandler.promptPlayerForExpandChoice] Player ${playerId} (simulated) chose to expand card: ${chosenCard.definitionId} (ID: ${chosenCardId}).`);
+		console.log(
+			`[PlayerActionHandler.promptPlayerForExpandChoice] Player ${playerId} (simulated) chose to expand card: ${chosenCard.definitionId} (ID: ${chosenCardId}).`
+		);
 		return { cardToExpandId: chosenCardId };
 	}
 }

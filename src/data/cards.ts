@@ -102,20 +102,22 @@ export function getAllCards(): AlteredCard[] {
 }
 
 export function getCardById(id: string): AlteredCard | null {
-	return processedCards.find(card => card.id === id) || null;
+	return processedCards.find((card) => card.id === id) || null;
 }
 
 export function searchCards(query: string): AlteredCard[] {
 	if (!query.trim()) return processedCards;
-	
+
 	const normalizedQuery = query.toLowerCase().trim();
-	return processedCards.filter(card => 
-		card.name.toLowerCase().includes(normalizedQuery) ||
-		card.type.toLowerCase().includes(normalizedQuery) ||
-		(card.faction && card.faction.toLowerCase().includes(normalizedQuery)) ||
-		card.rarity.toLowerCase().includes(normalizedQuery) ||
-		(card.description && card.description.toLowerCase().includes(normalizedQuery)) ||
-		(card.keywords && card.keywords.some(keyword => keyword.toLowerCase().includes(normalizedQuery)))
+	return processedCards.filter(
+		(card) =>
+			card.name.toLowerCase().includes(normalizedQuery) ||
+			card.type.toLowerCase().includes(normalizedQuery) ||
+			(card.faction && card.faction.toLowerCase().includes(normalizedQuery)) ||
+			card.rarity.toLowerCase().includes(normalizedQuery) ||
+			(card.description && card.description.toLowerCase().includes(normalizedQuery)) ||
+			(card.keywords &&
+				card.keywords.some((keyword) => keyword.toLowerCase().includes(normalizedQuery)))
 	);
 }
 
@@ -127,13 +129,15 @@ export function filterCards(filters: {
 	minCost?: number;
 	maxCost?: number;
 }): AlteredCard[] {
-	return processedCards.filter(card => {
+	return processedCards.filter((card) => {
 		if (filters.faction && card.faction !== filters.faction) return false;
 		if (filters.type && card.type !== filters.type) return false;
 		if (filters.rarity && card.rarity !== filters.rarity) return false;
 		if (filters.cost !== undefined && card.cost !== filters.cost) return false;
-		if (filters.minCost !== undefined && (card.cost === undefined || card.cost < filters.minCost)) return false;
-		if (filters.maxCost !== undefined && (card.cost === undefined || card.cost > filters.maxCost)) return false;
+		if (filters.minCost !== undefined && (card.cost === undefined || card.cost < filters.minCost))
+			return false;
+		if (filters.maxCost !== undefined && (card.cost === undefined || card.cost > filters.maxCost))
+			return false;
 		return true;
 	});
 }

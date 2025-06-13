@@ -1,5 +1,12 @@
 import type { IAbility } from './abilities';
-import type { CardType, Faction, Rarity, PermanentZoneType, CounterType, CardSubType } from './enums';
+import type {
+	CardType,
+	Faction,
+	Rarity,
+	PermanentZoneType,
+	CounterType,
+	CardSubType
+} from './enums';
 
 /**
  * Represents the static, immutable data of a card as printed.

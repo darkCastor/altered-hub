@@ -143,7 +143,11 @@ describe('ManaSystem - Mana and Terrain Rules', () => {
 			sourceOrb.statuses.add(StatusType.Exhausted); // Source is exhausted
 			targetOrb.statuses.add(StatusType.Exhausted); // Target is exhausted
 
-			const conversionResult = manaSystem.convertMana(player.id, sourceOrb.objectId, targetOrb.objectId);
+			const conversionResult = manaSystem.convertMana(
+				player.id,
+				sourceOrb.objectId,
+				targetOrb.objectId
+			);
 
 			expect(conversionResult).toBe(false);
 			expect(sourceOrb.statuses.has(StatusType.Exhausted)).toBe(true); // Remains exhausted
@@ -162,7 +166,11 @@ describe('ManaSystem - Mana and Terrain Rules', () => {
 			sourceOrb.statuses.delete(StatusType.Exhausted); // Source is ready
 			targetOrb.statuses.delete(StatusType.Exhausted); // Target is ready
 
-			const conversionResult = manaSystem.convertMana(player.id, sourceOrb.objectId, targetOrb.objectId);
+			const conversionResult = manaSystem.convertMana(
+				player.id,
+				sourceOrb.objectId,
+				targetOrb.objectId
+			);
 
 			expect(conversionResult).toBe(false);
 			expect(sourceOrb.statuses.has(StatusType.Exhausted)).toBe(false); // Remains ready
@@ -179,7 +187,11 @@ describe('ManaSystem - Mana and Terrain Rules', () => {
 			validOrb.statuses.delete(StatusType.Exhausted); // Make it ready
 
 			// Test 1: Invalid source ID
-			let conversionResult = manaSystem.convertMana(player.id, 'invalid-source-id', validOrb.objectId);
+			let conversionResult = manaSystem.convertMana(
+				player.id,
+				'invalid-source-id',
+				validOrb.objectId
+			);
 			expect(conversionResult).toBe(false);
 
 			// Test 2: Invalid target ID (source needs to be valid and ready, target exhausted)
@@ -190,10 +202,13 @@ describe('ManaSystem - Mana and Terrain Rules', () => {
 			// This part of the test is tricky because the target must be exhausted.
 			// If we use a valid orb as source, and an invalid as target, the target won't be found.
 			// The function should return false early.
-			conversionResult = manaSystem.convertMana(player.id, sourceOrbForTargetTest.objectId, 'invalid-target-id');
+			conversionResult = manaSystem.convertMana(
+				player.id,
+				sourceOrbForTargetTest.objectId,
+				'invalid-target-id'
+			);
 			expect(conversionResult).toBe(false);
 		});
-
 
 		test('Rule 3.2.9.f: Should pay X mana by exhausting X Mana Orbs', () => {
 			const player = gameStateManager.getPlayer('player1');
@@ -405,8 +420,10 @@ describe('ManaSystem - Mana and Terrain Rules', () => {
 			player.zones.manaZone.clear();
 			expect(player.zones.manaZone.getCount()).toBe(0);
 
-
-			const cardInHand = localGameStateManager.objectFactory.createCardInstance(mockCardDef.id, 'player1');
+			const cardInHand = localGameStateManager.objectFactory.createCardInstance(
+				mockCardDef.id,
+				'player1'
+			);
 			player.zones.handZone.add(cardInHand);
 			player.hasExpandedThisTurn = false;
 

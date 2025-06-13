@@ -29,7 +29,6 @@ const createCard = (gsm: GameStateManager, defId: string, playerId: string): ICa
 	return gsm.objectFactory.createCardInstance(defId, playerId);
 };
 
-
 describe('EffectProcessor - Resupply Effect', () => {
 	let gsm: GameStateManager;
 	let effectProcessor: EffectProcessor;
@@ -126,8 +125,12 @@ describe('EffectProcessor - Resupply Effect', () => {
 		expect(player.zones.reserveZone.getCount()).toBe(2);
 		const reserveCards = player.zones.reserveZone.getAll();
 		// Order in reserve might not be guaranteed, check for presence
-		expect(reserveCards.some(rc => isGameObject(rc) && rc.definitionId === cardDef1.id)).toBe(true);
-		expect(reserveCards.some(rc => isGameObject(rc) && rc.definitionId === cardDef2.id)).toBe(true);
+		expect(reserveCards.some((rc) => isGameObject(rc) && rc.definitionId === cardDef1.id)).toBe(
+			true
+		);
+		expect(reserveCards.some((rc) => isGameObject(rc) && rc.definitionId === cardDef2.id)).toBe(
+			true
+		);
 
 		expect(deckZone.getCount()).toBe(1);
 		expect(deckZone.getAll()[0].definitionId).toBe(cardDef3.id); // c3 should be left
@@ -140,8 +143,14 @@ describe('EffectProcessor - Resupply Effect', () => {
 
 		// Setup Discard: d1, d2
 		// Note: discard pile objects are IGameObject. When reshuffled, they become ICardInstance.
-		const d1Discard = gsm.objectFactory.createGameObject(createCard(gsm, cardDef1.id, player1Id), player1Id);
-		const d2Discard = gsm.objectFactory.createGameObject(createCard(gsm, cardDef2.id, player1Id), player1Id);
+		const d1Discard = gsm.objectFactory.createGameObject(
+			createCard(gsm, cardDef1.id, player1Id),
+			player1Id
+		);
+		const d2Discard = gsm.objectFactory.createGameObject(
+			createCard(gsm, cardDef2.id, player1Id),
+			player1Id
+		);
 		discardPile.add(d1Discard);
 		discardPile.add(d2Discard);
 
@@ -161,7 +170,7 @@ describe('EffectProcessor - Resupply Effect', () => {
 
 		expect(shuffleSpy).toHaveBeenCalled();
 		expect(discardPile.getCount()).toBe(0); // Discard should be empty
-		expect(deckZone.getCount()).toBe(1);    // 1 card left in deck
+		expect(deckZone.getCount()).toBe(1); // 1 card left in deck
 		expect(player.zones.reserveZone.getCount()).toBe(1); // 1 card resupplied
 
 		const reserveCard = player.zones.reserveZone.getAll()[0] as IGameObject;
@@ -176,7 +185,10 @@ describe('EffectProcessor - Resupply Effect', () => {
 		const discardPile = player.zones.discardPileZone;
 
 		// Setup Discard: d1
-		const d1Discard = gsm.objectFactory.createGameObject(createCard(gsm, cardDef1.id, player1Id), player1Id);
+		const d1Discard = gsm.objectFactory.createGameObject(
+			createCard(gsm, cardDef1.id, player1Id),
+			player1Id
+		);
 		discardPile.add(d1Discard);
 
 		const resupplyEffectStep: IEffectStep = {
@@ -224,34 +236,47 @@ describe('EffectProcessor - Create Token Effect', () => {
 	beforeEach(async () => {
 		eventBus = new EventBus();
 		player1Id = 'player1';
-		mockTokenDef = { id: 'token-goblin', name: 'Goblin Token', type: CardType.Token, statistics: { forest: 1, mountain: 1, water: 0 }, abilities: [], handCost:{total:0}, reserveCost:{total:0}, faction:'Neutral', rarity:'Token', version:'1' };
+		mockTokenDef = {
+			id: 'token-goblin',
+			name: 'Goblin Token',
+			type: CardType.Token,
+			statistics: { forest: 1, mountain: 1, water: 0 },
+			abilities: [],
+			handCost: { total: 0 },
+			reserveCost: { total: 0 },
+			faction: 'Neutral',
+			rarity: 'Token',
+			version: '1'
+		};
 
 		gsm = new GameStateManager([player1Id], [mockTokenDef], eventBus);
 		await gsm.initializeGame();
 		effectProcessor = gsm.effectProcessor;
 
 		// Mock objectFactory calls that are relevant
-		jest.spyOn(gsm.objectFactory, 'createTokenObjectById').mockImplementation((definitionId, controllerId) => {
-			if (definitionId === mockTokenDef.id) {
-				const tokenGameObject = {
-					objectId: `token-${Math.random().toString(36).substring(7)}`,
-					definitionId: mockTokenDef.id,
-					name: mockTokenDef.name,
-					type: CardType.Token,
-					baseCharacteristics: { ...mockTokenDef },
-					currentCharacteristics: { ...mockTokenDef },
-					ownerId: controllerId,
-					controllerId: controllerId,
-					statuses: new Set(),
-					counters: new Map(),
-					abilities: [], // Assuming tokens can have abilities from definition
-					expeditionAssignment: undefined, // Will be set by effect
-					timestamp: Date.now(),
-				} as IGameObject;
-				return tokenGameObject;
-			}
-			return null;
-		});
+		jest
+			.spyOn(gsm.objectFactory, 'createTokenObjectById')
+			.mockImplementation((definitionId, controllerId) => {
+				if (definitionId === mockTokenDef.id) {
+					const tokenGameObject = {
+						objectId: `token-${Math.random().toString(36).substring(7)}`,
+						definitionId: mockTokenDef.id,
+						name: mockTokenDef.name,
+						type: CardType.Token,
+						baseCharacteristics: { ...mockTokenDef },
+						currentCharacteristics: { ...mockTokenDef },
+						ownerId: controllerId,
+						controllerId: controllerId,
+						statuses: new Set(),
+						counters: new Map(),
+						abilities: [], // Assuming tokens can have abilities from definition
+						expeditionAssignment: undefined, // Will be set by effect
+						timestamp: Date.now()
+					} as IGameObject;
+					return tokenGameObject;
+				}
+				return null;
+			});
 		jest.spyOn(gsm.state.sharedZones.expedition, 'add');
 		jest.spyOn(gsm.eventBus, 'publish');
 	});
@@ -263,7 +288,7 @@ describe('EffectProcessor - Create Token Effect', () => {
 			parameters: {
 				tokenDefinitionId: 'token-goblin',
 				destinationExpeditionType: 'hero',
-				controllerId: player1Id, // Explicitly set controller
+				controllerId: player1Id // Explicitly set controller
 			}
 		};
 		// Source object is not strictly needed if controllerId is in params
@@ -272,33 +297,40 @@ describe('EffectProcessor - Create Token Effect', () => {
 		expect(gsm.objectFactory.createTokenObjectById).toHaveBeenCalledWith('token-goblin', player1Id);
 		expect(gsm.state.sharedZones.expedition.add).toHaveBeenCalled();
 
-		const addedToken = (gsm.state.sharedZones.expedition.add as jest.Mock).mock.calls[0][0] as IGameObject;
+		const addedToken = (gsm.state.sharedZones.expedition.add as jest.Mock).mock
+			.calls[0][0] as IGameObject;
 		expect(addedToken).toBeDefined();
 		expect(addedToken.definitionId).toBe('token-goblin');
 		expect(addedToken.controllerId).toBe(player1Id);
 		expect(addedToken.expeditionAssignment).toEqual({ playerId: player1Id, type: 'hero' });
-		expect(gsm.eventBus.publish).toHaveBeenCalledWith('objectCreated', { object: addedToken, zone: gsm.state.sharedZones.expedition });
+		expect(gsm.eventBus.publish).toHaveBeenCalledWith('objectCreated', {
+			object: addedToken,
+			zone: gsm.state.sharedZones.expedition
+		});
 	});
 
 	test('create_token defaults controller to source object controller if not in parameters', async () => {
-		const sourceObject = gsm.objectFactory.createGameObjectFromDefinition(createMockCardDef('srcDef', 'Source Card'), player1Id);
+		const sourceObject = gsm.objectFactory.createGameObjectFromDefinition(
+			createMockCardDef('srcDef', 'Source Card'),
+			player1Id
+		);
 		// Add source object to a zone so it's "in play" conceptually for the test
 		gsm.getPlayer(player1Id)!.zones.reserveZone.add(sourceObject);
-
 
 		const createTokenStep: IEffectStep = {
 			verb: 'create_token',
 			targets: [],
 			parameters: {
 				tokenDefinitionId: 'token-goblin',
-				destinationExpeditionType: 'companion',
+				destinationExpeditionType: 'companion'
 				// No controllerId, should default from sourceObject
 			}
 		};
 		await effectProcessor.resolveEffect({ steps: [createTokenStep] }, sourceObject);
 
 		expect(gsm.objectFactory.createTokenObjectById).toHaveBeenCalledWith('token-goblin', player1Id);
-		const addedToken = (gsm.state.sharedZones.expedition.add as jest.Mock).mock.calls[0][0] as IGameObject;
+		const addedToken = (gsm.state.sharedZones.expedition.add as jest.Mock).mock
+			.calls[0][0] as IGameObject;
 		expect(addedToken.controllerId).toBe(player1Id); // Defaulted to sourceObject's controller
 		expect(addedToken.expeditionAssignment).toEqual({ playerId: player1Id, type: 'companion' });
 	});
@@ -333,7 +365,13 @@ describe('EffectProcessor - Move Expedition Effect', () => {
 		};
 		await effectProcessor.resolveEffect({ steps: [moveStep] });
 		expect(player1.expeditionState.heroPosition).toBe(2);
-		expect(gsm.eventBus.publish).toHaveBeenCalledWith('expeditionMoved', { playerId: player1Id, type: 'hero', oldPosition: 1, newPosition: 2, distance: 1 });
+		expect(gsm.eventBus.publish).toHaveBeenCalledWith('expeditionMoved', {
+			playerId: player1Id,
+			type: 'hero',
+			oldPosition: 1,
+			newPosition: 2,
+			distance: 1
+		});
 	});
 
 	test('move_backward should decrement companion expedition position', async () => {
@@ -345,7 +383,13 @@ describe('EffectProcessor - Move Expedition Effect', () => {
 		};
 		await effectProcessor.resolveEffect({ steps: [moveStep] });
 		expect(player1.expeditionState.companionPosition).toBe(2);
-		expect(gsm.eventBus.publish).toHaveBeenCalledWith('expeditionMoved', { playerId: player1Id, type: 'companion', oldPosition: 3, newPosition: 2, distance: -1 });
+		expect(gsm.eventBus.publish).toHaveBeenCalledWith('expeditionMoved', {
+			playerId: player1Id,
+			type: 'companion',
+			oldPosition: 3,
+			newPosition: 2,
+			distance: -1
+		});
 	});
 
 	test('move_forward should affect both expeditions if targetExpeditionType is "both"', async () => {
@@ -359,8 +403,20 @@ describe('EffectProcessor - Move Expedition Effect', () => {
 		await effectProcessor.resolveEffect({ steps: [moveStep] });
 		expect(player1.expeditionState.heroPosition).toBe(2);
 		expect(player1.expeditionState.companionPosition).toBe(3);
-		expect(gsm.eventBus.publish).toHaveBeenCalledWith('expeditionMoved', { playerId: player1Id, type: 'hero', oldPosition: 1, newPosition: 2, distance: 1 });
-		expect(gsm.eventBus.publish).toHaveBeenCalledWith('expeditionMoved', { playerId: player1Id, type: 'companion', oldPosition: 2, newPosition: 3, distance: 1 });
+		expect(gsm.eventBus.publish).toHaveBeenCalledWith('expeditionMoved', {
+			playerId: player1Id,
+			type: 'hero',
+			oldPosition: 1,
+			newPosition: 2,
+			distance: 1
+		});
+		expect(gsm.eventBus.publish).toHaveBeenCalledWith('expeditionMoved', {
+			playerId: player1Id,
+			type: 'companion',
+			oldPosition: 2,
+			newPosition: 3,
+			distance: 1
+		});
 	});
 
 	test('move_forward should not exceed maxPosition', async () => {
@@ -375,8 +431,11 @@ describe('EffectProcessor - Move Expedition Effect', () => {
 		// Event might publish with newPosition === oldPosition or not at all if no actual move
 		// Current effectMove implementation would publish if oldPos !== newPos. If they are same, no event.
 		// Let's check it wasn't called with values indicating a move beyond max.
-		const heroMoveCall = (gsm.eventBus.publish as jest.Mock).mock.calls.find(call => call[0] === 'expeditionMoved' && call[1].type === 'hero');
-		if (heroMoveCall) { // If it was called (e.g. if position was < 4 and tried to go > 4)
+		const heroMoveCall = (gsm.eventBus.publish as jest.Mock).mock.calls.find(
+			(call) => call[0] === 'expeditionMoved' && call[1].type === 'hero'
+		);
+		if (heroMoveCall) {
+			// If it was called (e.g. if position was < 4 and tried to go > 4)
 			expect(heroMoveCall[1].newPosition).toBeLessThanOrEqual(4);
 		}
 	});
@@ -446,7 +505,7 @@ describe('EffectProcessor - Sacrifice Effect', () => {
 		expect(gsm.eventBus.publish).toHaveBeenCalledWith('objectSacrificed', {
 			objectId: objectToSacrifice.objectId,
 			definitionId: objectToSacrifice.definitionId,
-			fromZoneId: player1.zones.landmarkZone.id,
+			fromZoneId: player1.zones.landmarkZone.id
 		});
 	});
 });
@@ -544,7 +603,7 @@ describe('EffectProcessor - Gain/Lose Counters Effect', () => {
 			parameters: { counterType: 'CustomCounter' as CounterType, amount: 3 }
 		};
 		await effectProcessor.resolveEffect({ steps: [loseStep] });
-		expect(targetObject.counters.get('CustomCounter'as CounterType)).toBe(0);
+		expect(targetObject.counters.get('CustomCounter' as CounterType)).toBe(0);
 	});
 });
 
@@ -585,7 +644,12 @@ describe('EffectProcessor - Roll Die and If Condition Effects', () => {
 
 		let capturedContext: any;
 		const originalResolveEffectStep = (effectProcessor as any).resolveEffectStep;
-		(effectProcessor as any).resolveEffectStep = async (step: IEffectStep, srcObj: IGameObject, ctx: any, targets: any[]) => {
+		(effectProcessor as any).resolveEffectStep = async (
+			step: IEffectStep,
+			srcObj: IGameObject,
+			ctx: any,
+			targets: any[]
+		) => {
 			capturedContext = ctx; // Capture the context
 			return originalResolveEffectStep.call(effectProcessor, step, srcObj, ctx, targets);
 		};
@@ -602,8 +666,16 @@ describe('EffectProcessor - Roll Die and If Condition Effects', () => {
 	});
 
 	test('if_condition should execute "then_steps" if condition (based on die roll) is true', async () => {
-		const thenStep: IEffectStep = { verb: 'draw_cards', targets: [player1Id], parameters: { count: 1, uniqueMarker: 'thenBranch' } };
-		const elseStep: IEffectStep = { verb: 'draw_cards', targets: [player1Id], parameters: { count: 99, uniqueMarker: 'elseBranch' } }; // Different params to distinguish
+		const thenStep: IEffectStep = {
+			verb: 'draw_cards',
+			targets: [player1Id],
+			parameters: { count: 1, uniqueMarker: 'thenBranch' }
+		};
+		const elseStep: IEffectStep = {
+			verb: 'draw_cards',
+			targets: [player1Id],
+			parameters: { count: 99, uniqueMarker: 'elseBranch' }
+		}; // Different params to distinguish
 
 		const rollDieStep: IEffectStep = { verb: 'roll_die', parameters: { storeAs: 'testRoll' } };
 		const ifStep: IEffectStep = {
@@ -621,15 +693,32 @@ describe('EffectProcessor - Roll Die and If Condition Effects', () => {
 
 		await effectProcessor.resolveEffect({ steps: [rollDieStep, ifStep] }, sourceObject);
 
-		expect((effectProcessor as any).effectDrawCards).toHaveBeenCalledWith(expect.objectContaining({parameters: expect.objectContaining({uniqueMarker: 'thenBranch'})}), expect.anything());
-		expect((effectProcessor as any).effectDrawCards).not.toHaveBeenCalledWith(expect.objectContaining({parameters: expect.objectContaining({uniqueMarker: 'elseBranch'})}));
+		expect((effectProcessor as any).effectDrawCards).toHaveBeenCalledWith(
+			expect.objectContaining({
+				parameters: expect.objectContaining({ uniqueMarker: 'thenBranch' })
+			}),
+			expect.anything()
+		);
+		expect((effectProcessor as any).effectDrawCards).not.toHaveBeenCalledWith(
+			expect.objectContaining({
+				parameters: expect.objectContaining({ uniqueMarker: 'elseBranch' })
+			})
+		);
 
 		global.Math = Object.getPrototypeOf(mockMath); // Restore Math.random
 	});
 
 	test('if_condition should execute "else_steps" if condition (based on die roll) is false', async () => {
-		const thenStep: IEffectStep = { verb: 'draw_cards', targets: [player1Id], parameters: { count: 1, uniqueMarker: 'thenBranch' } };
-		const elseStep: IEffectStep = { verb: 'draw_cards', targets: [player1Id], parameters: { count: 99, uniqueMarker: 'elseBranch' } };
+		const thenStep: IEffectStep = {
+			verb: 'draw_cards',
+			targets: [player1Id],
+			parameters: { count: 1, uniqueMarker: 'thenBranch' }
+		};
+		const elseStep: IEffectStep = {
+			verb: 'draw_cards',
+			targets: [player1Id],
+			parameters: { count: 99, uniqueMarker: 'elseBranch' }
+		};
 
 		const rollDieStep: IEffectStep = { verb: 'roll_die', parameters: { storeAs: 'testRoll' } };
 		const ifStep: IEffectStep = {
@@ -647,8 +736,17 @@ describe('EffectProcessor - Roll Die and If Condition Effects', () => {
 
 		await effectProcessor.resolveEffect({ steps: [rollDieStep, ifStep] }, sourceObject);
 
-		expect((effectProcessor as any).effectDrawCards).not.toHaveBeenCalledWith(expect.objectContaining({parameters: expect.objectContaining({uniqueMarker: 'thenBranch'})}));
-		expect((effectProcessor as any).effectDrawCards).toHaveBeenCalledWith(expect.objectContaining({parameters: expect.objectContaining({uniqueMarker: 'elseBranch'})}), expect.anything());
+		expect((effectProcessor as any).effectDrawCards).not.toHaveBeenCalledWith(
+			expect.objectContaining({
+				parameters: expect.objectContaining({ uniqueMarker: 'thenBranch' })
+			})
+		);
+		expect((effectProcessor as any).effectDrawCards).toHaveBeenCalledWith(
+			expect.objectContaining({
+				parameters: expect.objectContaining({ uniqueMarker: 'elseBranch' })
+			}),
+			expect.anything()
+		);
 
 		global.Math = Object.getPrototypeOf(mockMath); // Restore Math.random
 	});

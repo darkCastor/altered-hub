@@ -50,7 +50,7 @@ export enum CardSubType {
 
 	// Other specific sub-types if they arise
 	Gear = 'Gear', // For Permanents that are Gear
-	Trap = 'Trap'  // For Permanents that are Traps
+	Trap = 'Trap' // For Permanents that are Traps
 }
 
 export enum PermanentZoneType {
@@ -130,7 +130,7 @@ export enum ZoneIdentifier {
 export enum ModifierType {
 	ReplaceStep = 'ReplaceStep',
 	AddStepBefore = 'AddStepBefore',
-	AddStepAfter = 'AddStepAfter',
+	AddStepAfter = 'AddStepAfter'
 }
 
 export enum AbilityType {

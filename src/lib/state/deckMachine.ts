@@ -75,7 +75,6 @@ type DeckEvents =
 	| { type: 'ERROR'; message: string } // General error
 	| { type: 'CLEAR_ERROR' };
 
-
 export const deckMachine = setup({
 	types: {
 		context: {} as DeckContext,

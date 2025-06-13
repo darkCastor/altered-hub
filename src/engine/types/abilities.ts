@@ -1,4 +1,11 @@
-import type { CounterType, KeywordAbility, CardType, ZoneIdentifier, StatusType, ModifierType } from './enums';
+import type {
+	CounterType,
+	KeywordAbility,
+	CardType,
+	ZoneIdentifier,
+	StatusType,
+	ModifierType
+} from './enums';
 import type { IGameObject, ICardInstance } from './objects';
 import type { GameStateManager } from '../GameStateManager';
 
@@ -21,9 +28,11 @@ export interface ICost {
  * Used with a verb like 'DEFINE_PASSIVE_GRANT_ON_PLAY'.
  */
 export interface PassiveGrantOnPlayParameters {
-	itemToGrant: { type: 'counter'; counterType: CounterType; amount: number } |
-	             { type: 'status'; statusType: StatusType };
-	targetCriteria?: { // Criteria for the card being played
+	itemToGrant:
+		| { type: 'counter'; counterType: CounterType; amount: number }
+		| { type: 'status'; statusType: StatusType };
+	targetCriteria?: {
+		// Criteria for the card being played
 		cardType?: CardType[];
 		faction?: string;
 		definitionId?: string;
@@ -34,7 +43,6 @@ export interface PassiveGrantOnPlayParameters {
 	sourceCondition?: any; // Example: { type: 'check_object_characteristic', characteristic: 'isReady', value: true }
 }
 
-
 /**
  * Represents a single step within an effect's resolution.
  * Rule 1.2.6, 6.5
@@ -42,37 +50,40 @@ export interface PassiveGrantOnPlayParameters {
 export interface IEffectStep {
 	verb: string; // e.g., 'draw', 'createToken', 'gainStatus', 'gainCounter'
 	targets: 'self' | 'controller' | { type: 'select'; criteria: unknown }; // Target selection
-	parameters?: {
-		// Common parameters
-		count?: number | string; // Can be a number or a string key for a value in currentContext._effectRuntimeValues
-		repeat?: number | string; // For repeating the step X times
-		targetKey?: string; // To pick a specific target from preSelectedTargets
+	parameters?:
+		| {
+				// Common parameters
+				count?: number | string; // Can be a number or a string key for a value in currentContext._effectRuntimeValues
+				repeat?: number | string; // For repeating the step X times
+				targetKey?: string; // To pick a specific target from preSelectedTargets
 
-		// Verb-specific parameters
-		tokenDefinitionId?: string; // For create_token
-		destinationExpeditionType?: 'hero' | 'companion' | 'source_assigned_or_choice'; // For create_token
-		controllerId?: string; // For create_token, change_controller
-		ability?: any; // For gain_ability (should be IAbilityDefinition structure)
-		counterType?: CounterType; // For gain_counters, lose_counters, augment_counters
-		amount?: number; // For gain_counters, lose_counters
-		statusType?: StatusType; // For gain_status, lose_status
-		destinationZoneIdentifier?: ZoneIdentifier | 'source_expeditions_choice'; // For put_in_zone
-		sourceObjectForContextOverrideId?: string; // For put_in_zone with 'source_expeditions_choice'
-		cardIds?: string[]; // For discard_cards (specific cards)
+				// Verb-specific parameters
+				tokenDefinitionId?: string; // For create_token
+				destinationExpeditionType?: 'hero' | 'companion' | 'source_assigned_or_choice'; // For create_token
+				controllerId?: string; // For create_token, change_controller
+				ability?: any; // For gain_ability (should be IAbilityDefinition structure)
+				counterType?: CounterType; // For gain_counters, lose_counters, augment_counters
+				amount?: number; // For gain_counters, lose_counters
+				statusType?: StatusType; // For gain_status, lose_status
+				destinationZoneIdentifier?: ZoneIdentifier | 'source_expeditions_choice'; // For put_in_zone
+				sourceObjectForContextOverrideId?: string; // For put_in_zone with 'source_expeditions_choice'
+				cardIds?: string[]; // For discard_cards (specific cards)
 
-		// For IF_CONDITION verb
-		condition?: any; // Define specific condition structure, e.g., { type: 'compare_runtime_value', key: string, operator: string, value: any } or { type: 'check_game_state', ... }
-		then_steps?: IEffectStep[];
-		else_steps?: IEffectStep[];
+				// For IF_CONDITION verb
+				condition?: any; // Define specific condition structure, e.g., { type: 'compare_runtime_value', key: string, operator: string, value: any } or { type: 'check_game_state', ... }
+				then_steps?: IEffectStep[];
+				else_steps?: IEffectStep[];
 
-		// For CHOOSE_MODE verb
-		prompt?: string;
-		modes?: { [choiceKey: string]: IEffectStep[] }; // Key: choice identifier, Value: array of steps for that mode
-		chooseCount?: number;
+				// For CHOOSE_MODE verb
+				prompt?: string;
+				modes?: { [choiceKey: string]: IEffectStep[] }; // Key: choice identifier, Value: array of steps for that mode
+				chooseCount?: number;
 
-		// For MODIFY_PLAY_COST (already part of union via ModifyPlayCostParameters)
-		[key: string]: any; // Allows other verb-specific parameters & ModifyPlayCostParameters
-	} | ModifyPlayCostParameters | undefined;
+				// For MODIFY_PLAY_COST (already part of union via ModifyPlayCostParameters)
+				[key: string]: any; // Allows other verb-specific parameters & ModifyPlayCostParameters
+		  }
+		| ModifyPlayCostParameters
+		| undefined;
 	isOptional?: boolean; // For "may" effects (Rule 1.2.6.d, 6.5.c)
 	canBeModified?: boolean; // Defaults to true. If false, this step cannot be further modified.
 }
@@ -171,7 +182,7 @@ export interface IModifier {
 	};
 
 	replacementEffectStep?: IEffectStep; // For ReplaceStep
-	additionalEffectStep?: IEffectStep;  // For AddStepBefore/AddStepAfter
+	additionalEffectStep?: IEffectStep; // For AddStepBefore/AddStepAfter
 
 	canBeModified?: boolean; // Defaults to true. If false, this modifier's effect step cannot be modified.
 }

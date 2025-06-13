@@ -104,7 +104,8 @@ export class ObjectFactory {
 		sourceObject: IGameObject, // This is the object that *has* the reaction ability
 		triggerPayload: unknown
 	): IEmblemObject {
-		if (!sourceObject.objectId) { // Changed from sourceAbility.sourceObjectId for clarity
+		if (!sourceObject.objectId) {
+			// Changed from sourceAbility.sourceObjectId for clarity
 			throw new Error('Cannot create emblem from an ability not bound to a valid object.');
 		}
 
@@ -129,7 +130,7 @@ export class ObjectFactory {
 			controllerId: sourceObject.controllerId,
 			// Last known statuses and counters might be important
 			statuses: new Set(sourceObject.statuses), // Shallow copy of set content
-			counters: new Map(sourceObject.counters), // Shallow copy of map content
+			counters: new Map(sourceObject.counters) // Shallow copy of map content
 			// Zone information is not directly on IGameObject, but could be passed via triggerPayload if needed
 		};
 
@@ -155,7 +156,7 @@ export class ObjectFactory {
 			statuses: new Set(),
 			counters: new Map(),
 			abilities: [],
-			boundEffect: boundEffect,
+			boundEffect: boundEffect
 			// abilityActivationsToday can be omitted for emblems as they don't have abilities to activate
 		};
 

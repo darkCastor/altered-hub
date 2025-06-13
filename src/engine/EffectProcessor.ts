@@ -10,15 +10,20 @@ export class EffectProcessor {
 
 	constructor(private gsm: GameStateManager) {}
 
-	public async resolveEffect(effect: IEffect, sourceObject?: IGameObject, targets?: any[], triggerContext?: any): Promise<void> {
+	public async resolveEffect(
+		effect: IEffect,
+		sourceObject?: IGameObject,
+		targets?: any[],
+		triggerContext?: any
+	): Promise<void> {
 		const sourceIdForLog = effect.sourceObjectId || sourceObject?.objectId || 'unknown source';
 		console.log(
 			`[EffectProcessor] Resolving effect from ${sourceIdForLog} with ${effect.steps.length} steps. Trigger: ${triggerContext ? JSON.stringify(triggerContext) : 'none'}`
 		);
 
 		const currentContext = {
-			...(effect._triggerPayload as object || {}),
-			...(triggerContext as object || {}),
+			...((effect._triggerPayload as object) || {}),
+			...((triggerContext as object) || {}),
 			_effectRuntimeValues: {}
 		};
 
@@ -36,7 +41,10 @@ export class EffectProcessor {
 				if (repeatParam) {
 					if (typeof repeatParam === 'number') {
 						repeatCount = repeatParam;
-					} else if (typeof repeatParam === 'string' && currentContext._effectRuntimeValues[repeatParam] !== undefined) {
+					} else if (
+						typeof repeatParam === 'string' &&
+						currentContext._effectRuntimeValues[repeatParam] !== undefined
+					) {
 						repeatCount = Number(currentContext._effectRuntimeValues[repeatParam]);
 					}
 					repeatCount = Math.max(1, Math.floor(repeatCount));
@@ -45,7 +53,9 @@ export class EffectProcessor {
 
 				for (let i = 0; i < repeatCount; i++) {
 					if (repeatCount > 1) {
-						console.log(`[EffectProcessor] Repeating step ${step.verb} (iteration ${i + 1}/${repeatCount})`);
+						console.log(
+							`[EffectProcessor] Repeating step ${step.verb} (iteration ${i + 1}/${repeatCount})`
+						);
 					}
 					currentContext._currentIterationIndex = i;
 					await this.resolveSingleStep(step, baseSourceObjectForEffect, currentContext, targets);
@@ -78,12 +88,14 @@ export class EffectProcessor {
 		// Ensure sourceObjectOfStep is valid if context relies on it.
 		// If sourceObjectForContext is null/undefined, some criteria might not evaluate correctly.
 		// This might require passing a "system" or "game" object if sourceObjectOfStep is truly null.
-		if (!modifierContext.sourceObjectOfStep && (originalStep.targets === 'self' || originalStep.targets === 'controller')) {
+		if (
+			!modifierContext.sourceObjectOfStep &&
+			(originalStep.targets === 'self' || originalStep.targets === 'controller')
+		) {
 			// If targets imply a source object but it's null, this step might be problematic anyway.
 			// For modifiers, if sourceObjectOfStep is needed by criteria, those would fail.
 			// console.warn(`[EffectProcessor] Modifier context created without a sourceObjectOfStep for step: ${originalStep.verb}`);
 		}
-
 
 		const activeModifiers = this.gsm.ruleAdjudicator.getActiveModifiers(modifierContext);
 
@@ -93,19 +105,32 @@ export class EffectProcessor {
 
 		// Handle canBeModified on the originalStep
 		if (originalStep.canBeModified === false) {
-			console.log(`[EffectProcessor] Original step ${originalStep.verb} cannot be modified. Executing directly.`);
-			mainStepExecutedSuccessfully = await this.executeStepLogic(originalStep, sourceObjectForContext, currentContext, preSelectedTargets);
+			console.log(
+				`[EffectProcessor] Original step ${originalStep.verb} cannot be modified. Executing directly.`
+			);
+			mainStepExecutedSuccessfully = await this.executeStepLogic(
+				originalStep,
+				sourceObjectForContext,
+				currentContext,
+				preSelectedTargets
+			);
 			currentContext._effectRuntimeValues[`step_${originalStep.verb}_processed`] = true;
-			currentContext._effectRuntimeValues[`step_${originalStep.verb}_did_execute`] = mainStepExecutedSuccessfully;
+			currentContext._effectRuntimeValues[`step_${originalStep.verb}_did_execute`] =
+				mainStepExecutedSuccessfully;
 			return mainStepExecutedSuccessfully;
 		}
 
 		// Apply Replacing Modifiers
-		const replacingModifiers = activeModifiers.filter(m => m.modifierType === ModifierType.ReplaceStep && m.replacementEffectStep);
+		const replacingModifiers = activeModifiers.filter(
+			(m) => m.modifierType === ModifierType.ReplaceStep && m.replacementEffectStep
+		);
 		if (replacingModifiers.length > 0) {
 			const replacingModifier = replacingModifiers[0]; // Already sorted by priority
-			if (replacingModifier.replacementEffectStep) { // Extra check for type safety
-				console.log(`[EffectProcessor] Step ${originalStep.verb} from ${sourceObjectForContext?.name || 'system'} is REPLACED by modifier ${replacingModifier.modifierId} (Source: ${replacingModifier.sourceObjectId}).`);
+			if (replacingModifier.replacementEffectStep) {
+				// Extra check for type safety
+				console.log(
+					`[EffectProcessor] Step ${originalStep.verb} from ${sourceObjectForContext?.name || 'system'} is REPLACED by modifier ${replacingModifier.modifierId} (Source: ${replacingModifier.sourceObjectId}).`
+				);
 				stepToExecute = replacingModifier.replacementEffectStep;
 				stepHasBeenReplaced = true;
 				// If the replacement step itself cannot be modified, this needs to be respected by subsequent AddStepBefore/After.
@@ -114,47 +139,80 @@ export class EffectProcessor {
 		}
 
 		// Execute AddStepBefore Modifiers
-		const addBeforeModifiers = activeModifiers.filter(m => m.modifierType === ModifierType.AddStepBefore && m.additionalEffectStep);
-		for (const modifier of addBeforeModifiers) { // Assumes already sorted by priority
+		const addBeforeModifiers = activeModifiers.filter(
+			(m) => m.modifierType === ModifierType.AddStepBefore && m.additionalEffectStep
+		);
+		for (const modifier of addBeforeModifiers) {
+			// Assumes already sorted by priority
 			if (stepHasBeenReplaced) {
 				// Rule 6.2.i: If a step is replaced, additive modifiers that would have applied to the original step do not apply
 				// unless their conditions also match the replacement step.
 				// For simplicity here, if step was replaced, we skip AddStepBefore that targeted original.
 				// A more advanced implementation might re-evaluate modifier.applicationCriteria against stepToExecute.
-				console.log(`[EffectProcessor] Skipping AddStepBefore modifier ${modifier.modifierId} as original step was replaced.`);
+				console.log(
+					`[EffectProcessor] Skipping AddStepBefore modifier ${modifier.modifierId} as original step was replaced.`
+				);
 				continue;
 			}
-			if (modifier.additionalEffectStep) { // Extra check
-				console.log(`[EffectProcessor] Executing AddStepBefore modifier ${modifier.modifierId} (Source: ${modifier.sourceObjectId}) before step ${stepToExecute.verb}.`);
+			if (modifier.additionalEffectStep) {
+				// Extra check
+				console.log(
+					`[EffectProcessor] Executing AddStepBefore modifier ${modifier.modifierId} (Source: ${modifier.sourceObjectId}) before step ${stepToExecute.verb}.`
+				);
 				// The additional step's own `canBeModified` flag will be checked in its own `resolveSingleStep` call.
-				await this.resolveSingleStep(modifier.additionalEffectStep, sourceObjectForContext, currentContext, preSelectedTargets);
+				await this.resolveSingleStep(
+					modifier.additionalEffectStep,
+					sourceObjectForContext,
+					currentContext,
+					preSelectedTargets
+				);
 			}
 		}
 
 		// Execute the Main Step (original or replacement)
-		if (stepToExecute) { // stepToExecute could potentially be made null by a future modifier type
+		if (stepToExecute) {
+			// stepToExecute could potentially be made null by a future modifier type
 			// If the stepToExecute (which could be a replacement) itself cannot be modified,
 			// this was implicitly handled if it became stepToExecute *from* a replacement modifier.
 			// If originalStep was canBeModified: false, we wouldn't be here.
 			// If replacementStep is canBeModified: false, AddStepBefore/After targeting *it* would be skipped in their own recursive calls.
-			mainStepExecutedSuccessfully = await this.executeStepLogic(stepToExecute, sourceObjectForContext, currentContext, preSelectedTargets);
+			mainStepExecutedSuccessfully = await this.executeStepLogic(
+				stepToExecute,
+				sourceObjectForContext,
+				currentContext,
+				preSelectedTargets
+			);
 		}
 
 		// Execute AddStepAfter Modifiers
-		const addAfterModifiers = activeModifiers.filter(m => m.modifierType === ModifierType.AddStepAfter && m.additionalEffectStep);
-		for (const modifier of addAfterModifiers) { // Assumes already sorted by priority
+		const addAfterModifiers = activeModifiers.filter(
+			(m) => m.modifierType === ModifierType.AddStepAfter && m.additionalEffectStep
+		);
+		for (const modifier of addAfterModifiers) {
+			// Assumes already sorted by priority
 			if (stepHasBeenReplaced) {
-				console.log(`[EffectProcessor] Skipping AddStepAfter modifier ${modifier.modifierId} as original step was replaced.`);
+				console.log(
+					`[EffectProcessor] Skipping AddStepAfter modifier ${modifier.modifierId} as original step was replaced.`
+				);
 				continue;
 			}
-			if (modifier.additionalEffectStep) { // Extra check
-				console.log(`[EffectProcessor] Executing AddStepAfter modifier ${modifier.modifierId} (Source: ${modifier.sourceObjectId}) after step ${stepToExecute.verb}.`);
-				await this.resolveSingleStep(modifier.additionalEffectStep, sourceObjectForContext, currentContext, preSelectedTargets);
+			if (modifier.additionalEffectStep) {
+				// Extra check
+				console.log(
+					`[EffectProcessor] Executing AddStepAfter modifier ${modifier.modifierId} (Source: ${modifier.sourceObjectId}) after step ${stepToExecute.verb}.`
+				);
+				await this.resolveSingleStep(
+					modifier.additionalEffectStep,
+					sourceObjectForContext,
+					currentContext,
+					preSelectedTargets
+				);
 			}
 		}
 
 		currentContext._effectRuntimeValues[`step_${originalStep.verb}_processed`] = true; // Mark original step as processed
-		currentContext._effectRuntimeValues[`step_${originalStep.verb}_did_execute`] = mainStepExecutedSuccessfully; // Reflects if the core logic (original or replacement) ran
+		currentContext._effectRuntimeValues[`step_${originalStep.verb}_did_execute`] =
+			mainStepExecutedSuccessfully; // Reflects if the core logic (original or replacement) ran
 
 		return mainStepExecutedSuccessfully; // Return success of the main executed step (original or replacement)
 	}
@@ -168,30 +226,48 @@ export class EffectProcessor {
 	): Promise<boolean> {
 		let verbExecutionSuccessful = true; // Assume success, specific verbs can set to false
 
-		if (stepToExecute.isOptional && stepToExecute.canBeModified !== false) { // Re-check optional if it's a replacement step that's optional
+		if (stepToExecute.isOptional && stepToExecute.canBeModified !== false) {
+			// Re-check optional if it's a replacement step that's optional
 			const controller = sourceObjectForContext?.controllerId || this.gsm.state.currentPlayerId;
 			// If originalStep was optional and skipped, we wouldn't reach here for its logic.
 			// This check is for if the stepToExecute (e.g. a replacement) is itself optional.
 			const alreadyProcessedOptionalChoiceKey = `_optional_choice_made_for_${stepToExecute.verb}_${sourceObjectForContext?.objectId}`;
-			if (!currentContext[alreadyProcessedOptionalChoiceKey]) { // Avoid re-prompting for the same optional replacement step
-				const shouldExecute = await this.gsm.actionHandler.promptForOptionalStepChoice(controller, stepToExecute);
+			if (!currentContext[alreadyProcessedOptionalChoiceKey]) {
+				// Avoid re-prompting for the same optional replacement step
+				const shouldExecute = await this.gsm.actionHandler.promptForOptionalStepChoice(
+					controller,
+					stepToExecute
+				);
 				currentContext[alreadyProcessedOptionalChoiceKey] = true; // Mark that choice has been made for this instance
 				if (!shouldExecute) {
-					console.log(`[EffectProcessor] Player ${controller} chose NOT to execute optional (replacement/modified) effect step: ${stepToExecute.verb}`);
+					console.log(
+						`[EffectProcessor] Player ${controller} chose NOT to execute optional (replacement/modified) effect step: ${stepToExecute.verb}`
+					);
 					return false; // Optional step skipped
 				}
 			}
 		}
 
-		const targetsForThisStep = await this.resolveTargetsForStep(stepToExecute.targets, sourceObjectForContext, currentContext, preSelectedTargets, stepToExecute.parameters?.targetKey);
+		const targetsForThisStep = await this.resolveTargetsForStep(
+			stepToExecute.targets,
+			sourceObjectForContext,
+			currentContext,
+			preSelectedTargets,
+			stepToExecute.parameters?.targetKey
+		);
 
 		console.log(
-			`[EffectProcessor - executeStepLogic] Executing ${stepToExecute.verb} for source ${sourceObjectForContext?.name || 'system'}, targeting: ${targetsForThisStep.map(t => (isGameObject(t) ? t.name : t)).join(', ')}`
+			`[EffectProcessor - executeStepLogic] Executing ${stepToExecute.verb} for source ${sourceObjectForContext?.name || 'system'}, targeting: ${targetsForThisStep.map((t) => (isGameObject(t) ? t.name : t)).join(', ')}`
 		);
 
 		switch (stepToExecute.verb.toLowerCase()) {
 			case 'choose_mode':
-				verbExecutionSuccessful = await this.effectChooseMode(stepToExecute, sourceObjectForContext, currentContext, preSelectedTargets);
+				verbExecutionSuccessful = await this.effectChooseMode(
+					stepToExecute,
+					sourceObjectForContext,
+					currentContext,
+					preSelectedTargets
+				);
 				break;
 			case 'draw':
 			case 'draw_cards':
@@ -273,7 +349,12 @@ export class EffectProcessor {
 				await this.effectRollDie(stepToExecute, sourceObjectForContext, currentContext);
 				break;
 			case 'if_condition':
-				verbExecutionSuccessful = await this.effectIfCondition(stepToExecute, sourceObjectForContext, currentContext, preSelectedTargets);
+				verbExecutionSuccessful = await this.effectIfCondition(
+					stepToExecute,
+					sourceObjectForContext,
+					currentContext,
+					preSelectedTargets
+				);
 				break;
 			case 'play_for_free':
 				await this.effectPlayCardForFree(stepToExecute, sourceObjectForContext, currentContext);
@@ -282,17 +363,25 @@ export class EffectProcessor {
 				await this.effectSwitchExpedition(stepToExecute, targetsForThisStep);
 				break;
 			default:
-				console.warn(`[EffectProcessor - executeStepLogic] Unknown effect verb: ${stepToExecute.verb}`);
+				console.warn(
+					`[EffectProcessor - executeStepLogic] Unknown effect verb: ${stepToExecute.verb}`
+				);
 				verbExecutionSuccessful = false;
 		}
 		return verbExecutionSuccessful;
 	}
 
-	private async effectChooseMode(step: IEffectStep, sourceObjectForContext: IGameObject | undefined | null, currentContext: any, preSelectedTargets?: any[]): Promise<boolean> {
+	private async effectChooseMode(
+		step: IEffectStep,
+		sourceObjectForContext: IGameObject | undefined | null,
+		currentContext: any,
+		preSelectedTargets?: any[]
+	): Promise<boolean> {
 		const controllerId = sourceObjectForContext?.controllerId || this.gsm.state.currentPlayerId;
 		const modes = step.parameters?.modes as { [choiceKey: string]: IEffectStep[] } | undefined;
-		const chooseCount = typeof step.parameters?.chooseCount === 'number' ? step.parameters.chooseCount : 1;
-		const promptText = step.parameters?.prompt as string || 'Choose mode(s):';
+		const chooseCount =
+			typeof step.parameters?.chooseCount === 'number' ? step.parameters.chooseCount : 1;
+		const promptText = (step.parameters?.prompt as string) || 'Choose mode(s):';
 
 		if (!modes || Object.keys(modes).length === 0) {
 			console.warn('[EffectProcessor.effectChooseMode] No modes defined for CHOOSE_MODE verb.');
@@ -307,7 +396,9 @@ export class EffectProcessor {
 		);
 
 		if (chosenModeKeys.length === 0) {
-			console.log(`[EffectProcessor.effectChooseMode] Player ${controllerId} chose no modes or choice was invalid.`);
+			console.log(
+				`[EffectProcessor.effectChooseMode] Player ${controllerId} chose no modes or choice was invalid.`
+			);
 			return false;
 		}
 
@@ -322,162 +413,267 @@ export class EffectProcessor {
 					_triggerPayload: currentContext._triggerPayload,
 					_lkiSourceObject: sourceObjectForContext
 				};
-				await this.resolveEffect(subEffect, sourceObjectForContext, preSelectedTargets, currentContext);
+				await this.resolveEffect(
+					subEffect,
+					sourceObjectForContext,
+					preSelectedTargets,
+					currentContext
+				);
 			} else {
-				console.warn(`[EffectProcessor.effectChooseMode] No steps found for chosen mode key: ${modeKey}`);
+				console.warn(
+					`[EffectProcessor.effectChooseMode] No steps found for chosen mode key: ${modeKey}`
+				);
 				allChosenModesAttempted = false;
 			}
 		}
 		return allChosenModesAttempted;
 	}
 
-	private async effectDrawCards(step: IEffectStep, targets: (IGameObject | string)[]): Promise<void> {
+	private async effectDrawCards(
+		step: IEffectStep,
+		targets: (IGameObject | string)[]
+	): Promise<void> {
 		const count = typeof step.parameters?.count === 'number' ? step.parameters.count : 1;
-		const playerIds = targets.map(target => typeof target === 'string' ? target : isGameObject(target) ? target.controllerId : null)
-			.filter(id => id !== null) as string[];
+		const playerIds = targets
+			.map((target) =>
+				typeof target === 'string' ? target : isGameObject(target) ? target.controllerId : null
+			)
+			.filter((id) => id !== null) as string[];
 
 		if (playerIds.length > 0) {
-			await this._processEffectForEachPlayerSequentially(playerIds, step, async (playerId, currentStep) => {
-				await this.gsm.drawCards(playerId, count);
-			});
+			await this._processEffectForEachPlayerSequentially(
+				playerIds,
+				step,
+				async (playerId, currentStep) => {
+					await this.gsm.drawCards(playerId, count);
+				}
+			);
 		}
 	}
 
-	private async effectDiscardCards(step: IEffectStep, targets: (IGameObject | string)[]): Promise<void> {
+	private async effectDiscardCards(
+		step: IEffectStep,
+		targets: (IGameObject | string)[]
+	): Promise<void> {
 		const count = typeof step.parameters?.count === 'number' ? step.parameters.count : 1;
 		// specificCardIds can be objectIds or instanceIds, resolved from IGameObject properties later
 		const specificCardIdsParam = step.parameters?.cardIds as string[] | undefined;
 
-		const playerIds = targets.map(target => typeof target === 'string' ? target : isGameObject(target) ? target.controllerId : null)
-			.filter(id => id !== null) as string[];
+		const playerIds = targets
+			.map((target) =>
+				typeof target === 'string' ? target : isGameObject(target) ? target.controllerId : null
+			)
+			.filter((id) => id !== null) as string[];
 
 		if (playerIds.length > 0) {
-			await this._processEffectForEachPlayerSequentially(playerIds, step, async (playerId, currentStep) => {
-				const player = this.gsm.getPlayer(playerId);
-				if (!player) return;
+			await this._processEffectForEachPlayerSequentially(
+				playerIds,
+				step,
+				async (playerId, currentStep) => {
+					const player = this.gsm.getPlayer(playerId);
+					if (!player) return;
 
-				const currentHandObjects = player.zones.handZone.getAll(); // IGameObject[]
-				let cardsToActuallyDiscard: IGameObject[] = [];
+					const currentHandObjects = player.zones.handZone.getAll(); // IGameObject[]
+					let cardsToActuallyDiscard: IGameObject[] = [];
 
-				if (specificCardIdsParam) {
-					cardsToActuallyDiscard = currentHandObjects.filter(card =>
-						specificCardIdsParam.includes(card.objectId) || specificCardIdsParam.includes(card.instanceId)
-					);
-				} else {
-					if (currentHandObjects.length <= count) {
-						cardsToActuallyDiscard = [...currentHandObjects];
+					if (specificCardIdsParam) {
+						cardsToActuallyDiscard = currentHandObjects.filter(
+							(card) =>
+								specificCardIdsParam.includes(card.objectId) ||
+								specificCardIdsParam.includes(card.instanceId)
+						);
 					} else {
-						const handCardInstances = currentHandObjects.map(obj => this.gsm.objectStore.getCardInstance(obj.instanceId)).filter(ci => ci) as ICardInstance[];
-						if (handCardInstances.length > 0) {
-							const chosenInstances = await this.gsm.actionHandler.promptForCardChoice(
-								playerId,
-								`Choose ${count} card(s) to discard.`,
-								handCardInstances,
-								count,
-								count
-							);
-							const chosenInstanceIds = chosenInstances.map(ci => ci.instanceId);
-							cardsToActuallyDiscard = currentHandObjects.filter(obj => chosenInstanceIds.includes(obj.instanceId));
+						if (currentHandObjects.length <= count) {
+							cardsToActuallyDiscard = [...currentHandObjects];
+						} else {
+							const handCardInstances = currentHandObjects
+								.map((obj) => this.gsm.objectStore.getCardInstance(obj.instanceId))
+								.filter((ci) => ci) as ICardInstance[];
+							if (handCardInstances.length > 0) {
+								const chosenInstances = await this.gsm.actionHandler.promptForCardChoice(
+									playerId,
+									`Choose ${count} card(s) to discard.`,
+									handCardInstances,
+									count,
+									count
+								);
+								const chosenInstanceIds = chosenInstances.map((ci) => ci.instanceId);
+								cardsToActuallyDiscard = currentHandObjects.filter((obj) =>
+									chosenInstanceIds.includes(obj.instanceId)
+								);
+							}
 						}
 					}
-				}
 
-				if (cardsToActuallyDiscard.length > 0) {
-					for (const cardObj of cardsToActuallyDiscard) {
-						this.gsm.moveEntity(cardObj.objectId, player.zones.handZone, player.zones.discardPileZone, playerId);
+					if (cardsToActuallyDiscard.length > 0) {
+						for (const cardObj of cardsToActuallyDiscard) {
+							this.gsm.moveEntity(
+								cardObj.objectId,
+								player.zones.handZone,
+								player.zones.discardPileZone,
+								playerId
+							);
+						}
+						this.gsm.eventBus.publish('cardsDiscarded', {
+							playerId,
+							count: cardsToActuallyDiscard.length,
+							cardIds: cardsToActuallyDiscard.map((c) => c.objectId)
+						});
+						console.log(
+							`[EffectProcessor] Player ${playerId} discarded ${cardsToActuallyDiscard.length} cards.`
+						);
 					}
-					this.gsm.eventBus.publish('cardsDiscarded', {
-						playerId,
-						count: cardsToActuallyDiscard.length,
-						cardIds: cardsToActuallyDiscard.map(c => c.objectId)
-					});
-					console.log(`[EffectProcessor] Player ${playerId} discarded ${cardsToActuallyDiscard.length} cards.`);
 				}
-			});
+			);
 		}
 	}
 
-	private async effectResupply(step: IEffectStep, targets: (IGameObject | string)[]): Promise<void> {
+	private async effectResupply(
+		step: IEffectStep,
+		targets: (IGameObject | string)[]
+	): Promise<void> {
 		const count = typeof step.parameters?.count === 'number' ? step.parameters.count : 1;
-		const playerIds = targets.map(target => typeof target === 'string' ? target : isGameObject(target) ? target.controllerId : null)
-			.filter(id => id !== null) as string[];
+		const playerIds = targets
+			.map((target) =>
+				typeof target === 'string' ? target : isGameObject(target) ? target.controllerId : null
+			)
+			.filter((id) => id !== null) as string[];
 
 		if (playerIds.length > 0) {
-			await this._processEffectForEachPlayerSequentially(playerIds, step, async (playerId, currentStep) => {
-				let resuppliedCount = 0;
-				for (let i = 0; i < count; i++) {
-					const cardMoved = await this.gsm.resupplyPlayer(playerId);
-					if (cardMoved) resuppliedCount++; else break;
+			await this._processEffectForEachPlayerSequentially(
+				playerIds,
+				step,
+				async (playerId, currentStep) => {
+					let resuppliedCount = 0;
+					for (let i = 0; i < count; i++) {
+						const cardMoved = await this.gsm.resupplyPlayer(playerId);
+						if (cardMoved) resuppliedCount++;
+						else break;
+					}
+					if (resuppliedCount > 0) {
+						this.gsm.eventBus.publish('cardsResupplied', { playerId, count: resuppliedCount });
+						console.log(
+							`[EffectProcessor] Player ${playerId} resupplied ${resuppliedCount} cards.`
+						);
+					}
 				}
-				if (resuppliedCount > 0) {
-					this.gsm.eventBus.publish('cardsResupplied', { playerId, count: resuppliedCount });
-					console.log(`[EffectProcessor] Player ${playerId} resupplied ${resuppliedCount} cards.`);
-				}
-			});
+			);
 		}
 	}
 
-	private async effectMoveExpedition(step: IEffectStep, targets: (IGameObject | string)[], direction: 1 | -1): Promise<void> {
+	private async effectMoveExpedition(
+		step: IEffectStep,
+		targets: (IGameObject | string)[],
+		direction: 1 | -1
+	): Promise<void> {
 		if (this.gsm.state.tiebreakerMode) {
-			console.log("[EffectProcessor] Cannot move expeditions during Tiebreaker Arena mode.");
+			console.log('[EffectProcessor] Cannot move expeditions during Tiebreaker Arena mode.');
 			return;
 		}
 		const count = typeof step.parameters?.count === 'number' ? step.parameters.count : 1;
 		const distance = count * direction;
-		const targetExpeditionType = step.parameters?.targetExpeditionType as 'hero' | 'companion' | 'both' | undefined;
+		const targetExpeditionType = step.parameters?.targetExpeditionType as
+			| 'hero'
+			| 'companion'
+			| 'both'
+			| undefined;
 
-		const playerIds = targets.map(target => typeof target === 'string' ? target : isGameObject(target) ? target.controllerId : null)
-			.filter(id => id !== null) as string[];
+		const playerIds = targets
+			.map((target) =>
+				typeof target === 'string' ? target : isGameObject(target) ? target.controllerId : null
+			)
+			.filter((id) => id !== null) as string[];
 
 		if (playerIds.length > 0) {
-			await this._processEffectForEachPlayerSequentially(playerIds, step, async (playerId, currentStep) => {
-				const player = this.gsm.getPlayer(playerId);
-				if (!player) return;
+			await this._processEffectForEachPlayerSequentially(
+				playerIds,
+				step,
+				async (playerId, currentStep) => {
+					const player = this.gsm.getPlayer(playerId);
+					if (!player) return;
 
-				const maxPos = this.gsm.getAdventureMaxPosition();
-				const adventureRegions = this.gsm.state.sharedZones.adventure.getAll(); // IGameObject[]
+					const maxPos = this.gsm.getAdventureMaxPosition();
+					const adventureRegions = this.gsm.state.sharedZones.adventure.getAll(); // IGameObject[]
 
-				const moveSingleExpedition = (expType: 'hero' | 'companion') => {
-					const expState = expType === 'hero' ? player.expeditionState.hero : player.expeditionState.companion;
-					const oldPos = expState.position;
-					expState.position = Math.max(0, Math.min(maxPos, expState.position + distance));
+					const moveSingleExpedition = (expType: 'hero' | 'companion') => {
+						const expState =
+							expType === 'hero' ? player.expeditionState.hero : player.expeditionState.companion;
+						const oldPos = expState.position;
+						expState.position = Math.max(0, Math.min(maxPos, expState.position + distance));
 
-					if (expState.position !== oldPos) {
-						console.log(`[EffectProcessor] Player ${playerId} ${expType} expedition moved by ${distance} to ${expState.position}.`);
-						this.gsm.eventBus.publish('expeditionMoved', { playerId, type: expType, newPosition: expState.position, distance });
+						if (expState.position !== oldPos) {
+							console.log(
+								`[EffectProcessor] Player ${playerId} ${expType} expedition moved by ${distance} to ${expState.position}.`
+							);
+							this.gsm.eventBus.publish('expeditionMoved', {
+								playerId,
+								type: expType,
+								newPosition: expState.position,
+								distance
+							});
 
-						if (direction > 0 && expState.position < adventureRegions.length) {
-							const enteredRegion = adventureRegions[expState.position] as IGameObject;
-							if (enteredRegion && enteredRegion.type === CardType.Region && enteredRegion.subTypes?.includes('Tumult') && enteredRegion.faceDown) {
-								enteredRegion.faceDown = false;
-								this.gsm.eventBus.publish('tumultRevealed', { regionId: enteredRegion.objectId });
-								console.log(`[EffectProcessor] Tumult card ${enteredRegion.name} at position ${expState.position} revealed.`);
+							if (direction > 0 && expState.position < adventureRegions.length) {
+								const enteredRegion = adventureRegions[expState.position] as IGameObject;
+								if (
+									enteredRegion &&
+									enteredRegion.type === CardType.Region &&
+									enteredRegion.subTypes?.includes('Tumult') &&
+									enteredRegion.faceDown
+								) {
+									enteredRegion.faceDown = false;
+									this.gsm.eventBus.publish('tumultRevealed', { regionId: enteredRegion.objectId });
+									console.log(
+										`[EffectProcessor] Tumult card ${enteredRegion.name} at position ${expState.position} revealed.`
+									);
+								}
 							}
 						}
-					}
-				};
+					};
 
-				if (targetExpeditionType === 'hero' || targetExpeditionType === 'both' || !targetExpeditionType) {
-					moveSingleExpedition('hero');
+					if (
+						targetExpeditionType === 'hero' ||
+						targetExpeditionType === 'both' ||
+						!targetExpeditionType
+					) {
+						moveSingleExpedition('hero');
+					}
+					if (
+						targetExpeditionType === 'companion' ||
+						targetExpeditionType === 'both' ||
+						!targetExpeditionType
+					) {
+						moveSingleExpedition('companion');
+					}
 				}
-				if (targetExpeditionType === 'companion' || targetExpeditionType === 'both' || !targetExpeditionType) {
-					moveSingleExpedition('companion');
-				}
-			});
+			);
 		}
 	}
 
-	private async effectMoveExpeditionForward(step: IEffectStep, targets: (IGameObject | string)[]): Promise<void> {
+	private async effectMoveExpeditionForward(
+		step: IEffectStep,
+		targets: (IGameObject | string)[]
+	): Promise<void> {
 		await this.effectMoveExpedition(step, targets, 1);
 	}
 
-	private async effectMoveExpeditionBackward(step: IEffectStep, targets: (IGameObject | string)[]): Promise<void> {
+	private async effectMoveExpeditionBackward(
+		step: IEffectStep,
+		targets: (IGameObject | string)[]
+	): Promise<void> {
 		await this.effectMoveExpedition(step, targets, -1);
 	}
 
-	private async effectCreateToken(step: IEffectStep, sourceObjectForContext: IGameObject | undefined | null, currentContext: any): Promise<void> {
+	private async effectCreateToken(
+		step: IEffectStep,
+		sourceObjectForContext: IGameObject | undefined | null,
+		currentContext: any
+	): Promise<void> {
 		const tokenDefinitionId = step.parameters?.tokenDefinitionId as string;
-		let destinationExpeditionType = step.parameters?.destinationExpeditionType as 'hero' | 'companion' | 'source_assigned_or_choice' | undefined;
+		let destinationExpeditionType = step.parameters?.destinationExpeditionType as
+			| 'hero'
+			| 'companion'
+			| 'source_assigned_or_choice'
+			| undefined;
 		let controllerId = step.parameters?.controllerId as string | undefined;
 
 		if (!controllerId && sourceObjectForContext) {
@@ -496,47 +692,77 @@ export class EffectProcessor {
 
 		const definition = this.gsm.getCardDefinition(tokenDefinitionId);
 		if (!definition || definition.type !== CardType.Token) {
-			console.error(`[EffectProcessor] CreateToken: Definition ID ${tokenDefinitionId} is not for a Token card type or definition missing.`);
+			console.error(
+				`[EffectProcessor] CreateToken: Definition ID ${tokenDefinitionId} is not for a Token card type or definition missing.`
+			);
 			return;
 		}
 
-		const tokenObject = this.gsm.objectFactory.createCard(tokenDefinitionId, controllerId) as IGameObject; // createCard returns IGameObject
+		const tokenObject = this.gsm.objectFactory.createCard(
+			tokenDefinitionId,
+			controllerId
+		) as IGameObject; // createCard returns IGameObject
 		if (!tokenObject) {
-			console.error(`[EffectProcessor] Failed to create token object from definitionId: ${tokenDefinitionId} using createCard.`);
+			console.error(
+				`[EffectProcessor] Failed to create token object from definitionId: ${tokenDefinitionId} using createCard.`
+			);
 			return;
 		}
 
-		if (definition.subTypes?.includes('Character')) { // Assuming Character tokens go to expedition
+		if (definition.subTypes?.includes('Character')) {
+			// Assuming Character tokens go to expedition
 			const playerController = this.gsm.getPlayer(controllerId);
 			if (!playerController) {
 				console.error(`[EffectProcessor] CreateToken: Controller ${controllerId} not found.`);
 				return;
 			}
 			if (destinationExpeditionType && destinationExpeditionType !== 'source_assigned_or_choice') {
-				tokenObject.expeditionAssignment = { playerId: controllerId, type: destinationExpeditionType };
-			} else if (destinationExpeditionType === 'source_assigned_or_choice' && sourceObjectForContext) {
+				tokenObject.expeditionAssignment = {
+					playerId: controllerId,
+					type: destinationExpeditionType
+				};
+			} else if (
+				destinationExpeditionType === 'source_assigned_or_choice' &&
+				sourceObjectForContext
+			) {
 				const isSourceGigantic = sourceObjectForContext.currentCharacteristics.isGigantic === true;
 				if (isSourceGigantic) {
-					const chosenType = await this.gsm.actionHandler.promptForExpeditionChoice(controllerId, `Choose expedition for token ${tokenObject.name} from Gigantic source ${sourceObjectForContext.name}`);
+					const chosenType = await this.gsm.actionHandler.promptForExpeditionChoice(
+						controllerId,
+						`Choose expedition for token ${tokenObject.name} from Gigantic source ${sourceObjectForContext.name}`
+					);
 					tokenObject.expeditionAssignment = { playerId: controllerId, type: chosenType };
 				} else {
 					const assignedType = sourceObjectForContext.expeditionAssignment?.type || 'hero';
 					tokenObject.expeditionAssignment = { playerId: controllerId, type: assignedType };
 				}
 			} else {
-				const chosenType = await this.gsm.actionHandler.promptForExpeditionChoice(controllerId, `Choose expedition for token ${tokenObject.name}`);
+				const chosenType = await this.gsm.actionHandler.promptForExpeditionChoice(
+					controllerId,
+					`Choose expedition for token ${tokenObject.name}`
+				);
 				tokenObject.expeditionAssignment = { playerId: controllerId, type: chosenType };
 			}
 			this.gsm.state.sharedZones.expedition.add(tokenObject);
-			this.gsm.eventBus.publish('objectCreated', { object: tokenObject, zone: this.gsm.state.sharedZones.expedition });
-			console.log(`[EffectProcessor] Created token ${tokenObject.name} (ID: ${tokenObject.objectId}) for player ${controllerId} in ${tokenObject.expeditionAssignment?.type} expedition.`);
+			this.gsm.eventBus.publish('objectCreated', {
+				object: tokenObject,
+				zone: this.gsm.state.sharedZones.expedition
+			});
+			console.log(
+				`[EffectProcessor] Created token ${tokenObject.name} (ID: ${tokenObject.objectId}) for player ${controllerId} in ${tokenObject.expeditionAssignment?.type} expedition.`
+			);
 		} else {
 			// Handle other token types if they go to different zones or have no zone (e.g. Mana tokens if they are objects)
-			console.warn(`[EffectProcessor] CreateToken: Token ${tokenObject.name} is not a Character token. Zone placement logic needed.`);
+			console.warn(
+				`[EffectProcessor] CreateToken: Token ${tokenObject.name} is not a Character token. Zone placement logic needed.`
+			);
 		}
 	}
 
-	private async effectGainAbility(step: IEffectStep, targets: (IGameObject | string)[]): Promise<void> {
+	private async effectGainAbility(
+		step: IEffectStep,
+		targets: (IGameObject | string)[]
+	): Promise<void> {
 		const abilityDefinition = step.parameters?.ability as any;
 		if (!abilityDefinition) {
 			console.warn('[EffectProcessor] effectGainAbility called without ability definition.');
@@ -550,18 +776,29 @@ export class EffectProcessor {
 						target.currentCharacteristics.grantedAbilities = [];
 					}
 					target.currentCharacteristics.grantedAbilities.push(newAbility);
-					this.gsm.eventBus.publish('abilityGained', { targetId: target.objectId, abilityId: newAbility.abilityId });
-					console.log(`[EffectProcessor] Target ${target.name} gained ability: ${newAbility.text || newAbility.abilityId}.`);
+					this.gsm.eventBus.publish('abilityGained', {
+						targetId: target.objectId,
+						abilityId: newAbility.abilityId
+					});
+					console.log(
+						`[EffectProcessor] Target ${target.name} gained ability: ${newAbility.text || newAbility.abilityId}.`
+					);
 				} else {
-					console.error(`[EffectProcessor] Failed to create instance for ability ${abilityDefinition.id || 'unknown'} for target ${target.name}.`);
+					console.error(
+						`[EffectProcessor] Failed to create instance for ability ${abilityDefinition.id || 'unknown'} for target ${target.name}.`
+					);
 				}
 			}
 		}
 	}
 
-	private async effectAugmentCounters(step: IEffectStep, targets: (IGameObject | string)[]): Promise<void> {
+	private async effectAugmentCounters(
+		step: IEffectStep,
+		targets: (IGameObject | string)[]
+	): Promise<void> {
 		const counterType = step.parameters?.counterType as CounterType | undefined;
-		const amountToAugment = typeof step.parameters?.amount === 'number' ? step.parameters.amount : 1; // Default to augmenting by 1
+		const amountToAugment =
+			typeof step.parameters?.amount === 'number' ? step.parameters.amount : 1; // Default to augmenting by 1
 
 		if (!counterType) {
 			console.warn('[EffectProcessor] effectAugmentCounters called without counterType.');
@@ -575,13 +812,18 @@ export class EffectProcessor {
 				if (currentCount > 0) {
 					this.gsm.addCounters(target.objectId, counterType, amountToAugment);
 				} else {
-					console.log(`[EffectProcessor] Target ${target.name} does not have positive ${counterType} counter(s) to augment.`);
+					console.log(
+						`[EffectProcessor] Target ${target.name} does not have positive ${counterType} counter(s) to augment.`
+					);
 				}
 			}
 		}
 	}
 
-	private async effectDoubleCounters(step: IEffectStep, targets: (IGameObject | string)[]): Promise<void> {
+	private async effectDoubleCounters(
+		step: IEffectStep,
+		targets: (IGameObject | string)[]
+	): Promise<void> {
 		const counterType = step.parameters?.counterType as CounterType | undefined;
 		if (!counterType) {
 			console.warn('[EffectProcessor] effectDoubleCounters called without counterType.');
@@ -593,15 +835,26 @@ export class EffectProcessor {
 				if (currentCount > 0) {
 					this.gsm.addCounters(target.objectId, counterType, currentCount);
 				} else {
-					console.log(`[EffectProcessor] Target ${target.name} has no ${counterType} counters to double.`);
+					console.log(
+						`[EffectProcessor] Target ${target.name} has no ${counterType} counters to double.`
+					);
 				}
 			}
 		}
 	}
 
-	private async effectExchangeBoosts(step: IEffectStep, targets: (IGameObject | string)[]): Promise<void> {
-		if (targets.length !== 2 || !this.isTargetGameObject(targets[0]) || !this.isTargetGameObject(targets[1])) {
-			console.warn('[EffectProcessor] effectExchangeBoosts requires exactly two game object targets.');
+	private async effectExchangeBoosts(
+		step: IEffectStep,
+		targets: (IGameObject | string)[]
+	): Promise<void> {
+		if (
+			targets.length !== 2 ||
+			!this.isTargetGameObject(targets[0]) ||
+			!this.isTargetGameObject(targets[1])
+		) {
+			console.warn(
+				'[EffectProcessor] effectExchangeBoosts requires exactly two game object targets.'
+			);
 			return;
 		}
 		const charA = targets[0] as IGameObject;
@@ -623,21 +876,36 @@ export class EffectProcessor {
 		if (changeB > 0) this.gsm.removeCounters(charB.objectId, CounterType.Boost, changeB);
 		else if (changeB < 0) this.gsm.addCounters(charB.objectId, CounterType.Boost, -changeB);
 
-		console.log(`[EffectProcessor] Exchanged Boosts: ${charA.name} (now ${charA.counters.get(CounterType.Boost) || 0}), ${charB.name} (now ${charB.counters.get(CounterType.Boost) || 0})`);
+		console.log(
+			`[EffectProcessor] Exchanged Boosts: ${charA.name} (now ${charA.counters.get(CounterType.Boost) || 0}), ${charB.name} (now ${charB.counters.get(CounterType.Boost) || 0})`
+		);
 	}
 
-	private async effectExchangeObjects(step: IEffectStep, targets: (IGameObject | string)[]): Promise<void> {
+	private async effectExchangeObjects(
+		step: IEffectStep,
+		targets: (IGameObject | string)[]
+	): Promise<void> {
 		// This is highly complex due to different zones, ownership, control, attachments.
 		// Requires a robust GameStateManager.swapObjects(objA, objB) method.
-		console.warn('[EffectProcessor] effectExchangeObjects is not fully implemented due to complexity.');
+		console.warn(
+			'[EffectProcessor] effectExchangeObjects is not fully implemented due to complexity.'
+		);
 	}
 
-	private async effectExchange(_step: IEffectStep, _sourceObjectForContext: IGameObject | undefined | null, _currentContext: any): Promise<void> {
+	private async effectExchange(
+		_step: IEffectStep,
+		_sourceObjectForContext: IGameObject | undefined | null,
+		_currentContext: any
+	): Promise<void> {
 		console.log(`[EffectProcessor] Generic Exchange not fully implemented.`);
 	}
 
-	private async effectGainCounters(step: IEffectStep, targets: (IGameObject | string)[]): Promise<void> {
-		const counterType = step.parameters?.counterType as CounterType | undefined || CounterType.Boost;
+	private async effectGainCounters(
+		step: IEffectStep,
+		targets: (IGameObject | string)[]
+	): Promise<void> {
+		const counterType =
+			(step.parameters?.counterType as CounterType | undefined) || CounterType.Boost;
 		const amount = typeof step.parameters?.amount === 'number' ? step.parameters.amount : 1;
 		if (amount <= 0) return;
 
@@ -656,47 +924,66 @@ export class EffectProcessor {
 			const targetKeyForPlayer = step.parameters?.targetKeyForPlayer as string | undefined;
 			const choiceCriteria = step.parameters?.choiceCriteria;
 
-			await this._processEffectForEachPlayerSequentially(playerIds, step, async (playerId, currentStep) => {
-				const player = this.gsm.getPlayer(playerId);
-				if (!player) return;
+			await this._processEffectForEachPlayerSequentially(
+				playerIds,
+				step,
+				async (playerId, currentStep) => {
+					const player = this.gsm.getPlayer(playerId);
+					if (!player) return;
 
-				let actualTargetObject: IGameObject | null = null;
+					let actualTargetObject: IGameObject | null = null;
 
-				if (targetKeyForPlayer === 'hero') {
-					actualTargetObject = player.zones.heroZone.getHeroGameObject(); // Conceptual
-				} else if (targetKeyForPlayer === 'chosen_character' && choiceCriteria) {
-					const choosableObjects = this.gsm.getObjectsControlledByPlayer(playerId)
-						.filter(obj => this.gsm.matchesCriteria(obj, choiceCriteria));
-					if (choosableObjects.length === 0) {
-						console.log(`[EffectProcessor.effectGainCounters] Player ${playerId} has no objects matching criteria for chosen_character.`);
-						return;
-					}
-					if (choosableObjects.length === 1) {
-						actualTargetObject = choosableObjects[0];
-					} else {
-						const chosenInstances = await this.gsm.actionHandler.promptForCardChoice(
-							playerId, `Choose a character to gain ${amount} ${counterType} counter(s).`,
-							choosableObjects.map(obj => this.gsm.objectStore.getCardInstance(obj.instanceId)!), 1, 1
-						);
-						if (chosenInstances.length > 0) {
-							actualTargetObject = this.gsm.getObject(chosenInstances[0].objectId);
+					if (targetKeyForPlayer === 'hero') {
+						actualTargetObject = player.zones.heroZone.getHeroGameObject(); // Conceptual
+					} else if (targetKeyForPlayer === 'chosen_character' && choiceCriteria) {
+						const choosableObjects = this.gsm
+							.getObjectsControlledByPlayer(playerId)
+							.filter((obj) => this.gsm.matchesCriteria(obj, choiceCriteria));
+						if (choosableObjects.length === 0) {
+							console.log(
+								`[EffectProcessor.effectGainCounters] Player ${playerId} has no objects matching criteria for chosen_character.`
+							);
+							return;
 						}
+						if (choosableObjects.length === 1) {
+							actualTargetObject = choosableObjects[0];
+						} else {
+							const chosenInstances = await this.gsm.actionHandler.promptForCardChoice(
+								playerId,
+								`Choose a character to gain ${amount} ${counterType} counter(s).`,
+								choosableObjects.map(
+									(obj) => this.gsm.objectStore.getCardInstance(obj.instanceId)!
+								),
+								1,
+								1
+							);
+							if (chosenInstances.length > 0) {
+								actualTargetObject = this.gsm.getObject(chosenInstances[0].objectId);
+							}
+						}
+					} else if (targetKeyForPlayer) {
+						console.warn(
+							`[EffectProcessor.effectGainCounters] Unsupported targetKeyForPlayer: ${targetKeyForPlayer}`
+						);
+						return;
+					} else {
+						// Default to hero if no specific target key for player and it's an object-based counter effect
+						actualTargetObject = player.zones.heroZone.getHeroGameObject();
+						if (!actualTargetObject)
+							console.warn(
+								`[EffectProcessor.effectGainCounters] Defaulted to hero for player ${playerId} to gain counters, but no hero found.`
+							);
 					}
-				} else if (targetKeyForPlayer) {
-					console.warn(`[EffectProcessor.effectGainCounters] Unsupported targetKeyForPlayer: ${targetKeyForPlayer}`);
-					return;
-				} else {
-					// Default to hero if no specific target key for player and it's an object-based counter effect
-					actualTargetObject = player.zones.heroZone.getHeroGameObject();
-					if (!actualTargetObject) console.warn(`[EffectProcessor.effectGainCounters] Defaulted to hero for player ${playerId} to gain counters, but no hero found.`);
-				}
 
-				if (actualTargetObject) {
-					this.gsm.addCounters(actualTargetObject.objectId, counterType, amount);
-				} else {
-					console.warn(`[EffectProcessor.effectGainCounters] Could not find or choose target object for player ${playerId} to gain counters.`);
+					if (actualTargetObject) {
+						this.gsm.addCounters(actualTargetObject.objectId, counterType, amount);
+					} else {
+						console.warn(
+							`[EffectProcessor.effectGainCounters] Could not find or choose target object for player ${playerId} to gain counters.`
+						);
+					}
 				}
-			});
+			);
 		}
 
 		for (const gameObjectTarget of gameObjectTargets) {
@@ -704,8 +991,12 @@ export class EffectProcessor {
 		}
 	}
 
-	private async effectLoseCounters(step: IEffectStep, targets: (IGameObject | string)[]): Promise<void> {
-		const counterType = step.parameters?.counterType as CounterType | undefined || CounterType.Boost;
+	private async effectLoseCounters(
+		step: IEffectStep,
+		targets: (IGameObject | string)[]
+	): Promise<void> {
+		const counterType =
+			(step.parameters?.counterType as CounterType | undefined) || CounterType.Boost;
 		const amount = typeof step.parameters?.amount === 'number' ? step.parameters.amount : 1;
 		if (amount <= 0) return;
 
@@ -724,47 +1015,66 @@ export class EffectProcessor {
 			const targetKeyForPlayer = step.parameters?.targetKeyForPlayer as string | undefined;
 			const choiceCriteria = step.parameters?.choiceCriteria;
 
-			await this._processEffectForEachPlayerSequentially(playerIds, step, async (playerId, currentStep) => {
-				const player = this.gsm.getPlayer(playerId);
-				if (!player) return;
+			await this._processEffectForEachPlayerSequentially(
+				playerIds,
+				step,
+				async (playerId, currentStep) => {
+					const player = this.gsm.getPlayer(playerId);
+					if (!player) return;
 
-				let actualTargetObject: IGameObject | null = null;
+					let actualTargetObject: IGameObject | null = null;
 
-				if (targetKeyForPlayer === 'hero') {
-					actualTargetObject = player.zones.heroZone.getHeroGameObject(); // Conceptual
-				} else if (targetKeyForPlayer === 'chosen_character' && choiceCriteria) {
-					const choosableObjects = this.gsm.getObjectsControlledByPlayer(playerId)
-						.filter(obj => this.gsm.matchesCriteria(obj, choiceCriteria))
-						.filter(obj => (obj.counters.get(counterType) || 0) >= amount); // Must have enough counters
-					if (choosableObjects.length === 0) {
-						console.log(`[EffectProcessor.effectLoseCounters] Player ${playerId} has no objects matching criteria/enough counters for chosen_character.`);
-						return;
-					}
-					if (choosableObjects.length === 1) {
-						actualTargetObject = choosableObjects[0];
-					} else {
-						const chosenInstances = await this.gsm.actionHandler.promptForCardChoice(
-							playerId, `Choose a character to lose ${amount} ${counterType} counter(s).`,
-							choosableObjects.map(obj => this.gsm.objectStore.getCardInstance(obj.instanceId)!), 1, 1
-						);
-						if (chosenInstances.length > 0) {
-							actualTargetObject = this.gsm.getObject(chosenInstances[0].objectId);
+					if (targetKeyForPlayer === 'hero') {
+						actualTargetObject = player.zones.heroZone.getHeroGameObject(); // Conceptual
+					} else if (targetKeyForPlayer === 'chosen_character' && choiceCriteria) {
+						const choosableObjects = this.gsm
+							.getObjectsControlledByPlayer(playerId)
+							.filter((obj) => this.gsm.matchesCriteria(obj, choiceCriteria))
+							.filter((obj) => (obj.counters.get(counterType) || 0) >= amount); // Must have enough counters
+						if (choosableObjects.length === 0) {
+							console.log(
+								`[EffectProcessor.effectLoseCounters] Player ${playerId} has no objects matching criteria/enough counters for chosen_character.`
+							);
+							return;
 						}
+						if (choosableObjects.length === 1) {
+							actualTargetObject = choosableObjects[0];
+						} else {
+							const chosenInstances = await this.gsm.actionHandler.promptForCardChoice(
+								playerId,
+								`Choose a character to lose ${amount} ${counterType} counter(s).`,
+								choosableObjects.map(
+									(obj) => this.gsm.objectStore.getCardInstance(obj.instanceId)!
+								),
+								1,
+								1
+							);
+							if (chosenInstances.length > 0) {
+								actualTargetObject = this.gsm.getObject(chosenInstances[0].objectId);
+							}
+						}
+					} else if (targetKeyForPlayer) {
+						console.warn(
+							`[EffectProcessor.effectLoseCounters] Unsupported targetKeyForPlayer: ${targetKeyForPlayer}`
+						);
+						return;
+					} else {
+						actualTargetObject = player.zones.heroZone.getHeroGameObject();
+						if (!actualTargetObject)
+							console.warn(
+								`[EffectProcessor.effectLoseCounters] Defaulted to hero for player ${playerId} to lose counters, but no hero found.`
+							);
 					}
-				} else if (targetKeyForPlayer) {
-					console.warn(`[EffectProcessor.effectLoseCounters] Unsupported targetKeyForPlayer: ${targetKeyForPlayer}`);
-					return;
-				} else {
-					actualTargetObject = player.zones.heroZone.getHeroGameObject();
-					if (!actualTargetObject) console.warn(`[EffectProcessor.effectLoseCounters] Defaulted to hero for player ${playerId} to lose counters, but no hero found.`);
-				}
 
-				if (actualTargetObject) {
-					this.gsm.removeCounters(actualTargetObject.objectId, counterType, amount);
-				} else {
-					console.warn(`[EffectProcessor.effectLoseCounters] Could not find or choose target object for player ${playerId} to lose counters.`);
+					if (actualTargetObject) {
+						this.gsm.removeCounters(actualTargetObject.objectId, counterType, amount);
+					} else {
+						console.warn(
+							`[EffectProcessor.effectLoseCounters] Could not find or choose target object for player ${playerId} to lose counters.`
+						);
+					}
 				}
-			});
+			);
 		}
 
 		for (const gameObjectTarget of gameObjectTargets) {
@@ -772,12 +1082,17 @@ export class EffectProcessor {
 		}
 	}
 
-	private async effectSpendCounters(step: IEffectStep, targets: (IGameObject | string)[]): Promise<boolean> {
+	private async effectSpendCounters(
+		step: IEffectStep,
+		targets: (IGameObject | string)[]
+	): Promise<boolean> {
 		const counterType = step.parameters?.counterType as CounterType | undefined;
 		const amount = typeof step.parameters?.amount === 'number' ? step.parameters.amount : 1;
 
 		if (!counterType || amount <= 0) {
-			console.warn('[EffectProcessor] effectSpendCounters: Invalid parameters for counterType or amount.');
+			console.warn(
+				'[EffectProcessor] effectSpendCounters: Invalid parameters for counterType or amount.'
+			);
 			return false;
 		}
 		let allTargetsPaid = true;
@@ -787,7 +1102,9 @@ export class EffectProcessor {
 				if (currentAmount >= amount) {
 					this.gsm.removeCounters(target.objectId, counterType, amount);
 				} else {
-					console.warn(`[EffectProcessor] Target ${target.name} could not spend ${amount} of ${counterType}. Has ${currentAmount}.`);
+					console.warn(
+						`[EffectProcessor] Target ${target.name} could not spend ${amount} of ${counterType}. Has ${currentAmount}.`
+					);
 					allTargetsPaid = false; // If any target cannot pay, the "spend" effect might behave differently based on rules (e.g., fails entirely or partially)
 				}
 			} else {
@@ -797,8 +1114,10 @@ export class EffectProcessor {
 		return allTargetsPaid; // Indicates if all targeted payments were successful
 	}
 
-
-	private async effectGainStatus(step: IEffectStep, targets: (IGameObject | string)[]): Promise<void> {
+	private async effectGainStatus(
+		step: IEffectStep,
+		targets: (IGameObject | string)[]
+	): Promise<void> {
 		const statusType = step.parameters?.statusType as StatusType | undefined;
 		if (!statusType) {
 			console.warn('[EffectProcessor] GainStatus effect called without statusType.');
@@ -820,48 +1139,67 @@ export class EffectProcessor {
 			const targetKeyForPlayer = step.parameters?.targetKeyForPlayer as string | undefined;
 			const choiceCriteria = step.parameters?.choiceCriteria;
 
-			await this._processEffectForEachPlayerSequentially(playerIds, step, async (playerId, currentStep) => {
-				const player = this.gsm.getPlayer(playerId);
-				if (!player) return;
+			await this._processEffectForEachPlayerSequentially(
+				playerIds,
+				step,
+				async (playerId, currentStep) => {
+					const player = this.gsm.getPlayer(playerId);
+					if (!player) return;
 
-				let actualTargetObject: IGameObject | null = null;
+					let actualTargetObject: IGameObject | null = null;
 
-				if (targetKeyForPlayer === 'hero') {
-					actualTargetObject = player.zones.heroZone.getHeroGameObject();
-				} else if (targetKeyForPlayer === 'chosen_character' && choiceCriteria) {
-					const choosableObjects = this.gsm.getObjectsControlledByPlayer(playerId)
-						.filter(obj => this.gsm.matchesCriteria(obj, choiceCriteria));
-					if (choosableObjects.length === 0) {
-						console.log(`[EffectProcessor.effectGainStatus] Player ${playerId} has no objects matching criteria for chosen_character.`);
-						return;
-					}
-					if (choosableObjects.length === 1) {
-						actualTargetObject = choosableObjects[0];
-					} else {
-						const chosenInstances = await this.gsm.actionHandler.promptForCardChoice(
-							playerId, `Choose a character to gain ${statusType} status.`,
-							choosableObjects.map(obj => this.gsm.objectStore.getCardInstance(obj.instanceId)!), 1, 1
-						);
-						if (chosenInstances.length > 0) {
-							actualTargetObject = this.gsm.getObject(chosenInstances[0].objectId);
+					if (targetKeyForPlayer === 'hero') {
+						actualTargetObject = player.zones.heroZone.getHeroGameObject();
+					} else if (targetKeyForPlayer === 'chosen_character' && choiceCriteria) {
+						const choosableObjects = this.gsm
+							.getObjectsControlledByPlayer(playerId)
+							.filter((obj) => this.gsm.matchesCriteria(obj, choiceCriteria));
+						if (choosableObjects.length === 0) {
+							console.log(
+								`[EffectProcessor.effectGainStatus] Player ${playerId} has no objects matching criteria for chosen_character.`
+							);
+							return;
 						}
+						if (choosableObjects.length === 1) {
+							actualTargetObject = choosableObjects[0];
+						} else {
+							const chosenInstances = await this.gsm.actionHandler.promptForCardChoice(
+								playerId,
+								`Choose a character to gain ${statusType} status.`,
+								choosableObjects.map(
+									(obj) => this.gsm.objectStore.getCardInstance(obj.instanceId)!
+								),
+								1,
+								1
+							);
+							if (chosenInstances.length > 0) {
+								actualTargetObject = this.gsm.getObject(chosenInstances[0].objectId);
+							}
+						}
+					} else if (targetKeyForPlayer) {
+						console.warn(
+							`[EffectProcessor.effectGainStatus] Unsupported targetKeyForPlayer: ${targetKeyForPlayer}`
+						);
+						return;
+					} else {
+						actualTargetObject = player.zones.heroZone.getHeroGameObject();
+						if (!actualTargetObject)
+							console.warn(
+								`[EffectProcessor.effectGainStatus] Defaulted to hero for player ${playerId} to gain status, but no hero found.`
+							);
 					}
-				} else if (targetKeyForPlayer) {
-					console.warn(`[EffectProcessor.effectGainStatus] Unsupported targetKeyForPlayer: ${targetKeyForPlayer}`);
-					return;
-				} else {
-					actualTargetObject = player.zones.heroZone.getHeroGameObject();
-					if (!actualTargetObject) console.warn(`[EffectProcessor.effectGainStatus] Defaulted to hero for player ${playerId} to gain status, but no hero found.`);
-				}
 
-				if (actualTargetObject) {
-					if (!actualTargetObject.statuses.has(statusType)) {
-						this.gsm.statusHandler.applyStatusEffect(actualTargetObject, statusType);
+					if (actualTargetObject) {
+						if (!actualTargetObject.statuses.has(statusType)) {
+							this.gsm.statusHandler.applyStatusEffect(actualTargetObject, statusType);
+						}
+					} else {
+						console.warn(
+							`[EffectProcessor.effectGainStatus] Could not find or choose target object for player ${playerId} to gain status.`
+						);
 					}
-				} else {
-					console.warn(`[EffectProcessor.effectGainStatus] Could not find or choose target object for player ${playerId} to gain status.`);
 				}
-			});
+			);
 		}
 
 		for (const gameObjectTarget of gameObjectTargets) {
@@ -871,7 +1209,10 @@ export class EffectProcessor {
 		}
 	}
 
-	private async effectLoseStatus(step: IEffectStep, targets: (IGameObject | string)[]): Promise<void> {
+	private async effectLoseStatus(
+		step: IEffectStep,
+		targets: (IGameObject | string)[]
+	): Promise<void> {
 		const statusType = step.parameters?.statusType as StatusType | undefined;
 		if (!statusType) {
 			console.warn('[EffectProcessor] LoseStatus effect called without statusType.');
@@ -893,49 +1234,68 @@ export class EffectProcessor {
 			const targetKeyForPlayer = step.parameters?.targetKeyForPlayer as string | undefined;
 			const choiceCriteria = step.parameters?.choiceCriteria;
 
-			await this._processEffectForEachPlayerSequentially(playerIds, step, async (playerId, currentStep) => {
-				const player = this.gsm.getPlayer(playerId);
-				if (!player) return;
+			await this._processEffectForEachPlayerSequentially(
+				playerIds,
+				step,
+				async (playerId, currentStep) => {
+					const player = this.gsm.getPlayer(playerId);
+					if (!player) return;
 
-				let actualTargetObject: IGameObject | null = null;
+					let actualTargetObject: IGameObject | null = null;
 
-				if (targetKeyForPlayer === 'hero') {
-					actualTargetObject = player.zones.heroZone.getHeroGameObject();
-				} else if (targetKeyForPlayer === 'chosen_character' && choiceCriteria) {
-					const choosableObjects = this.gsm.getObjectsControlledByPlayer(playerId)
-						.filter(obj => this.gsm.matchesCriteria(obj, choiceCriteria))
-						.filter(obj => obj.statuses.has(statusType)); // Must have the status to lose it
-					if (choosableObjects.length === 0) {
-						console.log(`[EffectProcessor.effectLoseStatus] Player ${playerId} has no objects matching criteria/status for chosen_character.`);
-						return;
-					}
-					if (choosableObjects.length === 1) {
-						actualTargetObject = choosableObjects[0];
-					} else {
-						const chosenInstances = await this.gsm.actionHandler.promptForCardChoice(
-							playerId, `Choose a character to lose ${statusType} status.`,
-							choosableObjects.map(obj => this.gsm.objectStore.getCardInstance(obj.instanceId)!), 1, 1
-						);
-						if (chosenInstances.length > 0) {
-							actualTargetObject = this.gsm.getObject(chosenInstances[0].objectId);
+					if (targetKeyForPlayer === 'hero') {
+						actualTargetObject = player.zones.heroZone.getHeroGameObject();
+					} else if (targetKeyForPlayer === 'chosen_character' && choiceCriteria) {
+						const choosableObjects = this.gsm
+							.getObjectsControlledByPlayer(playerId)
+							.filter((obj) => this.gsm.matchesCriteria(obj, choiceCriteria))
+							.filter((obj) => obj.statuses.has(statusType)); // Must have the status to lose it
+						if (choosableObjects.length === 0) {
+							console.log(
+								`[EffectProcessor.effectLoseStatus] Player ${playerId} has no objects matching criteria/status for chosen_character.`
+							);
+							return;
 						}
+						if (choosableObjects.length === 1) {
+							actualTargetObject = choosableObjects[0];
+						} else {
+							const chosenInstances = await this.gsm.actionHandler.promptForCardChoice(
+								playerId,
+								`Choose a character to lose ${statusType} status.`,
+								choosableObjects.map(
+									(obj) => this.gsm.objectStore.getCardInstance(obj.instanceId)!
+								),
+								1,
+								1
+							);
+							if (chosenInstances.length > 0) {
+								actualTargetObject = this.gsm.getObject(chosenInstances[0].objectId);
+							}
+						}
+					} else if (targetKeyForPlayer) {
+						console.warn(
+							`[EffectProcessor.effectLoseStatus] Unsupported targetKeyForPlayer: ${targetKeyForPlayer}`
+						);
+						return;
+					} else {
+						actualTargetObject = player.zones.heroZone.getHeroGameObject();
+						if (!actualTargetObject)
+							console.warn(
+								`[EffectProcessor.effectLoseStatus] Defaulted to hero for player ${playerId} to lose status, but no hero found.`
+							);
 					}
-				} else if (targetKeyForPlayer) {
-					console.warn(`[EffectProcessor.effectLoseStatus] Unsupported targetKeyForPlayer: ${targetKeyForPlayer}`);
-					return;
-				} else {
-					actualTargetObject = player.zones.heroZone.getHeroGameObject();
-					if (!actualTargetObject) console.warn(`[EffectProcessor.effectLoseStatus] Defaulted to hero for player ${playerId} to lose status, but no hero found.`);
-				}
 
-				if (actualTargetObject) {
-					if (actualTargetObject.statuses.has(statusType)) {
-						this.gsm.statusHandler.removeStatusEffect(actualTargetObject, statusType);
+					if (actualTargetObject) {
+						if (actualTargetObject.statuses.has(statusType)) {
+							this.gsm.statusHandler.removeStatusEffect(actualTargetObject, statusType);
+						}
+					} else {
+						console.warn(
+							`[EffectProcessor.effectLoseStatus] Could not find or choose target object for player ${playerId} to lose status.`
+						);
 					}
-				} else {
-					console.warn(`[EffectProcessor.effectLoseStatus] Could not find or choose target object for player ${playerId} to lose status.`);
 				}
-			});
+			);
 		}
 
 		for (const gameObjectTarget of gameObjectTargets) {
@@ -945,9 +1305,17 @@ export class EffectProcessor {
 		}
 	}
 
-	private async effectPutInZone(step: IEffectStep, targets: (IGameObject | string)[]): Promise<void> {
-		let destinationZoneIdentifier = step.parameters?.destinationZoneIdentifier as ZoneIdentifier | 'source_expeditions_choice' | undefined;
-		const sourceObjectForEffect = step.parameters?.sourceObjectForContextOverrideId ? this.gsm.getObject(step.parameters.sourceObjectForContextOverrideId as string) : null;
+	private async effectPutInZone(
+		step: IEffectStep,
+		targets: (IGameObject | string)[]
+	): Promise<void> {
+		let destinationZoneIdentifier = step.parameters?.destinationZoneIdentifier as
+			| ZoneIdentifier
+			| 'source_expeditions_choice'
+			| undefined;
+		const sourceObjectForEffect = step.parameters?.sourceObjectForContextOverrideId
+			? this.gsm.getObject(step.parameters.sourceObjectForContextOverrideId as string)
+			: null;
 
 		if (!destinationZoneIdentifier) {
 			console.warn('[EffectProcessor] PutInZone effect called without destinationZoneIdentifier.');
@@ -957,14 +1325,17 @@ export class EffectProcessor {
 		for (const target of targets) {
 			if (this.isTargetGameObject(target)) {
 				const currentZone = this.gsm.findZoneOfObject(target.objectId);
-				let zoneOwnerId = step.parameters?.controllerId as string || target.controllerId;
+				let zoneOwnerId = (step.parameters?.controllerId as string) || target.controllerId;
 				let destZone: IZone | null = null;
 
 				if (destinationZoneIdentifier === 'source_expeditions_choice' && sourceObjectForEffect) {
 					zoneOwnerId = sourceObjectForEffect.controllerId;
 					const isSourceGigantic = sourceObjectForEffect.currentCharacteristics.isGigantic === true;
 					if (isSourceGigantic) {
-						const chosenType = await this.gsm.actionHandler.promptForExpeditionChoice(zoneOwnerId, `Choose expedition for ${target.name} from Gigantic source ${sourceObjectForEffect.name}`);
+						const chosenType = await this.gsm.actionHandler.promptForExpeditionChoice(
+							zoneOwnerId,
+							`Choose expedition for ${target.name} from Gigantic source ${sourceObjectForEffect.name}`
+						);
 						destZone = this.findZoneByType(zoneOwnerId, ZoneIdentifier.Expedition);
 						target.expeditionAssignment = { playerId: zoneOwnerId, type: chosenType };
 					} else {
@@ -972,24 +1343,40 @@ export class EffectProcessor {
 						destZone = this.findZoneByType(zoneOwnerId, ZoneIdentifier.Expedition);
 						target.expeditionAssignment = { playerId: zoneOwnerId, type: assignedType };
 					}
-				} else if (typeof destinationZoneIdentifier === 'string' && Object.values(ZoneIdentifier).includes(destinationZoneIdentifier as ZoneIdentifier)) {
+				} else if (
+					typeof destinationZoneIdentifier === 'string' &&
+					Object.values(ZoneIdentifier).includes(destinationZoneIdentifier as ZoneIdentifier)
+				) {
 					destZone = this.findZoneByType(zoneOwnerId, destinationZoneIdentifier as ZoneIdentifier);
 				} else {
-					console.warn(`[EffectProcessor] PutInZone: Invalid destinationZoneIdentifier: ${destinationZoneIdentifier}`);
+					console.warn(
+						`[EffectProcessor] PutInZone: Invalid destinationZoneIdentifier: ${destinationZoneIdentifier}`
+					);
 					return;
 				}
 
 				if (currentZone && destZone) {
-					if (destZone.zoneType === ZoneIdentifier.Expedition && !target.expeditionAssignment && sourceObjectForEffect) {
-                        target.expeditionAssignment = { playerId: zoneOwnerId, type: sourceObjectForEffect.expeditionAssignment?.type || 'hero' };
-                    } else if (destZone.zoneType !== ZoneIdentifier.Expedition) {
-                        delete target.expeditionAssignment;
-                    }
+					if (
+						destZone.zoneType === ZoneIdentifier.Expedition &&
+						!target.expeditionAssignment &&
+						sourceObjectForEffect
+					) {
+						target.expeditionAssignment = {
+							playerId: zoneOwnerId,
+							type: sourceObjectForEffect.expeditionAssignment?.type || 'hero'
+						};
+					} else if (destZone.zoneType !== ZoneIdentifier.Expedition) {
+						delete target.expeditionAssignment;
+					}
 
 					this.gsm.moveEntity(target.objectId, currentZone, destZone, target.controllerId);
-					console.log(`[EffectProcessor] Moved ${target.name} (ID: ${target.objectId}) to ${destZone.id} (intended type: ${destinationZoneIdentifier}).`);
+					console.log(
+						`[EffectProcessor] Moved ${target.name} (ID: ${target.objectId}) to ${destZone.id} (intended type: ${destinationZoneIdentifier}).`
+					);
 				} else {
-					console.warn(`[EffectProcessor] Could not move ${target.name}: currentZone ${currentZone?.id}, destZone ${destZone?.id}`);
+					console.warn(
+						`[EffectProcessor] Could not move ${target.name}: currentZone ${currentZone?.id}, destZone ${destZone?.id}`
+					);
 				}
 			}
 		}
@@ -1011,50 +1398,70 @@ export class EffectProcessor {
 			const targetKeyForPlayer = step.parameters?.targetKeyForPlayer as string | undefined;
 			const choiceCriteria = step.parameters?.choiceCriteria; // e.g. { type: CardType.Character, status: StatusType.Exhausted }
 
-			await this._processEffectForEachPlayerSequentially(playerIds, step, async (playerId, currentStep) => {
-				const player = this.gsm.getPlayer(playerId);
-				if (!player) return;
+			await this._processEffectForEachPlayerSequentially(
+				playerIds,
+				step,
+				async (playerId, currentStep) => {
+					const player = this.gsm.getPlayer(playerId);
+					if (!player) return;
 
-				let actualTargetObject: IGameObject | null = null;
+					let actualTargetObject: IGameObject | null = null;
 
-				if (targetKeyForPlayer === 'hero') {
-					actualTargetObject = player.zones.heroZone.getHeroGameObject();
-				} else if (targetKeyForPlayer === 'chosen_object' && choiceCriteria) { // More generic 'chosen_object'
-					const choosableObjects = this.gsm.getObjectsControlledByPlayer(playerId)
-						.filter(obj => this.gsm.matchesCriteria(obj, choiceCriteria))
-						.filter(obj => obj.statuses.has(StatusType.Exhausted)); // Must be exhausted to be readied
-					if (choosableObjects.length === 0) {
-						console.log(`[EffectProcessor.effectReady] Player ${playerId} has no exhausted objects matching criteria for chosen_object.`);
-						return;
-					}
-					if (choosableObjects.length === 1) {
-						actualTargetObject = choosableObjects[0];
-					} else {
-						const chosenInstances = await this.gsm.actionHandler.promptForCardChoice(
-							playerId, `Choose an object to ready.`,
-							choosableObjects.map(obj => this.gsm.objectStore.getCardInstance(obj.instanceId)!), 1, 1
-						);
-						if (chosenInstances.length > 0) {
-							actualTargetObject = this.gsm.getObject(chosenInstances[0].objectId);
+					if (targetKeyForPlayer === 'hero') {
+						actualTargetObject = player.zones.heroZone.getHeroGameObject();
+					} else if (targetKeyForPlayer === 'chosen_object' && choiceCriteria) {
+						// More generic 'chosen_object'
+						const choosableObjects = this.gsm
+							.getObjectsControlledByPlayer(playerId)
+							.filter((obj) => this.gsm.matchesCriteria(obj, choiceCriteria))
+							.filter((obj) => obj.statuses.has(StatusType.Exhausted)); // Must be exhausted to be readied
+						if (choosableObjects.length === 0) {
+							console.log(
+								`[EffectProcessor.effectReady] Player ${playerId} has no exhausted objects matching criteria for chosen_object.`
+							);
+							return;
 						}
+						if (choosableObjects.length === 1) {
+							actualTargetObject = choosableObjects[0];
+						} else {
+							const chosenInstances = await this.gsm.actionHandler.promptForCardChoice(
+								playerId,
+								`Choose an object to ready.`,
+								choosableObjects.map(
+									(obj) => this.gsm.objectStore.getCardInstance(obj.instanceId)!
+								),
+								1,
+								1
+							);
+							if (chosenInstances.length > 0) {
+								actualTargetObject = this.gsm.getObject(chosenInstances[0].objectId);
+							}
+						}
+					} else if (targetKeyForPlayer) {
+						console.warn(
+							`[EffectProcessor.effectReady] Unsupported targetKeyForPlayer: ${targetKeyForPlayer}`
+						);
+						return;
+					} else {
+						// Default: Try to ready the player's hero if targetKeyForPlayer is not specified
+						actualTargetObject = player.zones.heroZone.getHeroGameObject();
+						if (!actualTargetObject)
+							console.warn(
+								`[EffectProcessor.effectReady] Defaulted to hero for player ${playerId} to ready, but no hero found.`
+							);
 					}
-				} else if (targetKeyForPlayer) {
-					console.warn(`[EffectProcessor.effectReady] Unsupported targetKeyForPlayer: ${targetKeyForPlayer}`);
-					return;
-				} else {
-					// Default: Try to ready the player's hero if targetKeyForPlayer is not specified
-					actualTargetObject = player.zones.heroZone.getHeroGameObject();
-					if (!actualTargetObject) console.warn(`[EffectProcessor.effectReady] Defaulted to hero for player ${playerId} to ready, but no hero found.`);
-				}
 
-				if (actualTargetObject) {
-					if (actualTargetObject.statuses.has(StatusType.Exhausted)) {
-						this.gsm.statusHandler.removeStatusEffect(actualTargetObject, StatusType.Exhausted);
+					if (actualTargetObject) {
+						if (actualTargetObject.statuses.has(StatusType.Exhausted)) {
+							this.gsm.statusHandler.removeStatusEffect(actualTargetObject, StatusType.Exhausted);
+						}
+					} else {
+						console.warn(
+							`[EffectProcessor.effectReady] Could not find or choose target object for player ${playerId} to ready.`
+						);
 					}
-				} else {
-					console.warn(`[EffectProcessor.effectReady] Could not find or choose target object for player ${playerId} to ready.`);
 				}
-			});
+			);
 		}
 
 		for (const gameObjectTarget of gameObjectTargets) {
@@ -1080,49 +1487,68 @@ export class EffectProcessor {
 			const targetKeyForPlayer = step.parameters?.targetKeyForPlayer as string | undefined;
 			const choiceCriteria = step.parameters?.choiceCriteria; // e.g. { type: CardType.Character, statusNot: StatusType.Exhausted }
 
-			await this._processEffectForEachPlayerSequentially(playerIds, step, async (playerId, currentStep) => {
-				const player = this.gsm.getPlayer(playerId);
-				if (!player) return;
+			await this._processEffectForEachPlayerSequentially(
+				playerIds,
+				step,
+				async (playerId, currentStep) => {
+					const player = this.gsm.getPlayer(playerId);
+					if (!player) return;
 
-				let actualTargetObject: IGameObject | null = null;
+					let actualTargetObject: IGameObject | null = null;
 
-				if (targetKeyForPlayer === 'hero') {
-					actualTargetObject = player.zones.heroZone.getHeroGameObject();
-				} else if (targetKeyForPlayer === 'chosen_object' && choiceCriteria) {
-					const choosableObjects = this.gsm.getObjectsControlledByPlayer(playerId)
-						.filter(obj => this.gsm.matchesCriteria(obj, choiceCriteria))
-						.filter(obj => !obj.statuses.has(StatusType.Exhausted)); // Must NOT be exhausted to be exhausted
-					if (choosableObjects.length === 0) {
-						console.log(`[EffectProcessor.effectExhaust] Player ${playerId} has no ready objects matching criteria for chosen_object.`);
-						return;
-					}
-					if (choosableObjects.length === 1) {
-						actualTargetObject = choosableObjects[0];
-					} else {
-						const chosenInstances = await this.gsm.actionHandler.promptForCardChoice(
-							playerId, `Choose an object to exhaust.`,
-							choosableObjects.map(obj => this.gsm.objectStore.getCardInstance(obj.instanceId)!), 1, 1
-						);
-						if (chosenInstances.length > 0) {
-							actualTargetObject = this.gsm.getObject(chosenInstances[0].objectId);
+					if (targetKeyForPlayer === 'hero') {
+						actualTargetObject = player.zones.heroZone.getHeroGameObject();
+					} else if (targetKeyForPlayer === 'chosen_object' && choiceCriteria) {
+						const choosableObjects = this.gsm
+							.getObjectsControlledByPlayer(playerId)
+							.filter((obj) => this.gsm.matchesCriteria(obj, choiceCriteria))
+							.filter((obj) => !obj.statuses.has(StatusType.Exhausted)); // Must NOT be exhausted to be exhausted
+						if (choosableObjects.length === 0) {
+							console.log(
+								`[EffectProcessor.effectExhaust] Player ${playerId} has no ready objects matching criteria for chosen_object.`
+							);
+							return;
 						}
+						if (choosableObjects.length === 1) {
+							actualTargetObject = choosableObjects[0];
+						} else {
+							const chosenInstances = await this.gsm.actionHandler.promptForCardChoice(
+								playerId,
+								`Choose an object to exhaust.`,
+								choosableObjects.map(
+									(obj) => this.gsm.objectStore.getCardInstance(obj.instanceId)!
+								),
+								1,
+								1
+							);
+							if (chosenInstances.length > 0) {
+								actualTargetObject = this.gsm.getObject(chosenInstances[0].objectId);
+							}
+						}
+					} else if (targetKeyForPlayer) {
+						console.warn(
+							`[EffectProcessor.effectExhaust] Unsupported targetKeyForPlayer: ${targetKeyForPlayer}`
+						);
+						return;
+					} else {
+						actualTargetObject = player.zones.heroZone.getHeroGameObject();
+						if (!actualTargetObject)
+							console.warn(
+								`[EffectProcessor.effectExhaust] Defaulted to hero for player ${playerId} to exhaust, but no hero found.`
+							);
 					}
-				} else if (targetKeyForPlayer) {
-					console.warn(`[EffectProcessor.effectExhaust] Unsupported targetKeyForPlayer: ${targetKeyForPlayer}`);
-					return;
-				} else {
-					actualTargetObject = player.zones.heroZone.getHeroGameObject();
-					if (!actualTargetObject) console.warn(`[EffectProcessor.effectExhaust] Defaulted to hero for player ${playerId} to exhaust, but no hero found.`);
-				}
 
-				if (actualTargetObject) {
-					if (!actualTargetObject.statuses.has(StatusType.Exhausted)) {
-						this.gsm.statusHandler.applyStatusEffect(actualTargetObject, StatusType.Exhausted);
+					if (actualTargetObject) {
+						if (!actualTargetObject.statuses.has(StatusType.Exhausted)) {
+							this.gsm.statusHandler.applyStatusEffect(actualTargetObject, StatusType.Exhausted);
+						}
+					} else {
+						console.warn(
+							`[EffectProcessor.effectExhaust] Could not find or choose target object for player ${playerId} to exhaust.`
+						);
 					}
-				} else {
-					console.warn(`[EffectProcessor.effectExhaust] Could not find or choose target object for player ${playerId} to exhaust.`);
 				}
-			});
+			);
 		}
 
 		for (const gameObjectTarget of gameObjectTargets) {
@@ -1132,7 +1558,10 @@ export class EffectProcessor {
 		}
 	}
 
-	private async effectSacrifice(step: IEffectStep, targets: (IGameObject | string)[]): Promise<void> {
+	private async effectSacrifice(
+		step: IEffectStep,
+		targets: (IGameObject | string)[]
+	): Promise<void> {
 		const playerIds: string[] = [];
 		const gameObjectTargets: IGameObject[] = [];
 
@@ -1148,73 +1577,116 @@ export class EffectProcessor {
 		if (playerIds.length > 0) {
 			const choiceCriteria = step.parameters?.choiceCriteria || { type: CardType.Character }; // Default, needs proper type
 
-			await this._processEffectForEachPlayerSequentially(playerIds, step, async (playerId, currentStep) => {
-				const player = this.gsm.getPlayer(playerId);
-				if (!player) return;
+			await this._processEffectForEachPlayerSequentially(
+				playerIds,
+				step,
+				async (playerId, currentStep) => {
+					const player = this.gsm.getPlayer(playerId);
+					if (!player) return;
 
-				// Assuming gsm.getObjectsControlledByPlayer and gsm.matchesCriteria exist
-				const choosableObjects = this.gsm.getObjectsControlledByPlayer(playerId)
-					.filter(obj => this.gsm.matchesCriteria(obj, choiceCriteria));
+					// Assuming gsm.getObjectsControlledByPlayer and gsm.matchesCriteria exist
+					const choosableObjects = this.gsm
+						.getObjectsControlledByPlayer(playerId)
+						.filter((obj) => this.gsm.matchesCriteria(obj, choiceCriteria));
 
-				if (choosableObjects.length === 0) {
-					console.log(`[EffectProcessor] Player ${playerId} has no objects to sacrifice matching criteria ${JSON.stringify(choiceCriteria)}.`);
-					return;
-				}
-
-				let objectToSacrifice: IGameObject | null = null;
-				if (choosableObjects.length === 1) {
-					objectToSacrifice = choosableObjects[0];
-				} else {
-					const chosenInstances = await this.gsm.actionHandler.promptForCardChoice(
-						playerId,
-						`Choose an object to sacrifice.`,
-						choosableObjects.map(obj => this.gsm.objectStore.getCardInstance(obj.instanceId)!),
-						1, 1
-					);
-					if (chosenInstances.length > 0) {
-						objectToSacrifice = this.gsm.getObject(chosenInstances[0].objectId);
-					}
-				}
-
-				if (objectToSacrifice) {
-					const ownerPlayer = this.gsm.getPlayer(objectToSacrifice.ownerId);
-					if (!ownerPlayer) {
-						console.warn(`[EffectProcessor] Owner ${objectToSacrifice.ownerId} not found for sacrificed object ${objectToSacrifice.name}.`);
+					if (choosableObjects.length === 0) {
+						console.log(
+							`[EffectProcessor] Player ${playerId} has no objects to sacrifice matching criteria ${JSON.stringify(choiceCriteria)}.`
+						);
 						return;
 					}
-					const currentZone = this.gsm.findZoneOfObject(objectToSacrifice.objectId);
-					if (!currentZone) {
-						console.warn(`[EffectProcessor] Cannot find current zone for sacrificed object ${objectToSacrifice.name}.`);
-						return;
+
+					let objectToSacrifice: IGameObject | null = null;
+					if (choosableObjects.length === 1) {
+						objectToSacrifice = choosableObjects[0];
+					} else {
+						const chosenInstances = await this.gsm.actionHandler.promptForCardChoice(
+							playerId,
+							`Choose an object to sacrifice.`,
+							choosableObjects.map((obj) => this.gsm.objectStore.getCardInstance(obj.instanceId)!),
+							1,
+							1
+						);
+						if (chosenInstances.length > 0) {
+							objectToSacrifice = this.gsm.getObject(chosenInstances[0].objectId);
+						}
 					}
-					this.gsm.moveEntity(objectToSacrifice.objectId, currentZone, ownerPlayer.zones.discardPileZone, objectToSacrifice.controllerId);
-					this.gsm.eventBus.publish('objectSacrificed', { objectId: objectToSacrifice.objectId, definitionId: objectToSacrifice.definitionId, fromZoneId: currentZone.id });
-					console.log(`[EffectProcessor] ${objectToSacrifice.name} (controlled by ${objectToSacrifice.controllerId}, owned by ${objectToSacrifice.ownerId}) was sacrificed by player ${playerId}.`);
-				} else {
-					console.log(`[EffectProcessor] Player ${playerId} did not choose an object to sacrifice or no valid object found.`);
+
+					if (objectToSacrifice) {
+						const ownerPlayer = this.gsm.getPlayer(objectToSacrifice.ownerId);
+						if (!ownerPlayer) {
+							console.warn(
+								`[EffectProcessor] Owner ${objectToSacrifice.ownerId} not found for sacrificed object ${objectToSacrifice.name}.`
+							);
+							return;
+						}
+						const currentZone = this.gsm.findZoneOfObject(objectToSacrifice.objectId);
+						if (!currentZone) {
+							console.warn(
+								`[EffectProcessor] Cannot find current zone for sacrificed object ${objectToSacrifice.name}.`
+							);
+							return;
+						}
+						this.gsm.moveEntity(
+							objectToSacrifice.objectId,
+							currentZone,
+							ownerPlayer.zones.discardPileZone,
+							objectToSacrifice.controllerId
+						);
+						this.gsm.eventBus.publish('objectSacrificed', {
+							objectId: objectToSacrifice.objectId,
+							definitionId: objectToSacrifice.definitionId,
+							fromZoneId: currentZone.id
+						});
+						console.log(
+							`[EffectProcessor] ${objectToSacrifice.name} (controlled by ${objectToSacrifice.controllerId}, owned by ${objectToSacrifice.ownerId}) was sacrificed by player ${playerId}.`
+						);
+					} else {
+						console.log(
+							`[EffectProcessor] Player ${playerId} did not choose an object to sacrifice or no valid object found.`
+						);
+					}
 				}
-			});
+			);
 		}
 
 		// Case 2: Targets are specific game objects to sacrifice
 		for (const gameObjectTarget of gameObjectTargets) {
 			const playerOwner = this.gsm.getPlayer(gameObjectTarget.ownerId);
 			if (!playerOwner) {
-				console.warn(`[EffectProcessor] Owner ${gameObjectTarget.ownerId} not found for sacrificed object ${gameObjectTarget.name}.`);
+				console.warn(
+					`[EffectProcessor] Owner ${gameObjectTarget.ownerId} not found for sacrificed object ${gameObjectTarget.name}.`
+				);
 				continue;
 			}
 			const currentZone = this.gsm.findZoneOfObject(gameObjectTarget.objectId);
 			if (!currentZone) {
-				console.warn(`[EffectProcessor] Cannot find current zone for sacrificed object ${gameObjectTarget.name}.`);
+				console.warn(
+					`[EffectProcessor] Cannot find current zone for sacrificed object ${gameObjectTarget.name}.`
+				);
 				continue;
 			}
-			this.gsm.moveEntity(gameObjectTarget.objectId, currentZone, playerOwner.zones.discardPileZone, gameObjectTarget.controllerId);
-			this.gsm.eventBus.publish('objectSacrificed', { objectId: gameObjectTarget.objectId, definitionId: gameObjectTarget.definitionId, fromZoneId: currentZone.id });
-			console.log(`[EffectProcessor] ${gameObjectTarget.name} (controlled by ${gameObjectTarget.controllerId}, owned by ${gameObjectTarget.ownerId}) was sacrificed.`);
+			this.gsm.moveEntity(
+				gameObjectTarget.objectId,
+				currentZone,
+				playerOwner.zones.discardPileZone,
+				gameObjectTarget.controllerId
+			);
+			this.gsm.eventBus.publish('objectSacrificed', {
+				objectId: gameObjectTarget.objectId,
+				definitionId: gameObjectTarget.definitionId,
+				fromZoneId: currentZone.id
+			});
+			console.log(
+				`[EffectProcessor] ${gameObjectTarget.name} (controlled by ${gameObjectTarget.controllerId}, owned by ${gameObjectTarget.ownerId}) was sacrificed.`
+			);
 		}
 	}
 
-	private async effectSetCharacteristic(step: IEffectStep, targets: (IGameObject | string)[]): Promise<void> {
+	private async effectSetCharacteristic(
+		step: IEffectStep,
+		targets: (IGameObject | string)[]
+	): Promise<void> {
 		const characteristic = step.parameters?.characteristic as string;
 		const value = step.parameters?.value; // Can be any type
 		if (!characteristic) {
@@ -1237,51 +1709,78 @@ export class EffectProcessor {
 			const targetKeyForPlayer = step.parameters?.targetKeyForPlayer as string | undefined;
 			const choiceCriteria = step.parameters?.choiceCriteria;
 
-			await this._processEffectForEachPlayerSequentially(playerIds, step, async (playerId, currentStep) => {
-				const player = this.gsm.getPlayer(playerId);
-				if (!player) return;
+			await this._processEffectForEachPlayerSequentially(
+				playerIds,
+				step,
+				async (playerId, currentStep) => {
+					const player = this.gsm.getPlayer(playerId);
+					if (!player) return;
 
-				let actualTargetObject: IGameObject | null = null;
+					let actualTargetObject: IGameObject | null = null;
 
-				if (targetKeyForPlayer === 'hero') {
-					actualTargetObject = player.zones.heroZone.getHeroGameObject();
-				} else if (targetKeyForPlayer === 'chosen_object' && choiceCriteria) {
-					const choosableObjects = this.gsm.getObjectsControlledByPlayer(playerId)
-						.filter(obj => this.gsm.matchesCriteria(obj, choiceCriteria));
-					if (choosableObjects.length === 0) {
-						console.log(`[EffectProcessor.effectSetCharacteristic] Player ${playerId} has no objects matching criteria for chosen_object.`);
-						return;
-					}
-					if (choosableObjects.length === 1) {
-						actualTargetObject = choosableObjects[0];
-					} else {
-						const chosenInstances = await this.gsm.actionHandler.promptForCardChoice(
-							playerId, `Choose an object to set ${characteristic}=${value}.`,
-							choosableObjects.map(obj => this.gsm.objectStore.getCardInstance(obj.instanceId)!), 1, 1
-						);
-						if (chosenInstances.length > 0) {
-							actualTargetObject = this.gsm.getObject(chosenInstances[0].objectId);
+					if (targetKeyForPlayer === 'hero') {
+						actualTargetObject = player.zones.heroZone.getHeroGameObject();
+					} else if (targetKeyForPlayer === 'chosen_object' && choiceCriteria) {
+						const choosableObjects = this.gsm
+							.getObjectsControlledByPlayer(playerId)
+							.filter((obj) => this.gsm.matchesCriteria(obj, choiceCriteria));
+						if (choosableObjects.length === 0) {
+							console.log(
+								`[EffectProcessor.effectSetCharacteristic] Player ${playerId} has no objects matching criteria for chosen_object.`
+							);
+							return;
 						}
+						if (choosableObjects.length === 1) {
+							actualTargetObject = choosableObjects[0];
+						} else {
+							const chosenInstances = await this.gsm.actionHandler.promptForCardChoice(
+								playerId,
+								`Choose an object to set ${characteristic}=${value}.`,
+								choosableObjects.map(
+									(obj) => this.gsm.objectStore.getCardInstance(obj.instanceId)!
+								),
+								1,
+								1
+							);
+							if (chosenInstances.length > 0) {
+								actualTargetObject = this.gsm.getObject(chosenInstances[0].objectId);
+							}
+						}
+					} else if (targetKeyForPlayer) {
+						console.warn(
+							`[EffectProcessor.effectSetCharacteristic] Unsupported targetKeyForPlayer: ${targetKeyForPlayer}`
+						);
+						return;
+					} else {
+						actualTargetObject = player.zones.heroZone.getHeroGameObject();
+						if (!actualTargetObject)
+							console.warn(
+								`[EffectProcessor.effectSetCharacteristic] Defaulted to hero for player ${playerId}, but no hero found.`
+							);
 					}
-				} else if (targetKeyForPlayer) {
-					console.warn(`[EffectProcessor.effectSetCharacteristic] Unsupported targetKeyForPlayer: ${targetKeyForPlayer}`);
-					return;
-				} else {
-					actualTargetObject = player.zones.heroZone.getHeroGameObject();
-					if (!actualTargetObject) console.warn(`[EffectProcessor.effectSetCharacteristic] Defaulted to hero for player ${playerId}, but no hero found.`);
-				}
 
-				if (actualTargetObject) {
-					if (!actualTargetObject.currentCharacteristics) {
-						actualTargetObject.currentCharacteristics = { ...actualTargetObject.baseCharacteristics };
+					if (actualTargetObject) {
+						if (!actualTargetObject.currentCharacteristics) {
+							actualTargetObject.currentCharacteristics = {
+								...actualTargetObject.baseCharacteristics
+							};
+						}
+						(actualTargetObject.currentCharacteristics as any)[characteristic] = value;
+						this.gsm.eventBus.publish('characteristicSet', {
+							targetId: actualTargetObject.objectId,
+							characteristic,
+							value
+						});
+						console.log(
+							`[EffectProcessor] Set characteristic ${characteristic}=${value} for ${actualTargetObject.name} (for player ${playerId}).`
+						);
+					} else {
+						console.warn(
+							`[EffectProcessor.effectSetCharacteristic] Could not find or choose target object for player ${playerId}.`
+						);
 					}
-					(actualTargetObject.currentCharacteristics as any)[characteristic] = value;
-					this.gsm.eventBus.publish('characteristicSet', { targetId: actualTargetObject.objectId, characteristic, value });
-					console.log(`[EffectProcessor] Set characteristic ${characteristic}=${value} for ${actualTargetObject.name} (for player ${playerId}).`);
-				} else {
-					console.warn(`[EffectProcessor.effectSetCharacteristic] Could not find or choose target object for player ${playerId}.`);
 				}
-			});
+			);
 		}
 
 		for (const gameObjectTarget of gameObjectTargets) {
@@ -1289,15 +1788,28 @@ export class EffectProcessor {
 				gameObjectTarget.currentCharacteristics = { ...gameObjectTarget.baseCharacteristics };
 			}
 			(gameObjectTarget.currentCharacteristics as any)[characteristic] = value;
-			this.gsm.eventBus.publish('characteristicSet', { targetId: gameObjectTarget.objectId, characteristic, value });
-			console.log(`[EffectProcessor] Set characteristic ${characteristic}=${value} for ${gameObjectTarget.name}.`);
+			this.gsm.eventBus.publish('characteristicSet', {
+				targetId: gameObjectTarget.objectId,
+				characteristic,
+				value
+			});
+			console.log(
+				`[EffectProcessor] Set characteristic ${characteristic}=${value} for ${gameObjectTarget.name}.`
+			);
 		}
 	}
 
-	private async effectModifyStatistics(step: IEffectStep, targets: (IGameObject | string)[]): Promise<void> {
-		const statsChange = step.parameters?.statsChange as Partial<Record<'forest' | 'mountain' | 'water' | 'power' | 'health', number>>;
+	private async effectModifyStatistics(
+		step: IEffectStep,
+		targets: (IGameObject | string)[]
+	): Promise<void> {
+		const statsChange = step.parameters?.statsChange as Partial<
+			Record<'forest' | 'mountain' | 'water' | 'power' | 'health', number>
+		>;
 		if (!statsChange) {
-			console.warn('[EffectProcessor] ModifyStatistics: "statsChange" parameter missing or invalid.');
+			console.warn(
+				'[EffectProcessor] ModifyStatistics: "statsChange" parameter missing or invalid.'
+			);
 			return;
 		}
 
@@ -1316,65 +1828,101 @@ export class EffectProcessor {
 			const targetKeyForPlayer = step.parameters?.targetKeyForPlayer as string | undefined;
 			const choiceCriteria = step.parameters?.choiceCriteria;
 
-			await this._processEffectForEachPlayerSequentially(playerIds, step, async (playerId, currentStep) => {
-				const player = this.gsm.getPlayer(playerId);
-				if (!player) return;
+			await this._processEffectForEachPlayerSequentially(
+				playerIds,
+				step,
+				async (playerId, currentStep) => {
+					const player = this.gsm.getPlayer(playerId);
+					if (!player) return;
 
-				let actualTargetObject: IGameObject | null = null;
+					let actualTargetObject: IGameObject | null = null;
 
-				if (targetKeyForPlayer === 'hero') {
-					actualTargetObject = player.zones.heroZone.getHeroGameObject();
-				} else if (targetKeyForPlayer === 'chosen_object' && choiceCriteria) {
-					const choosableObjects = this.gsm.getObjectsControlledByPlayer(playerId)
-						.filter(obj => this.gsm.matchesCriteria(obj, choiceCriteria));
-					if (choosableObjects.length === 0) {
-						console.log(`[EffectProcessor.effectModifyStatistics] Player ${playerId} has no objects matching criteria for chosen_object.`);
-						return;
-					}
-					if (choosableObjects.length === 1) {
-						actualTargetObject = choosableObjects[0];
-					} else {
-						const chosenInstances = await this.gsm.actionHandler.promptForCardChoice(
-							playerId, `Choose an object to modify statistics.`,
-							choosableObjects.map(obj => this.gsm.objectStore.getCardInstance(obj.instanceId)!), 1, 1
+					if (targetKeyForPlayer === 'hero') {
+						actualTargetObject = player.zones.heroZone.getHeroGameObject();
+					} else if (targetKeyForPlayer === 'chosen_object' && choiceCriteria) {
+						const choosableObjects = this.gsm
+							.getObjectsControlledByPlayer(playerId)
+							.filter((obj) => this.gsm.matchesCriteria(obj, choiceCriteria));
+						if (choosableObjects.length === 0) {
+							console.log(
+								`[EffectProcessor.effectModifyStatistics] Player ${playerId} has no objects matching criteria for chosen_object.`
+							);
+							return;
+						}
+						if (choosableObjects.length === 1) {
+							actualTargetObject = choosableObjects[0];
+						} else {
+							const chosenInstances = await this.gsm.actionHandler.promptForCardChoice(
+								playerId,
+								`Choose an object to modify statistics.`,
+								choosableObjects.map(
+									(obj) => this.gsm.objectStore.getCardInstance(obj.instanceId)!
+								),
+								1,
+								1
+							);
+							if (chosenInstances.length > 0) {
+								actualTargetObject = this.gsm.getObject(chosenInstances[0].objectId);
+							}
+						}
+					} else if (targetKeyForPlayer) {
+						console.warn(
+							`[EffectProcessor.effectModifyStatistics] Unsupported targetKeyForPlayer: ${targetKeyForPlayer}`
 						);
-						if (chosenInstances.length > 0) {
-							actualTargetObject = this.gsm.getObject(chosenInstances[0].objectId);
-						}
+						return;
+					} else {
+						actualTargetObject = player.zones.heroZone.getHeroGameObject();
+						if (!actualTargetObject)
+							console.warn(
+								`[EffectProcessor.effectModifyStatistics] Defaulted to hero for player ${playerId}, but no hero found.`
+							);
 					}
-				} else if (targetKeyForPlayer) {
-					console.warn(`[EffectProcessor.effectModifyStatistics] Unsupported targetKeyForPlayer: ${targetKeyForPlayer}`);
-					return;
-				} else {
-					actualTargetObject = player.zones.heroZone.getHeroGameObject();
-					if (!actualTargetObject) console.warn(`[EffectProcessor.effectModifyStatistics] Defaulted to hero for player ${playerId}, but no hero found.`);
-				}
 
-				if (actualTargetObject) {
-					if (!actualTargetObject.currentCharacteristics.statistics) {
-						actualTargetObject.currentCharacteristics.statistics = { forest: 0, mountain: 0, water: 0, power: 0, health: 0 };
-					}
-					const stats = actualTargetObject.currentCharacteristics.statistics;
-					let changed = false;
-					for (const key of Object.keys(statsChange) as Array<keyof typeof statsChange>) {
-						if (statsChange[key] !== undefined && typeof stats[key] === 'number') {
-							(stats[key] as number) += statsChange[key]!;
-							changed = true;
+					if (actualTargetObject) {
+						if (!actualTargetObject.currentCharacteristics.statistics) {
+							actualTargetObject.currentCharacteristics.statistics = {
+								forest: 0,
+								mountain: 0,
+								water: 0,
+								power: 0,
+								health: 0
+							};
 						}
+						const stats = actualTargetObject.currentCharacteristics.statistics;
+						let changed = false;
+						for (const key of Object.keys(statsChange) as Array<keyof typeof statsChange>) {
+							if (statsChange[key] !== undefined && typeof stats[key] === 'number') {
+								(stats[key] as number) += statsChange[key]!;
+								changed = true;
+							}
+						}
+						if (changed) {
+							this.gsm.eventBus.publish('statisticsModified', {
+								targetId: actualTargetObject.objectId,
+								newStats: { ...stats }
+							});
+							console.log(
+								`[EffectProcessor] Modified statistics for ${actualTargetObject.name} (for player ${playerId}). New stats: F:${stats.forest} M:${stats.mountain} W:${stats.water} P:${stats.power} H:${stats.health}`
+							);
+						}
+					} else {
+						console.warn(
+							`[EffectProcessor.effectModifyStatistics] Could not find or choose target object for player ${playerId}.`
+						);
 					}
-					if (changed) {
-						this.gsm.eventBus.publish('statisticsModified', { targetId: actualTargetObject.objectId, newStats: { ...stats } });
-						console.log(`[EffectProcessor] Modified statistics for ${actualTargetObject.name} (for player ${playerId}). New stats: F:${stats.forest} M:${stats.mountain} W:${stats.water} P:${stats.power} H:${stats.health}`);
-					}
-				} else {
-					console.warn(`[EffectProcessor.effectModifyStatistics] Could not find or choose target object for player ${playerId}.`);
 				}
-			});
+			);
 		}
 
 		for (const gameObjectTarget of gameObjectTargets) {
 			if (!gameObjectTarget.currentCharacteristics.statistics) {
-				gameObjectTarget.currentCharacteristics.statistics = { forest: 0, mountain: 0, water: 0, power: 0, health: 0 };
+				gameObjectTarget.currentCharacteristics.statistics = {
+					forest: 0,
+					mountain: 0,
+					water: 0,
+					power: 0,
+					health: 0
+				};
 			}
 			const stats = gameObjectTarget.currentCharacteristics.statistics;
 			let changed = false;
@@ -1385,17 +1933,30 @@ export class EffectProcessor {
 				}
 			}
 			if (changed) {
-				this.gsm.eventBus.publish('statisticsModified', { targetId: gameObjectTarget.objectId, newStats: { ...stats } });
-				console.log(`[EffectProcessor] Modified statistics for ${gameObjectTarget.name}. New stats: F:${stats.forest} M:${stats.mountain} W:${stats.water} P:${stats.power} H:${stats.health}`);
+				this.gsm.eventBus.publish('statisticsModified', {
+					targetId: gameObjectTarget.objectId,
+					newStats: { ...stats }
+				});
+				console.log(
+					`[EffectProcessor] Modified statistics for ${gameObjectTarget.name}. New stats: F:${stats.forest} M:${stats.mountain} W:${stats.water} P:${stats.power} H:${stats.health}`
+				);
 			}
 		}
 	}
 
-	private async effectChangeController(step: IEffectStep, targets: (IGameObject | string)[]): Promise<void> {
-		const newControllerIdParam = step.parameters?.newControllerId as string | 'source_controller' | 'current_player_in_loop';
+	private async effectChangeController(
+		step: IEffectStep,
+		targets: (IGameObject | string)[]
+	): Promise<void> {
+		const newControllerIdParam = step.parameters?.newControllerId as
+			| string
+			| 'source_controller'
+			| 'current_player_in_loop';
 
 		if (!newControllerIdParam) {
-			console.warn(`[EffectProcessor] ChangeController: Invalid or missing newControllerId parameter.`);
+			console.warn(
+				`[EffectProcessor] ChangeController: Invalid or missing newControllerId parameter.`
+			);
 			return;
 		}
 
@@ -1412,78 +1973,113 @@ export class EffectProcessor {
 
 		if (playerIds.length > 0) {
 			const choiceCriteria = step.parameters?.choiceCriteria;
-			const whoBecomesNewController = step.parameters?.whoBecomesNewController as string | undefined;
+			const whoBecomesNewController = step.parameters?.whoBecomesNewController as
+				| string
+				| undefined;
 
 			if (!choiceCriteria || !whoBecomesNewController) {
-				console.warn('[EffectProcessor.effectChangeController] Missing choiceCriteria or whoBecomesNewController for player-based controller change.');
+				console.warn(
+					'[EffectProcessor.effectChangeController] Missing choiceCriteria or whoBecomesNewController for player-based controller change.'
+				);
 				return;
 			}
 
-			await this._processEffectForEachPlayerSequentially(playerIds, step, async (chooserPlayerId, currentStep) => {
-				const chooserPlayer = this.gsm.getPlayer(chooserPlayerId);
-				if (!chooserPlayer) return;
+			await this._processEffectForEachPlayerSequentially(
+				playerIds,
+				step,
+				async (chooserPlayerId, currentStep) => {
+					const chooserPlayer = this.gsm.getPlayer(chooserPlayerId);
+					if (!chooserPlayer) return;
 
-				const choosableObjects = this.gsm.getObjectsControlledByPlayer(chooserPlayerId)
-					.filter(obj => this.gsm.matchesCriteria(obj, choiceCriteria));
+					const choosableObjects = this.gsm
+						.getObjectsControlledByPlayer(chooserPlayerId)
+						.filter((obj) => this.gsm.matchesCriteria(obj, choiceCriteria));
 
-				if (choosableObjects.length === 0) {
-					console.log(`[EffectProcessor.effectChangeController] Player ${chooserPlayerId} has no objects matching criteria.`);
-					return;
-				}
-
-				let chosenObject: IGameObject | null = null;
-				if (choosableObjects.length === 1) {
-					chosenObject = choosableObjects[0];
-				} else {
-					const chosenInstances = await this.gsm.actionHandler.promptForCardChoice(
-						chooserPlayerId, `Choose an object to change controller.`,
-						choosableObjects.map(obj => this.gsm.objectStore.getCardInstance(obj.instanceId)!), 1, 1
-					);
-					if (chosenInstances.length > 0) {
-						chosenObject = this.gsm.getObject(chosenInstances[0].objectId);
+					if (choosableObjects.length === 0) {
+						console.log(
+							`[EffectProcessor.effectChangeController] Player ${chooserPlayerId} has no objects matching criteria.`
+						);
+						return;
 					}
-				}
 
-				if (chosenObject) {
-					let finalNewControllerId: string | null = null;
-					if (whoBecomesNewController === 'opponent_of_chooser') {
-						const opponents = this.gsm.getPlayerIds().filter(pid => pid !== chooserPlayerId);
-						if (opponents.length === 1) finalNewControllerId = opponents[0];
-						else if (opponents.length > 1) {
-							finalNewControllerId = await this.gsm.actionHandler.promptForPlayerChoice(chooserPlayerId, opponents, "Choose new controller");
+					let chosenObject: IGameObject | null = null;
+					if (choosableObjects.length === 1) {
+						chosenObject = choosableObjects[0];
+					} else {
+						const chosenInstances = await this.gsm.actionHandler.promptForCardChoice(
+							chooserPlayerId,
+							`Choose an object to change controller.`,
+							choosableObjects.map((obj) => this.gsm.objectStore.getCardInstance(obj.instanceId)!),
+							1,
+							1
+						);
+						if (chosenInstances.length > 0) {
+							chosenObject = this.gsm.getObject(chosenInstances[0].objectId);
 						}
-					} else if (this.gsm.getPlayer(whoBecomesNewController)) {
-						finalNewControllerId = whoBecomesNewController;
-					} else if (whoBecomesNewController === 'source_controller' && currentStep.sourceObjectId) {
-						finalNewControllerId = this.gsm.getObject(currentStep.sourceObjectId)?.controllerId || null;
 					}
 
-					if (finalNewControllerId && this.gsm.getPlayer(finalNewControllerId)) {
-						const oldControllerId = chosenObject.controllerId;
-						if (oldControllerId !== finalNewControllerId) {
-							chosenObject.controllerId = finalNewControllerId;
-							this.gsm.eventBus.publish('controllerChanged', { objectId: chosenObject.objectId, newControllerId: finalNewControllerId, oldControllerId });
-							console.log(`[EffectProcessor] Player ${chooserPlayerId} chose ${chosenObject.name}; controller changed from ${oldControllerId} to ${finalNewControllerId}.`);
+					if (chosenObject) {
+						let finalNewControllerId: string | null = null;
+						if (whoBecomesNewController === 'opponent_of_chooser') {
+							const opponents = this.gsm.getPlayerIds().filter((pid) => pid !== chooserPlayerId);
+							if (opponents.length === 1) finalNewControllerId = opponents[0];
+							else if (opponents.length > 1) {
+								finalNewControllerId = await this.gsm.actionHandler.promptForPlayerChoice(
+									chooserPlayerId,
+									opponents,
+									'Choose new controller'
+								);
+							}
+						} else if (this.gsm.getPlayer(whoBecomesNewController)) {
+							finalNewControllerId = whoBecomesNewController;
+						} else if (
+							whoBecomesNewController === 'source_controller' &&
+							currentStep.sourceObjectId
+						) {
+							finalNewControllerId =
+								this.gsm.getObject(currentStep.sourceObjectId)?.controllerId || null;
+						}
+
+						if (finalNewControllerId && this.gsm.getPlayer(finalNewControllerId)) {
+							const oldControllerId = chosenObject.controllerId;
+							if (oldControllerId !== finalNewControllerId) {
+								chosenObject.controllerId = finalNewControllerId;
+								this.gsm.eventBus.publish('controllerChanged', {
+									objectId: chosenObject.objectId,
+									newControllerId: finalNewControllerId,
+									oldControllerId
+								});
+								console.log(
+									`[EffectProcessor] Player ${chooserPlayerId} chose ${chosenObject.name}; controller changed from ${oldControllerId} to ${finalNewControllerId}.`
+								);
+							}
+						} else {
+							console.warn(
+								`[EffectProcessor.effectChangeController] Could not determine valid new controller for object ${chosenObject.name}.`
+							);
 						}
 					} else {
-						console.warn(`[EffectProcessor.effectChangeController] Could not determine valid new controller for object ${chosenObject.name}.`);
+						console.log(
+							`[EffectProcessor.effectChangeController] Player ${chooserPlayerId} did not choose an object.`
+						);
 					}
-				} else {
-					console.log(`[EffectProcessor.effectChangeController] Player ${chooserPlayerId} did not choose an object.`);
 				}
-			});
+			);
 		}
 
 		if (gameObjectTargets.length > 0) {
 			let newControllerForGameObjects: string | null = null;
 			if (newControllerIdParam === 'source_controller' && step.sourceObjectId) {
 				newControllerForGameObjects = this.gsm.getObject(step.sourceObjectId)?.controllerId || null;
-			} else if (this.gsm.getPlayer(newControllerIdParam as string)) { // Cast needed as newControllerIdParam can be 'source_controller' etc.
+			} else if (this.gsm.getPlayer(newControllerIdParam as string)) {
+				// Cast needed as newControllerIdParam can be 'source_controller' etc.
 				newControllerForGameObjects = newControllerIdParam as string;
 			}
 
 			if (!newControllerForGameObjects) {
-				console.warn(`[EffectProcessor] ChangeController: Could not determine new controller for direct game object targets from param: ${newControllerIdParam}.`);
+				console.warn(
+					`[EffectProcessor] ChangeController: Could not determine new controller for direct game object targets from param: ${newControllerIdParam}.`
+				);
 				return;
 			}
 
@@ -1491,32 +2087,51 @@ export class EffectProcessor {
 				const oldControllerId = gameObjectTarget.controllerId;
 				if (oldControllerId !== newControllerForGameObjects) {
 					gameObjectTarget.controllerId = newControllerForGameObjects;
-					this.gsm.eventBus.publish('controllerChanged', { objectId: gameObjectTarget.objectId, newControllerId: newControllerForGameObjects, oldControllerId });
-					console.log(`[EffectProcessor] Changed controller of ${gameObjectTarget.name} from ${oldControllerId} to ${newControllerForGameObjects}.`);
+					this.gsm.eventBus.publish('controllerChanged', {
+						objectId: gameObjectTarget.objectId,
+						newControllerId: newControllerForGameObjects,
+						oldControllerId
+					});
+					console.log(
+						`[EffectProcessor] Changed controller of ${gameObjectTarget.name} from ${oldControllerId} to ${newControllerForGameObjects}.`
+					);
 				}
 			}
 		}
 	}
 
-	private async effectRollDie(step: IEffectStep, _sourceObjectForContext: IGameObject | undefined | null, currentContext: any): Promise<void> {
+	private async effectRollDie(
+		step: IEffectStep,
+		_sourceObjectForContext: IGameObject | undefined | null,
+		currentContext: any
+	): Promise<void> {
 		const result = Math.floor(Math.random() * 6) + 1;
-		const storeAs = step.parameters?.storeAs as string || 'lastDieRoll';
+		const storeAs = (step.parameters?.storeAs as string) || 'lastDieRoll';
 		if (currentContext && currentContext._effectRuntimeValues) {
 			currentContext._effectRuntimeValues[storeAs] = result;
 		} else {
-			console.warn("[EffectProcessor] RollDie: Cannot store result, _effectRuntimeValues not on context.");
+			console.warn(
+				'[EffectProcessor] RollDie: Cannot store result, _effectRuntimeValues not on context.'
+			);
 		}
 		this.gsm.eventBus.publish('dieRolled', { result, storedAs: storeAs });
 		console.log(`[EffectProcessor] Rolled a die: ${result}. Stored as "${storeAs}".`);
 	}
 
-	private async effectIfCondition(step: IEffectStep, sourceObjectForContext: IGameObject | undefined | null, currentContext: any, preSelectedTargets?: any[]): Promise<boolean> {
+	private async effectIfCondition(
+		step: IEffectStep,
+		sourceObjectForContext: IGameObject | undefined | null,
+		currentContext: any,
+		preSelectedTargets?: any[]
+	): Promise<boolean> {
 		const condition = step.parameters?.condition as any;
 		const then_steps = step.parameters?.then_steps as IEffectStep[] | undefined;
 		const else_steps = step.parameters?.else_steps as IEffectStep[] | undefined;
 
 		if (!condition || !then_steps) {
-			console.warn('[EffectProcessor] IfCondition: Invalid parameters. "condition" and "then_steps" are required.');
+			console.warn(
+				'[EffectProcessor] IfCondition: Invalid parameters. "condition" and "then_steps" are required.'
+			);
 			return false;
 		}
 
@@ -1530,7 +2145,10 @@ export class EffectProcessor {
 			else if (condition.operator === '<' && val1 < val2) conditionMet = true;
 			else if (condition.operator === '===' && val1 === val2) conditionMet = true;
 			else if (condition.operator === '!==' && val1 !== val2) conditionMet = true;
-			else console.warn(`[EffectProcessor] IfCondition: Unknown operator ${condition.operator} for compare_runtime_value`);
+			else
+				console.warn(
+					`[EffectProcessor] IfCondition: Unknown operator ${condition.operator} for compare_runtime_value`
+				);
 		} else if (condition.type === 'check_step_execution' && currentContext._effectRuntimeValues) {
 			const stepStatusKey = condition.key as string;
 			if (currentContext._effectRuntimeValues[stepStatusKey] === condition.value) {
@@ -1540,14 +2158,14 @@ export class EffectProcessor {
 			const zoneSpecifier = condition.zone;
 			const checkType = condition.check;
 			let resultsFromAllContexts: boolean[] = [];
-			let relevantContexts: { playerId: string, type: 'hero' | 'companion' }[] = [];
+			let relevantContexts: { playerId: string; type: 'hero' | 'companion' }[] = [];
 
 			if (zoneSpecifier === 'source_expeditions') {
 				relevantContexts = this._getEffectiveExpeditionContexts(sourceObjectForContext, 'self');
 			} else if (zoneSpecifier === 'source_hero_expedition' && sourceObjectForContext) {
-				relevantContexts.push({playerId: sourceObjectForContext.controllerId, type: 'hero'});
+				relevantContexts.push({ playerId: sourceObjectForContext.controllerId, type: 'hero' });
 			} else if (zoneSpecifier === 'source_companion_expedition' && sourceObjectForContext) {
-				relevantContexts.push({playerId: sourceObjectForContext.controllerId, type: 'companion'});
+				relevantContexts.push({ playerId: sourceObjectForContext.controllerId, type: 'companion' });
 			}
 
 			if (relevantContexts.length > 0) {
@@ -1555,65 +2173,105 @@ export class EffectProcessor {
 					const singleContextResult = this.evaluateSingleZoneCondition(ctx, checkType, condition);
 					resultsFromAllContexts.push(singleContextResult);
 				}
-				conditionMet = resultsFromAllContexts.length > 0 && resultsFromAllContexts.every(r => r === true);
+				conditionMet =
+					resultsFromAllContexts.length > 0 && resultsFromAllContexts.every((r) => r === true);
 			} else {
 				conditionMet = false;
 			}
 		} else {
-			console.warn(`[EffectProcessor] IfCondition: Unknown condition type "${condition.type}" or missing runtime/source context.`);
+			console.warn(
+				`[EffectProcessor] IfCondition: Unknown condition type "${condition.type}" or missing runtime/source context.`
+			);
 		}
 
 		const stepsToExecute = conditionMet ? then_steps : else_steps;
 		let branchExecuted = false;
 		if (stepsToExecute && stepsToExecute.length > 0) {
-			console.log(`[EffectProcessor] IfCondition: Condition was ${conditionMet ? 'MET' : 'NOT MET'}. Executing ${conditionMet ? 'THEN' : 'ELSE'} branch.`);
+			console.log(
+				`[EffectProcessor] IfCondition: Condition was ${conditionMet ? 'MET' : 'NOT MET'}. Executing ${conditionMet ? 'THEN' : 'ELSE'} branch.`
+			);
 			const subEffect: IEffect = {
 				steps: stepsToExecute,
 				sourceObjectId: sourceObjectForContext?.objectId,
 				_triggerPayload: currentContext,
 				_lkiSourceObject: sourceObjectForContext
 			};
-			await this.resolveEffect(subEffect, sourceObjectForContext, preSelectedTargets, currentContext);
+			await this.resolveEffect(
+				subEffect,
+				sourceObjectForContext,
+				preSelectedTargets,
+				currentContext
+			);
 			branchExecuted = true;
 		} else {
-			console.log(`[EffectProcessor] IfCondition: Condition was ${conditionMet ? 'MET' : 'NOT MET'}. No steps in chosen branch or chosen branch is empty.`);
+			console.log(
+				`[EffectProcessor] IfCondition: Condition was ${conditionMet ? 'MET' : 'NOT MET'}. No steps in chosen branch or chosen branch is empty.`
+			);
 		}
 		return branchExecuted;
 	}
 
-	private async effectPlayCardForFree(step: IEffectStep, sourceObjectForContext: IGameObject | undefined | null, currentContext: any): Promise<void> {
+	private async effectPlayCardForFree(
+		step: IEffectStep,
+		sourceObjectForContext: IGameObject | undefined | null,
+		currentContext: any
+	): Promise<void> {
 		const cardId = step.parameters?.cardId as string; // instanceId or objectId
 		const fromZoneIdentifier = step.parameters?.fromZone as ZoneIdentifier;
-		const playerId = step.parameters?.playerId as string || sourceObjectForContext?.controllerId || currentContext?.currentPlayerId;
+		const playerId =
+			(step.parameters?.playerId as string) ||
+			sourceObjectForContext?.controllerId ||
+			currentContext?.currentPlayerId;
 
 		if (!cardId || !fromZoneIdentifier || !playerId) {
-			console.warn('[EffectProcessor.effectPlayCardForFree] Missing parameters: cardId, fromZoneIdentifier, or playerId.');
+			console.warn(
+				'[EffectProcessor.effectPlayCardForFree] Missing parameters: cardId, fromZoneIdentifier, or playerId.'
+			);
 			return;
 		}
 		// Additional parameters for playCard like selectedExpeditionType, targets might need to be passed or determined.
 		// For simplicity, assuming no complex targeting or expedition choice needed for the free play here.
-		await this.gsm.cardPlaySystem.playCard(playerId, cardId, fromZoneIdentifier, undefined, undefined, undefined, 0); // Pass 0 for scoutRawCost to imply free
-		console.log(`[EffectProcessor] Player ${playerId} playing card ${cardId} from ${fromZoneIdentifier} for free.`);
+		await this.gsm.cardPlaySystem.playCard(
+			playerId,
+			cardId,
+			fromZoneIdentifier,
+			undefined,
+			undefined,
+			undefined,
+			0
+		); // Pass 0 for scoutRawCost to imply free
+		console.log(
+			`[EffectProcessor] Player ${playerId} playing card ${cardId} from ${fromZoneIdentifier} for free.`
+		);
 	}
 
 	private evaluateSingleZoneCondition(
-		context: { playerId: string, type: 'hero' | 'companion' },
+		context: { playerId: string; type: 'hero' | 'companion' },
 		checkType: string,
 		conditionParams: any
 	): boolean {
-		console.warn(`[EffectProcessor.evaluateSingleZoneCondition] Placeholder for: checking ${checkType} in ${context.type} of ${context.playerId} with params ${JSON.stringify(conditionParams)} - returning false by default.`);
+		console.warn(
+			`[EffectProcessor.evaluateSingleZoneCondition] Placeholder for: checking ${checkType} in ${context.type} of ${context.playerId} with params ${JSON.stringify(conditionParams)} - returning false by default.`
+		);
 		return false;
 	}
 
-	private async effectSwitchExpedition(step: IEffectStep, targets: (IGameObject | string)[]): Promise<void> {
+	private async effectSwitchExpedition(
+		step: IEffectStep,
+		targets: (IGameObject | string)[]
+	): Promise<void> {
 		for (const target of targets) {
 			if (this.isTargetGameObject(target)) {
 				if (target.type !== CardType.Character) {
-					console.warn(`[EffectProcessor.effectSwitchExpedition] Target ${target.name} is not a Character. Skipping.`);
+					console.warn(
+						`[EffectProcessor.effectSwitchExpedition] Target ${target.name} is not a Character. Skipping.`
+					);
 					continue;
 				}
 				if (!target.expeditionAssignment) {
-					console.warn(`[EffectProcessor.effectSwitchExpedition] Target ${target.name} has no expeditionAssignment. Skipping.`);
+					console.warn(
+						`[EffectProcessor.effectSwitchExpedition] Target ${target.name} has no expeditionAssignment. Skipping.`
+					);
 					continue;
 				}
 
@@ -1623,12 +2281,24 @@ export class EffectProcessor {
 
 				if (isGigantic) {
 					target.expeditionAssignment.type = newAssignment;
-					console.log(`[EffectProcessor] Gigantic character ${target.name} (ID: ${target.objectId}) switched its primary expedition assignment from ${oldAssignment} to ${newAssignment}. This does not trigger leave/join events for the Gigantic character itself.`);
-					this.gsm.eventBus.publish('giganticAssignmentSwitched', { objectId: target.objectId, newAssignmentType: newAssignment, oldAssignmentType: oldAssignment });
+					console.log(
+						`[EffectProcessor] Gigantic character ${target.name} (ID: ${target.objectId}) switched its primary expedition assignment from ${oldAssignment} to ${newAssignment}. This does not trigger leave/join events for the Gigantic character itself.`
+					);
+					this.gsm.eventBus.publish('giganticAssignmentSwitched', {
+						objectId: target.objectId,
+						newAssignmentType: newAssignment,
+						oldAssignmentType: oldAssignment
+					});
 				} else {
 					target.expeditionAssignment.type = newAssignment;
-					console.log(`[EffectProcessor] Non-Gigantic character ${target.name} (ID: ${target.objectId}) switched expedition assignment from ${oldAssignment} to ${newAssignment}. TODO: Implement full leave/join trigger logic if distinct from assignment change.`);
-					this.gsm.eventBus.publish('expeditionAssignmentSwitched', { objectId: target.objectId, newAssignmentType: newAssignment, oldAssignmentType: oldAssignment });
+					console.log(
+						`[EffectProcessor] Non-Gigantic character ${target.name} (ID: ${target.objectId}) switched expedition assignment from ${oldAssignment} to ${newAssignment}. TODO: Implement full leave/join trigger logic if distinct from assignment change.`
+					);
+					this.gsm.eventBus.publish('expeditionAssignmentSwitched', {
+						objectId: target.objectId,
+						newAssignmentType: newAssignment,
+						oldAssignmentType: oldAssignment
+					});
 				}
 			}
 		}
@@ -1641,12 +2311,16 @@ export class EffectProcessor {
 	}
 
 	private getValueFromPath(obj: unknown, path: string): unknown {
-		if (!obj || typeof obj !== 'object' && typeof obj !== 'function') return undefined;
+		if (!obj || (typeof obj !== 'object' && typeof obj !== 'function')) return undefined;
 		if (path.includes('__proto__') || path.includes('constructor') || path.includes('prototype')) {
 			return undefined;
 		}
 		const properties = path.split('.');
-		return properties.reduce((prev, curr) => (prev && typeof prev === 'object' && prev[curr] !== undefined) ? prev[curr] : undefined, obj);
+		return properties.reduce(
+			(prev, curr) =>
+				prev && typeof prev === 'object' && prev[curr] !== undefined ? prev[curr] : undefined,
+			obj
+		);
 	}
 
 	private async resolveTargetsForStep(
@@ -1659,7 +2333,9 @@ export class EffectProcessor {
 		if (!targetSpec) return [];
 
 		if (targetKey && preSelectedTargets && preSelectedTargets.length > 0) {
-			const specificTarget = preSelectedTargets.find(t => t.targetId === targetKey || t.key === targetKey);
+			const specificTarget = preSelectedTargets.find(
+				(t) => t.targetId === targetKey || t.key === targetKey
+			);
 			if (specificTarget && specificTarget.objectId) {
 				const obj = this.gsm.getObject(specificTarget.objectId);
 				return obj ? [obj] : [];
@@ -1668,15 +2344,16 @@ export class EffectProcessor {
 			}
 		}
 		if (preSelectedTargets && preSelectedTargets.length > 0 && typeof targetSpec !== 'string') {
-			return preSelectedTargets.map(t => {
-				if (t.objectId) {
-					const obj = this.gsm.getObject(t.objectId);
-					return obj ? obj : t.objectId;
-				}
-				return t;
-			}).filter(t => t) as (IGameObject | string)[];
+			return preSelectedTargets
+				.map((t) => {
+					if (t.objectId) {
+						const obj = this.gsm.getObject(t.objectId);
+						return obj ? obj : t.objectId;
+					}
+					return t;
+				})
+				.filter((t) => t) as (IGameObject | string)[];
 		}
-
 
 		if (typeof targetSpec === 'string') {
 			const lowerTargetSpec = targetSpec.toLowerCase();
@@ -1691,7 +2368,7 @@ export class EffectProcessor {
 				case 'opponent':
 					if (sourceObjectForContext) {
 						const controllerId = sourceObjectForContext.controllerId;
-						playerIdsToSort = this.gsm.getPlayerIds().filter(pid => pid !== controllerId);
+						playerIdsToSort = this.gsm.getPlayerIds().filter((pid) => pid !== controllerId);
 						needsSorting = true;
 					}
 					break;
@@ -1730,33 +2407,53 @@ export class EffectProcessor {
 					if (spec.path && currentContext) {
 						const value = this.getValueFromPath(currentContext, spec.path);
 						if (value === undefined) {
-							console.warn(`[EffectProcessor] Path '${spec.path}' yielded undefined from context:`, currentContext);
+							console.warn(
+								`[EffectProcessor] Path '${spec.path}' yielded undefined from context:`,
+								currentContext
+							);
 							return [];
 						}
 						const items = Array.isArray(value) ? value : [value];
-						return items.map(item => {
-							if (typeof item === 'string') {
-								const objItem = this.gsm.getObject(item);
-								return objItem ? objItem : item;
-							} else if (this.isTargetGameObject(item)) {
-								return item;
-							}
-							console.warn(`[EffectProcessor] fromTrigger: Unhandled item type from path ${spec.path}:`, item);
-							return null;
-						}).filter(item => item !== null) as (IGameObject | string)[];
+						return items
+							.map((item) => {
+								if (typeof item === 'string') {
+									const objItem = this.gsm.getObject(item);
+									return objItem ? objItem : item;
+								} else if (this.isTargetGameObject(item)) {
+									return item;
+								}
+								console.warn(
+									`[EffectProcessor] fromTrigger: Unhandled item type from path ${spec.path}:`,
+									item
+								);
+								return null;
+							})
+							.filter((item) => item !== null) as (IGameObject | string)[];
 					}
-					console.warn('[EffectProcessor] "fromTrigger" target type requires a path and active context.');
+					console.warn(
+						'[EffectProcessor] "fromTrigger" target type requires a path and active context.'
+					);
 					return [];
 				case 'objects_matching_criteria':
 				case 'select':
 					// console.log(`[EffectProcessor] Complex target selection for type '${spec.type}' with criteria '${JSON.stringify(spec.criteria)}'.`);
-					if (sourceObjectForContext && spec.criteria?.zone === 'self_hero_expedition' && spec.criteria?.cardType === CardType.Character) {
-						return this.gsm.getObjectsInExpedition(sourceObjectForContext.controllerId, 'hero')
-							.filter(obj => obj.type === CardType.Character);
+					if (
+						sourceObjectForContext &&
+						spec.criteria?.zone === 'self_hero_expedition' &&
+						spec.criteria?.cardType === CardType.Character
+					) {
+						return this.gsm
+							.getObjectsInExpedition(sourceObjectForContext.controllerId, 'hero')
+							.filter((obj) => obj.type === CardType.Character);
 					}
-					if (sourceObjectForContext && spec.criteria?.zone === 'self_companion_expedition' && spec.criteria?.cardType === CardType.Character) {
-						return this.gsm.getObjectsInExpedition(sourceObjectForContext.controllerId, 'companion')
-							.filter(obj => obj.type === CardType.Character);
+					if (
+						sourceObjectForContext &&
+						spec.criteria?.zone === 'self_companion_expedition' &&
+						spec.criteria?.cardType === CardType.Character
+					) {
+						return this.gsm
+							.getObjectsInExpedition(sourceObjectForContext.controllerId, 'companion')
+							.filter((obj) => obj.type === CardType.Character);
 					}
 
 					let potentialPlayerIds: string[] = [];
@@ -1764,16 +2461,19 @@ export class EffectProcessor {
 
 					if (sourceObjectForContext && spec.criteria?.zone) {
 						const targetCardType = spec.criteria.cardType as CardType | undefined;
-						let contexts: { playerId: string, type: 'hero' | 'companion' }[] = [];
+						let contexts: { playerId: string; type: 'hero' | 'companion' }[] = [];
 
-						if (spec.criteria.zone === 'source_expeditions') { // Player's own hero and/or companion based on source
+						if (spec.criteria.zone === 'source_expeditions') {
+							// Player's own hero and/or companion based on source
 							contexts = this._getEffectiveExpeditionContexts(sourceObjectForContext, 'self');
-						} else if (spec.criteria.zone === 'opposing_expeditions_to_source') { // Opponent's expeditions relative to source
+						} else if (spec.criteria.zone === 'opposing_expeditions_to_source') {
+							// Opponent's expeditions relative to source
 							contexts = this._getEffectiveExpeditionContexts(sourceObjectForContext, 'opponent');
 							// Collect player IDs for sorting if this resolves to players
-							potentialPlayerIds.push(...new Set(contexts.map(c => c.playerId)));
-						} else if (spec.criteria.zone === 'all_expeditions') { // All expeditions of all players
-							this.gsm.getPlayerIds().forEach(pid => {
+							potentialPlayerIds.push(...new Set(contexts.map((c) => c.playerId)));
+						} else if (spec.criteria.zone === 'all_expeditions') {
+							// All expeditions of all players
+							this.gsm.getPlayerIds().forEach((pid) => {
 								contexts.push({ playerId: pid, type: 'hero' });
 								contexts.push({ playerId: pid, type: 'companion' });
 							});
@@ -1784,9 +2484,9 @@ export class EffectProcessor {
 
 						for (const ctx of contexts) {
 							const objectsInExpedition = this.gsm.getObjectsInExpedition(ctx.playerId, ctx.type);
-							objectsInExpedition.forEach(obj => {
+							objectsInExpedition.forEach((obj) => {
 								if (!targetCardType || obj.type === targetCardType) {
-									if (!resolvedGameObjects.some(rt => rt.objectId === obj.objectId)) {
+									if (!resolvedGameObjects.some((rt) => rt.objectId === obj.objectId)) {
 										resolvedGameObjects.push(obj);
 									}
 								}
@@ -1804,13 +2504,17 @@ export class EffectProcessor {
 									this.gsm.state.currentPhase === 'Afternoon'
 										? this.gsm.state.currentPlayerId
 										: this.gsm.state.firstPlayerId;
-								return this.gsm.getPlayerIdsInInitiativeOrder(initiativeStartingPlayer, [...new Set(potentialPlayerIds)]);
+								return this.gsm.getPlayerIdsInInitiativeOrder(initiativeStartingPlayer, [
+									...new Set(potentialPlayerIds)
+								]);
 							}
 							return resolvedGameObjects; // Returns game objects, not player IDs here.
 						}
 					}
 					// Fallback for unhandled or more complex criteria
-					console.warn(`[EffectProcessor] Complex target selection for type '${spec.type}' with criteria '${JSON.stringify(spec.criteria)}' requires player choice or more specific unhandled logic.`);
+					console.warn(
+						`[EffectProcessor] Complex target selection for type '${spec.type}' with criteria '${JSON.stringify(spec.criteria)}' requires player choice or more specific unhandled logic.`
+					);
 					return [];
 				default:
 					console.warn(`[EffectProcessor] Unknown target object type: ${spec.type}`);
@@ -1818,15 +2522,17 @@ export class EffectProcessor {
 			}
 		}
 
-		let initialTargets : (IGameObject | string)[] = [];
+		let initialTargets: (IGameObject | string)[] = [];
 		if (Array.isArray(targetSpec)) {
-			initialTargets = targetSpec.map(t => {
-				if (typeof t === 'string') {
-					const obj = this.gsm.getObject(t);
-					return obj ? obj : t;
-				}
-				return t;
-			}).filter(t => t) as (IGameObject | string)[];
+			initialTargets = targetSpec
+				.map((t) => {
+					if (typeof t === 'string') {
+						const obj = this.gsm.getObject(t);
+						return obj ? obj : t;
+					}
+					return t;
+				})
+				.filter((t) => t) as (IGameObject | string)[];
 		} else {
 			// If not a string, not an object with type, and not an array, it's an unresolved spec.
 			console.warn('[EffectProcessor] Unresolved target specification:', targetSpec);
@@ -1834,7 +2540,9 @@ export class EffectProcessor {
 		}
 
 		// If initialTargets contains only player IDs, sort them.
-		const allArePlayerIds = initialTargets.length > 0 && initialTargets.every(t => typeof t === 'string' && this.gsm.getPlayer(t));
+		const allArePlayerIds =
+			initialTargets.length > 0 &&
+			initialTargets.every((t) => typeof t === 'string' && this.gsm.getPlayer(t));
 		if (allArePlayerIds) {
 			const playerIds = initialTargets as string[];
 			// Only sort if there's more than one player and it's not a single pre-selected target.
@@ -1850,12 +2558,18 @@ export class EffectProcessor {
 		return initialTargets;
 	}
 
-	public resolveTargetsForDependency(step: IEffectStep, sourceObjectId: string, triggerPayload?: any): string[] {
+	public resolveTargetsForDependency(
+		step: IEffectStep,
+		sourceObjectId: string,
+		triggerPayload?: any
+	): string[] {
 		let targetObjectIds: string[] = [];
 		const sourceObject = this.gsm.getObject(sourceObjectId);
 
 		if (!sourceObject) {
-			console.warn(`[EffectProcessor.resolveTargetsForDependency] Source object ${sourceObjectId} not found.`);
+			console.warn(
+				`[EffectProcessor.resolveTargetsForDependency] Source object ${sourceObjectId} not found.`
+			);
 			return [];
 		}
 
@@ -1875,7 +2589,7 @@ export class EffectProcessor {
 					break;
 				case 'opponent':
 					const controllerId = sourceObject.controllerId;
-					const opponents = this.gsm.getPlayerIds().filter(pid => pid !== controllerId);
+					const opponents = this.gsm.getPlayerIds().filter((pid) => pid !== controllerId);
 					targetObjectIds.push(...opponents);
 					break;
 				default:
@@ -1897,17 +2611,29 @@ export class EffectProcessor {
 					break;
 			}
 		} else if (Array.isArray(targetSpec)) {
-			targetSpec.forEach(item => {
+			targetSpec.forEach((item) => {
 				if (typeof item === 'string') {
 					targetObjectIds.push(item);
 				} else if (this.isTargetGameObject(item)) {
 					targetObjectIds.push(item.objectId);
-				} else if (typeof item === 'object' && item !== null && 'objectId' in item && typeof (item as any).objectId === 'string') {
+				} else if (
+					typeof item === 'object' &&
+					item !== null &&
+					'objectId' in item &&
+					typeof (item as any).objectId === 'string'
+				) {
 					targetObjectIds.push((item as any).objectId); // Handles cases where it's an object with objectId
-				} else if (typeof item === 'object' && item !== null && 'id' in item && typeof (item as any).id === 'string') {
+				} else if (
+					typeof item === 'object' &&
+					item !== null &&
+					'id' in item &&
+					typeof (item as any).id === 'string'
+				) {
 					targetObjectIds.push((item as any).id); // Handles cases where it's an object with id (e.g. player-like)
 				} else {
-					console.warn(`[EffectProcessor.resolveTargetsForDependency] Non-string/non-identifiable element in targetSpec array: ${JSON.stringify(item)}`);
+					console.warn(
+						`[EffectProcessor.resolveTargetsForDependency] Non-string/non-identifiable element in targetSpec array: ${JSON.stringify(item)}`
+					);
 				}
 			});
 		} else if (typeof targetSpec === 'object' && targetSpec !== null && (targetSpec as any).type) {
@@ -1918,30 +2644,44 @@ export class EffectProcessor {
 					if (spec.path && triggerPayload) {
 						const value = this.getValueFromPath(triggerPayload, spec.path);
 						if (value === undefined) {
-							console.warn(`[EffectProcessor.resolveTargetsForDependency] Path '${spec.path}' yielded undefined from triggerPayload.`);
+							console.warn(
+								`[EffectProcessor.resolveTargetsForDependency] Path '${spec.path}' yielded undefined from triggerPayload.`
+							);
 						} else {
 							const items = Array.isArray(value) ? value : [value];
-							items.forEach(item => {
+							items.forEach((item) => {
 								if (typeof item === 'string') {
 									targetObjectIds.push(item);
 								} else if (this.isTargetGameObject(item)) {
 									targetObjectIds.push(item.objectId);
-								} else if (typeof item === 'object' && item !== null && 'id' in item && typeof item.id === 'string') {
+								} else if (
+									typeof item === 'object' &&
+									item !== null &&
+									'id' in item &&
+									typeof item.id === 'string'
+								) {
 									targetObjectIds.push(item.id); // Handle generic objects with an 'id' property
 								} else {
-									console.warn(`[EffectProcessor.resolveTargetsForDependency] from_trigger: Unhandled item type from path ${spec.path}:`, item);
+									console.warn(
+										`[EffectProcessor.resolveTargetsForDependency] from_trigger: Unhandled item type from path ${spec.path}:`,
+										item
+									);
 								}
 							});
 						}
 					} else {
-						console.warn('[EffectProcessor.resolveTargetsForDependency] "from_trigger" target type requires a path and triggerPayload.');
+						console.warn(
+							'[EffectProcessor.resolveTargetsForDependency] "from_trigger" target type requires a path and triggerPayload.'
+						);
 					}
 					break;
 				case 'objects_matching_criteria':
 				case 'select':
 					const criteria = spec.criteria;
 					if (!criteria) {
-						console.warn(`[EffectProcessor.resolveTargetsForDependency] 'select' target type missing criteria.`);
+						console.warn(
+							`[EffectProcessor.resolveTargetsForDependency] 'select' target type missing criteria.`
+						);
 						break;
 					}
 
@@ -1955,11 +2695,22 @@ export class EffectProcessor {
 							// Direct ZoneIdentifier provided (e.g., "expedition", "hand")
 							// This needs a context player. Default to sourceObject's controller or all players for shared zones.
 							let playerContextIds: string[] = [sourceObject.controllerId];
-							if ([ZoneIdentifier.Expedition, ZoneIdentifier.Limbo, ZoneIdentifier.Adventure].includes(zoneString as ZoneIdentifier)) {
+							if (
+								[
+									ZoneIdentifier.Expedition,
+									ZoneIdentifier.Limbo,
+									ZoneIdentifier.Adventure
+								].includes(zoneString as ZoneIdentifier)
+							) {
 								playerContextIds = this.gsm.getPlayerIds(); // Shared zones apply to all players
 							} else if (criteria.controller === 'opponent') {
-								playerContextIds = this.gsm.getPlayerIds().filter(pid => pid !== sourceObject.controllerId);
-							} else if (typeof criteria.controller === 'string' && criteria.controller !== 'self') {
+								playerContextIds = this.gsm
+									.getPlayerIds()
+									.filter((pid) => pid !== sourceObject.controllerId);
+							} else if (
+								typeof criteria.controller === 'string' &&
+								criteria.controller !== 'self'
+							) {
 								playerContextIds = [criteria.controller];
 							}
 
@@ -1969,13 +2720,13 @@ export class EffectProcessor {
 							}
 						} else {
 							// String codes like "self_hero_expedition", "source_expeditions", "opponent_discard"
-							let expeditionContexts: { playerId: string, type: 'hero' | 'companion' }[] = [];
+							let expeditionContexts: { playerId: string; type: 'hero' | 'companion' }[] = [];
 							if (zoneString === 'source_expeditions') {
 								expeditionContexts = this._getEffectiveExpeditionContexts(sourceObject, 'self');
 							} else if (zoneString === 'opposing_expeditions_to_source') {
 								expeditionContexts = this._getEffectiveExpeditionContexts(sourceObject, 'opponent');
 							} else if (zoneString === 'all_expeditions') {
-								this.gsm.getPlayerIds().forEach(pid => {
+								this.gsm.getPlayerIds().forEach((pid) => {
 									expeditionContexts.push({ playerId: pid, type: 'hero' });
 									expeditionContexts.push({ playerId: pid, type: 'companion' });
 								});
@@ -1989,8 +2740,12 @@ export class EffectProcessor {
 							if (expeditionContexts.length > 0) {
 								const expeditionZone = this.gsm.state.sharedZones.expedition;
 								// Filter objects within the main expedition zone based on these contexts
-								const objsInRelevantExpeditions = expeditionZone.getAll().filter(obj => {
-									return expeditionContexts.some(ctx => obj.expeditionAssignment?.playerId === ctx.playerId && obj.expeditionAssignment?.type === ctx.type);
+								const objsInRelevantExpeditions = expeditionZone.getAll().filter((obj) => {
+									return expeditionContexts.some(
+										(ctx) =>
+											obj.expeditionAssignment?.playerId === ctx.playerId &&
+											obj.expeditionAssignment?.type === ctx.type
+									);
 								});
 								candidateObjects.push(...objsInRelevantExpeditions);
 							} else {
@@ -2002,7 +2757,9 @@ export class EffectProcessor {
 									playerIdsForZone.push(sourceObject.controllerId);
 									zoneType = zoneString.replace('controller_', '') as ZoneIdentifier;
 								} else if (zoneString.startsWith('opponent_')) {
-									playerIdsForZone.push(...this.gsm.getPlayerIds().filter(pid => pid !== sourceObject.controllerId));
+									playerIdsForZone.push(
+										...this.gsm.getPlayerIds().filter((pid) => pid !== sourceObject.controllerId)
+									);
 									zoneType = zoneString.replace('opponent_', '') as ZoneIdentifier;
 								}
 								// Add more cases like 'player_hand' if criteria can specify a player ID directly for the zone
@@ -2021,24 +2778,39 @@ export class EffectProcessor {
 						}
 						// Deduplicate objects that might be in multiple scanned zones (though typically not the case for well-defined zones)
 						candidateObjects = [...new Set(candidateObjects)];
-
 					} else if (criteria.zone === ZoneIdentifier.Any || !criteria.zone) {
 						// If zone is 'any' or not specified, consider all objects.
 						candidateObjects.push(...this.gsm.getAllPlayObjects());
 					}
 					// Deduplicate objects after gathering from all sources
-					candidateObjects = Array.from(new Map(candidateObjects.map(obj => [obj.objectId, obj])).values());
-
+					candidateObjects = Array.from(
+						new Map(candidateObjects.map((obj) => [obj.objectId, obj])).values()
+					);
 
 					// Filter by other criteria
-					const filteredObjects = candidateObjects.filter(obj => {
+					const filteredObjects = candidateObjects.filter((obj) => {
 						if (criteria.cardType && obj.type !== criteria.cardType) return false;
-						if (criteria.controller === 'self' && obj.controllerId !== sourceObject.controllerId) return false;
-						if (criteria.controller === 'opponent' && obj.controllerId === sourceObject.controllerId) return false;
-						if (typeof criteria.controller === 'string' && !['self', 'opponent'].includes(criteria.controller) && obj.controllerId !== criteria.controller) return false;
+						if (criteria.controller === 'self' && obj.controllerId !== sourceObject.controllerId)
+							return false;
+						if (
+							criteria.controller === 'opponent' &&
+							obj.controllerId === sourceObject.controllerId
+						)
+							return false;
+						if (
+							typeof criteria.controller === 'string' &&
+							!['self', 'opponent'].includes(criteria.controller) &&
+							obj.controllerId !== criteria.controller
+						)
+							return false;
 
-						if (criteria.keywords && criteria.keywords.some(kw => !obj.keywords.includes(kw))) return false;
-						if (criteria.notKeywords && criteria.notKeywords.some(kw => obj.keywords.includes(kw))) return false;
+						if (criteria.keywords && criteria.keywords.some((kw) => !obj.keywords.includes(kw)))
+							return false;
+						if (
+							criteria.notKeywords &&
+							criteria.notKeywords.some((kw) => obj.keywords.includes(kw))
+						)
+							return false;
 
 						// Stats checks (example, expand as needed)
 						if (criteria.stats) {
@@ -2052,14 +2824,19 @@ export class EffectProcessor {
 						return true;
 					});
 
-					targetObjectIds.push(...filteredObjects.map(obj => obj.objectId));
+					targetObjectIds.push(...filteredObjects.map((obj) => obj.objectId));
 					break;
 				default:
-					console.warn(`[EffectProcessor.resolveTargetsForDependency] Unknown target object type: ${spec.type}`);
+					console.warn(
+						`[EffectProcessor.resolveTargetsForDependency] Unknown target object type: ${spec.type}`
+					);
 					break;
 			}
 		} else {
-			console.warn(`[EffectProcessor.resolveTargetsForDependency] Unhandled targetSpec type: ${typeof targetSpec}`, targetSpec);
+			console.warn(
+				`[EffectProcessor.resolveTargetsForDependency] Unhandled targetSpec type: ${typeof targetSpec}`,
+				targetSpec
+			);
 		}
 
 		// Ensure no duplicate IDs
@@ -2069,24 +2846,41 @@ export class EffectProcessor {
 	private findZoneByType(playerIdForContext: string, zoneType: ZoneIdentifier): IZone | null {
 		const player = this.gsm.getPlayer(playerIdForContext);
 		switch (zoneType) {
-			case ZoneIdentifier.Hand: return player?.zones.handZone || null;
-			case ZoneIdentifier.Deck: return player?.zones.deckZone || null;
-			case ZoneIdentifier.DiscardPile: return player?.zones.discardPileZone || null;
-			case ZoneIdentifier.Mana: return player?.zones.manaZone || null;
-			case ZoneIdentifier.Reserve: return player?.zones.reserveZone || null;
-			case ZoneIdentifier.Landmark: return player?.zones.landmarkZone || null;
-			case ZoneIdentifier.Hero: return player?.zones.heroZone || null;
-			case ZoneIdentifier.Expedition: return this.gsm.state.sharedZones.expedition;
-			case ZoneIdentifier.Limbo: return this.gsm.state.sharedZones.limbo;
-			case ZoneIdentifier.Adventure: return this.gsm.state.sharedZones.adventure;
+			case ZoneIdentifier.Hand:
+				return player?.zones.handZone || null;
+			case ZoneIdentifier.Deck:
+				return player?.zones.deckZone || null;
+			case ZoneIdentifier.DiscardPile:
+				return player?.zones.discardPileZone || null;
+			case ZoneIdentifier.Mana:
+				return player?.zones.manaZone || null;
+			case ZoneIdentifier.Reserve:
+				return player?.zones.reserveZone || null;
+			case ZoneIdentifier.Landmark:
+				return player?.zones.landmarkZone || null;
+			case ZoneIdentifier.Hero:
+				return player?.zones.heroZone || null;
+			case ZoneIdentifier.Expedition:
+				return this.gsm.state.sharedZones.expedition;
+			case ZoneIdentifier.Limbo:
+				return this.gsm.state.sharedZones.limbo;
+			case ZoneIdentifier.Adventure:
+				return this.gsm.state.sharedZones.adventure;
 			default:
-				console.warn(`[EffectProcessor] Unknown or unhandled zone type for findZoneByType: ${zoneType}`);
+				console.warn(
+					`[EffectProcessor] Unknown or unhandled zone type for findZoneByType: ${zoneType}`
+				);
 				return null;
 		}
 	}
 
-	private async shouldExecuteOptionalEffect(step: IEffectStep, currentContext: any): Promise<boolean> {
-		const controllerId = (currentContext.sourceObjectForContext as IGameObject)?.controllerId || this.gsm.state.currentPlayerId;
+	private async shouldExecuteOptionalEffect(
+		step: IEffectStep,
+		currentContext: any
+	): Promise<boolean> {
+		const controllerId =
+			(currentContext.sourceObjectForContext as IGameObject)?.controllerId ||
+			this.gsm.state.currentPlayerId;
 		return await this.gsm.actionHandler.promptForOptionalStepChoice(controllerId, step);
 	}
 
@@ -2106,14 +2900,16 @@ export class EffectProcessor {
 
 	public addPendingEffect(effect: IEffect): void {
 		this.pendingEffects.push(effect);
-		console.log(`[EffectProcessor] Added pending effect, queue size: ${this.pendingEffects.length}`);
+		console.log(
+			`[EffectProcessor] Added pending effect, queue size: ${this.pendingEffects.length}`
+		);
 	}
 
 	private _getEffectiveExpeditionContexts(
 		sourceObject: IGameObject,
 		perspective: 'self' | 'opponent'
-	): { playerId: string, type: 'hero' | 'companion' }[] {
-		const contexts: { playerId: string, type: 'hero' | 'companion' }[] = [];
+	): { playerId: string; type: 'hero' | 'companion' }[] {
+		const contexts: { playerId: string; type: 'hero' | 'companion' }[] = [];
 		const isSourceGigantic = sourceObject.currentCharacteristics.isGigantic === true;
 		const sourceControllerId = sourceObject.controllerId;
 
@@ -2126,12 +2922,14 @@ export class EffectProcessor {
 				if (assignedType) {
 					contexts.push({ playerId: sourceControllerId, type: assignedType });
 				} else {
-					console.warn(`[EffectProcessor._getEffectiveExpeditionContexts] Non-Gigantic source ${sourceObject.name} in expedition has no specific assignment. Defaulting to 'hero'.`);
+					console.warn(
+						`[EffectProcessor._getEffectiveExpeditionContexts] Non-Gigantic source ${sourceObject.name} in expedition has no specific assignment. Defaulting to 'hero'.`
+					);
 					contexts.push({ playerId: sourceControllerId, type: 'hero' });
 				}
 			}
 		} else {
-			const opponents = this.gsm.getPlayerIds().filter(pid => pid !== sourceControllerId);
+			const opponents = this.gsm.getPlayerIds().filter((pid) => pid !== sourceControllerId);
 			for (const opponentId of opponents) {
 				if (isSourceGigantic) {
 					contexts.push({ playerId: opponentId, type: 'hero' });

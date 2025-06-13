@@ -81,12 +81,12 @@ export class ManaSystem {
 		// Check expedition zone - Characters provide terrain mana
 		// All characters controlled by the player in the shared expedition zone contribute.
 		const sharedExpeditionZone = this.gsm.state.sharedZones.expedition;
-		const playerExpeditionCharacters = sharedExpeditionZone.getAll().filter(
-			(e): e is IGameObject =>
-				isGameObject(e) &&
-				e.controllerId === playerId &&
-				e.type === CardType.Character
-		);
+		const playerExpeditionCharacters = sharedExpeditionZone
+			.getAll()
+			.filter(
+				(e): e is IGameObject =>
+					isGameObject(e) && e.controllerId === playerId && e.type === CardType.Character
+			);
 
 		for (const entity of playerExpeditionCharacters) {
 			// Asleep characters' stats are not counted for terrain mana (Rule 2.4.3.a implies general stat non-contribution)
@@ -258,43 +258,60 @@ export class ManaSystem {
 		const handCard = player.zones.handZone.findById(cardId);
 
 		if (!handCard) {
-			console.error(`[ManaSystem.addCardToMana] Card with ID ${cardId} not found in hand of player ${playerId}.`);
+			console.error(
+				`[ManaSystem.addCardToMana] Card with ID ${cardId} not found in hand of player ${playerId}.`
+			);
 			return false;
 		}
 
 		// Note: entityId for moveEntity is cardId itself, as findById ensures it's the key in the zone.
 
 		// Move card to mana zone via GameStateManager
-		const movedEntity = this.gsm.moveEntity(cardId, player.zones.handZone, player.zones.manaZone, playerId);
+		const movedEntity = this.gsm.moveEntity(
+			cardId,
+			player.zones.handZone,
+			player.zones.manaZone,
+			playerId
+		);
 
 		if (movedEntity && isGameObject(movedEntity)) {
 			// Ensure it's the one in the mana zone by using its objectId.
 			// GameStateManager.moveEntity is expected to return the actual IGameObject instance
 			// that was added to the destination zone.
-			const cardInManaZone = player.zones.manaZone.findById(movedEntity.objectId) as IGameObject | undefined;
+			const cardInManaZone = player.zones.manaZone.findById(movedEntity.objectId) as
+				| IGameObject
+				| undefined;
 
 			// Double check it's the same object and it's still an IGameObject.
 			// This also confirms it's correctly in the manaZone.
 			if (cardInManaZone && cardInManaZone.objectId === movedEntity.objectId) {
-				 cardInManaZone.faceDown = true; // Rule 3.2.9.b
-				 cardInManaZone.statuses.add(StatusType.Exhausted); // Rule 3.2.9.b
-				 cardInManaZone.type = CardType.ManaOrb; // Rule 3.2.9.c
-				 console.log(`[ManaSystem.addCardToMana] Card ${cardInManaZone.name} (ID: ${cardInManaZone.objectId}) successfully set as Mana Orb.`);
-				 return true;
+				cardInManaZone.faceDown = true; // Rule 3.2.9.b
+				cardInManaZone.statuses.add(StatusType.Exhausted); // Rule 3.2.9.b
+				cardInManaZone.type = CardType.ManaOrb; // Rule 3.2.9.c
+				console.log(
+					`[ManaSystem.addCardToMana] Card ${cardInManaZone.name} (ID: ${cardInManaZone.objectId}) successfully set as Mana Orb.`
+				);
+				return true;
 			} else {
-				 console.error(`[ManaSystem.addCardToMana] Moved entity ${movedEntity.objectId} (original card ID: ${cardId}) not found in mana zone with the same objectId or is not an IGameObject after move.`);
-				 // This situation indicates a deeper issue if moveEntity's return value isn't reliable
-				 // or if the object was transformed/removed immediately after being moved.
-				 return false;
+				console.error(
+					`[ManaSystem.addCardToMana] Moved entity ${movedEntity.objectId} (original card ID: ${cardId}) not found in mana zone with the same objectId or is not an IGameObject after move.`
+				);
+				// This situation indicates a deeper issue if moveEntity's return value isn't reliable
+				// or if the object was transformed/removed immediately after being moved.
+				return false;
 			}
 		} else if (movedEntity === null) {
 			// This case means the entity ceased to exist (e.g., a token, though not expected from hand to mana).
-			console.error(`[ManaSystem.addCardToMana] Card ${cardId} ceased to exist (e.g. token) while moving to mana. This is unexpected.`);
+			console.error(
+				`[ManaSystem.addCardToMana] Card ${cardId} ceased to exist (e.g. token) while moving to mana. This is unexpected.`
+			);
 			return false;
 		} else {
 			// This case covers scenarios where moveEntity might have failed silently (returning undefined, though it should throw)
 			// or returned a non-IGameObject (e.g., ICardInstance, if the mana zone was hidden, which it isn't).
-			console.error(`[ManaSystem.addCardToMana] Failed to move card ${cardId} to mana zone, or moved entity is not an IGameObject as expected.`);
+			console.error(
+				`[ManaSystem.addCardToMana] Failed to move card ${cardId} to mana zone, or moved entity is not an IGameObject as expected.`
+			);
 			return false;
 		}
 	}
@@ -335,7 +352,9 @@ export class ManaSystem {
 			exhaustedOrbId: sourceOrb.objectId,
 			readiedOrbId: targetOrb.objectId
 		});
-		console.log(`[ManaSystem.convertMana] Player ${playerId} converted mana: exhausted ${sourceOrb.name} (ID: ${sourceOrb.objectId}) to ready ${targetOrb.name} (ID: ${targetOrb.objectId}).`);
+		console.log(
+			`[ManaSystem.convertMana] Player ${playerId} converted mana: exhausted ${sourceOrb.name} (ID: ${sourceOrb.objectId}) to ready ${targetOrb.name} (ID: ${targetOrb.objectId}).`
+		);
 		return true;
 	}
 

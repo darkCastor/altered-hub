@@ -62,9 +62,15 @@ export class KeywordAbilityHandler {
 		let toughValue = 0;
 
 		// Prioritize currentCharacteristics set by RuleAdjudicator
-		if (object.currentCharacteristics && typeof (object.currentCharacteristics as any).isTough === 'number') {
+		if (
+			object.currentCharacteristics &&
+			typeof (object.currentCharacteristics as any).isTough === 'number'
+		) {
 			toughValue = (object.currentCharacteristics as any).isTough;
-		} else if (object.currentCharacteristics && (object.currentCharacteristics as any).isTough === true) {
+		} else if (
+			object.currentCharacteristics &&
+			(object.currentCharacteristics as any).isTough === true
+		) {
 			// If isTough is just boolean true, assume Tough 1
 			toughValue = 1;
 		} else {
@@ -85,17 +91,23 @@ export class KeywordAbilityHandler {
 		}
 
 		// Opponent is targeting an object with Tough X
-		console.log(`[KeywordAbilityHandler] Object ${object.name} has Tough ${toughValue}. Checking if player ${targetingPlayerId} can pay.`);
+		console.log(
+			`[KeywordAbilityHandler] Object ${object.name} has Tough ${toughValue}. Checking if player ${targetingPlayerId} can pay.`
+		);
 
 		// Check if the ManaSystem is available
 		if (!this.gsm.manaSystem) {
-			console.warn('[KeywordAbilityHandler.canTargetWithTough] ManaSystem not available on GSM. Cannot verify Tough cost payment. Allowing targetting by default.');
+			console.warn(
+				'[KeywordAbilityHandler.canTargetWithTough] ManaSystem not available on GSM. Cannot verify Tough cost payment. Allowing targetting by default.'
+			);
 			return true; // Or false, depending on desired strictness if system is incomplete
 		}
 
 		const canPayToughCost = this.gsm.manaSystem.canPayMana(targetingPlayerId, toughValue);
 		if (!canPayToughCost) {
-			console.log(`[KeywordAbilityHandler] Player ${targetingPlayerId} cannot pay additional ${toughValue} mana for Tough on ${object.name}.`);
+			console.log(
+				`[KeywordAbilityHandler] Player ${targetingPlayerId} cannot pay additional ${toughValue} mana for Tough on ${object.name}.`
+			);
 		}
 		return canPayToughCost;
 	}
@@ -135,7 +147,9 @@ export class KeywordAbilityHandler {
 		// This handler method primarily serves as a hook for any direct on-enter-play effects
 		// specific to Gigantic beyond the flag, or for logging.
 		// Rule 7.4.4.c, 7.4.4.d (j/h/r triggers only once) - this is handled by normal trigger processing.
-		console.log(`[KeywordAbilityHandler] Gigantic ${object.name} (ID: ${object.objectId}) considered present in both controller's expeditions due to isGigantic flag.`);
+		console.log(
+			`[KeywordAbilityHandler] Gigantic ${object.name} (ID: ${object.objectId}) considered present in both controller's expeditions due to isGigantic flag.`
+		);
 	}
 
 	/**
@@ -144,7 +158,9 @@ export class KeywordAbilityHandler {
 	private handleGiganticLeavePlay(object: IGameObject): void {
 		// Similar to enter play, the main effect of leaving "both expeditions" is handled by the object
 		// being removed from its actual zone and its isGigantic flag no longer being relevant in play.
-		console.log(`[KeywordAbilityHandler] Gigantic ${object.name} (ID: ${object.objectId}) is no longer considered present in both expeditions as it leaves play.`);
+		console.log(
+			`[KeywordAbilityHandler] Gigantic ${object.name} (ID: ${object.objectId}) is no longer considered present in both expeditions as it leaves play.`
+		);
 	}
 
 	/**
@@ -160,30 +176,38 @@ export class KeywordAbilityHandler {
 		let defenderInCompanionExpedition = false;
 
 		// Get all characters of the player in the shared expedition zone
-		const allPlayerCharactersInExpedition = sharedExpeditionZone.getAll().filter(e => {
+		const allPlayerCharactersInExpedition = sharedExpeditionZone.getAll().filter((e) => {
 			if (!isGameObject(e)) return false;
 			return e.controllerId === playerId && e.type === CardType.Character;
 		}) as IGameObject[];
 
 		for (const char of allPlayerCharactersInExpedition) {
-			const hasDefender = char.currentCharacteristics.hasDefender === true ||
-				(char.abilities && char.abilities.some((ability) => ability.keyword === KeywordAbility.Defender));
+			const hasDefender =
+				char.currentCharacteristics.hasDefender === true ||
+				(char.abilities &&
+					char.abilities.some((ability) => ability.keyword === KeywordAbility.Defender));
 
 			if (hasDefender) {
 				// Rule 7.4.4.a: A Gigantic Character is considered to be in both expeditions.
 				// Rule 7.4.2.c: If a Gigantic Character has Defender, both expeditions are restricted.
 				if (char.currentCharacteristics?.isGigantic) {
-					console.log(`[KeywordAbilityHandler] Gigantic character ${char.name} with Defender restricts both expeditions for player ${playerId}.`);
+					console.log(
+						`[KeywordAbilityHandler] Gigantic character ${char.name} with Defender restricts both expeditions for player ${playerId}.`
+					);
 					defenderInHeroExpedition = true;
 					defenderInCompanionExpedition = true;
 					break; // Both expeditions are restricted, no need to check further.
 				}
 
 				if (char.expeditionAssignment?.type === 'Hero') {
-					console.log(`[KeywordAbilityHandler] Character ${char.name} with Defender restricts Hero expedition for player ${playerId}.`);
+					console.log(
+						`[KeywordAbilityHandler] Character ${char.name} with Defender restricts Hero expedition for player ${playerId}.`
+					);
 					defenderInHeroExpedition = true;
 				} else if (char.expeditionAssignment?.type === 'Companion') {
-					console.log(`[KeywordAbilityHandler] Character ${char.name} with Defender restricts Companion expedition for player ${playerId}.`);
+					console.log(
+						`[KeywordAbilityHandler] Character ${char.name} with Defender restricts Companion expedition for player ${playerId}.`
+					);
 					defenderInCompanionExpedition = true;
 				}
 			}
@@ -202,7 +226,6 @@ export class KeywordAbilityHandler {
 	 */
 	// public processScoutPlay(object: IGameObject, paidScoutCost: boolean): void { ... }
 
-
 	/**
 	 * Grants a temporary reaction ability to an object that was just played via Scout.
 	 * The reaction sends the object to Reserve upon resolving its 'h' trigger (on play from hand).
@@ -211,14 +234,20 @@ export class KeywordAbilityHandler {
 	 */
 	public grantScoutSendToReserveAbility(scoutedObject: IGameObject): void {
 		if (!scoutedObject.currentCharacteristics) {
-			console.warn(`[KeywordAbilityHandler] Object ${scoutedObject.name} (${scoutedObject.objectId}) has no currentCharacteristics to grant Scout reaction.`);
+			console.warn(
+				`[KeywordAbilityHandler] Object ${scoutedObject.name} (${scoutedObject.objectId}) has no currentCharacteristics to grant Scout reaction.`
+			);
 			// Initialize if missing, though it should ideally be there post-play by RuleAdjudicator or playCard logic
 			scoutedObject.currentCharacteristics = {
 				...scoutedObject.baseCharacteristics,
 				grantedAbilities: [],
-                negatedAbilityIds: [],
-                statistics: scoutedObject.baseCharacteristics.statistics ? { ...scoutedObject.baseCharacteristics.statistics } : { forest: 0, mountain: 0, water: 0, power: 0, health: 0 },
-                keywords: scoutedObject.baseCharacteristics.keywords ? { ...scoutedObject.baseCharacteristics.keywords } : {},
+				negatedAbilityIds: [],
+				statistics: scoutedObject.baseCharacteristics.statistics
+					? { ...scoutedObject.baseCharacteristics.statistics }
+					: { forest: 0, mountain: 0, water: 0, power: 0, health: 0 },
+				keywords: scoutedObject.baseCharacteristics.keywords
+					? { ...scoutedObject.baseCharacteristics.keywords }
+					: {}
 			};
 		}
 		if (!scoutedObject.currentCharacteristics.grantedAbilities) {
@@ -227,8 +256,14 @@ export class KeywordAbilityHandler {
 
 		const sendToReserveAbilityId = `temp_scout_send_to_reserve_${scoutedObject.objectId}`;
 
-		if (scoutedObject.currentCharacteristics.grantedAbilities.some(a => a.abilityId === sendToReserveAbilityId)) {
-			console.log(`[KeywordAbilityHandler] Scout 'Send to Reserve' ability already granted to ${scoutedObject.name}.`);
+		if (
+			scoutedObject.currentCharacteristics.grantedAbilities.some(
+				(a) => a.abilityId === sendToReserveAbilityId
+			)
+		) {
+			console.log(
+				`[KeywordAbilityHandler] Scout 'Send to Reserve' ability already granted to ${scoutedObject.name}.`
+			);
 			return;
 		}
 
@@ -236,16 +271,19 @@ export class KeywordAbilityHandler {
 			abilityId: sendToReserveAbilityId,
 			abilityType: AbilityType.Reaction,
 			isTemporary: true,
-			text: "h Send me to Reserve (from Scout).",
+			text: 'h Send me to Reserve (from Scout).',
 			sourceObjectId: scoutedObject.objectId,
 			isSupportAbility: false,
 			trigger: {
 				eventType: 'cardPlayed',
 				condition: (payload: any, sourceObject: IGameObject, _gsm: GameStateManager): boolean => {
 					if (!payload || !payload.card || !payload.card.objectId) return false;
-					return payload.card.objectId === sourceObject.objectId &&
-						   payload.fromZone === ZoneIdentifier.Hand &&
-						   (payload.finalZone === ZoneIdentifier.Expedition || payload.finalZone === ZoneIdentifier.Landmark);
+					return (
+						payload.card.objectId === sourceObject.objectId &&
+						payload.fromZone === ZoneIdentifier.Hand &&
+						(payload.finalZone === ZoneIdentifier.Expedition ||
+							payload.finalZone === ZoneIdentifier.Landmark)
+					);
 				}
 			},
 			effect: {
@@ -254,7 +292,7 @@ export class KeywordAbilityHandler {
 						verb: 'PUT_IN_ZONE',
 						targets: 'self',
 						parameters: {
-							destinationZoneIdentifier: ZoneIdentifier.Reserve,
+							destinationZoneIdentifier: ZoneIdentifier.Reserve
 						}
 					}
 				]
@@ -262,7 +300,9 @@ export class KeywordAbilityHandler {
 		};
 
 		scoutedObject.currentCharacteristics.grantedAbilities.push(sendToReserveReaction);
-		console.log(`[KeywordAbilityHandler] Granted temporary 'Send to Reserve' reaction ability to ${scoutedObject.name} (${scoutedObject.objectId}) due to Scout play.`);
+		console.log(
+			`[KeywordAbilityHandler] Granted temporary 'Send to Reserve' reaction ability to ${scoutedObject.name} (${scoutedObject.objectId}) due to Scout play.`
+		);
 	}
 
 	/**
@@ -290,16 +330,20 @@ export class KeywordAbilityHandler {
 	public getToughValue(object: IGameObject): number {
 		let toughValue = 0;
 		// Prioritize currentCharacteristics set by RuleAdjudicator
-		if (object.currentCharacteristics && typeof (object.currentCharacteristics as any).isTough === 'number') {
+		if (
+			object.currentCharacteristics &&
+			typeof (object.currentCharacteristics as any).isTough === 'number'
+		) {
 			toughValue = (object.currentCharacteristics as any).isTough;
-		} else if (object.currentCharacteristics && (object.currentCharacteristics as any).isTough === true) {
+		} else if (
+			object.currentCharacteristics &&
+			(object.currentCharacteristics as any).isTough === true
+		) {
 			// If isTough is just boolean true, assume Tough 1
 			toughValue = 1;
 		} else {
 			// Fallback to base abilities if not found in currentCharacteristics
-			const toughAbilityOnDef = object.abilities.find(
-				(a) => a.keyword === KeywordAbility.Tough
-			);
+			const toughAbilityOnDef = object.abilities.find((a) => a.keyword === KeywordAbility.Tough);
 			if (toughAbilityOnDef && typeof toughAbilityOnDef.keywordValue === 'number') {
 				toughValue = toughAbilityOnDef.keywordValue;
 			} else if (toughAbilityOnDef) {

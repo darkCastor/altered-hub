@@ -188,9 +188,12 @@ export class StatusEffectHandler {
 	private processStatusEffectsDuringNight(): void {
 		const expeditionZone = this.gsm.state.sharedZones.expedition;
 		for (const player of this.gsm.state.players.values()) {
-			const playerEntitiesInExpedition = expeditionZone.getAll().filter(
-				(e): e is IGameObject => isGameObject(e) && e.controllerId === player.id && e.type === CardType.Character
-			);
+			const playerEntitiesInExpedition = expeditionZone
+				.getAll()
+				.filter(
+					(e): e is IGameObject =>
+						isGameObject(e) && e.controllerId === player.id && e.type === CardType.Character
+				);
 
 			for (const entity of playerEntitiesInExpedition) {
 				// Process Anchored and Asleep statuses
@@ -216,8 +219,13 @@ export class StatusEffectHandler {
 				results.ignoreStats = this.processAsleepDuringProgress(object);
 				break;
 			case 'rest':
-				results.anchored = this.processAnchoredDuringRest(object);
-				results.asleep = this.processAsleepDuringRest(object);
+				// Only process statuses if the object actually has them
+				results.anchored = object.statuses.has(StatusType.Anchored)
+					? this.processAnchoredDuringRest(object)
+					: false;
+				results.asleep = object.statuses.has(StatusType.Asleep)
+					? this.processAsleepDuringRest(object)
+					: false;
 				results.fleetingDestination = this.processFleetingDuringRest(object);
 				break;
 			case 'playFromReserve':

@@ -53,30 +53,30 @@ This document audits the game engine implementation against the Altered Complete
 
 - **Status:** Fully Implemented (Informational for most)
 - **Code References:**
-    - `src/engine/types/enums.ts` (for symbols that map to enums like `TerrainType`, `Faction`)
+  - `src/engine/types/enums.ts` (for symbols that map to enums like `TerrainType`, `Faction`)
 - **Details/Discrepancies:**
-    - 1.1.6.a (Numbers are integers): Standard programming practice; floating point numbers are not typically used for game counters, stats, etc.
-    - 1.1.6.b (Division rounding): If division occurs in an effect, the effect definition in `src/engine/EffectProcessor.ts` or card-specific logic would need to specify rounding. This is specific to certain card effects, not a general engine feature.
-    - 1.1.6.c (Division by zero): Standard error or undefined behavior if not handled by specific effect logic.
-    - 1.1.6.d (Missing number is zero): Handled by game logic, e.g., `GameStateManager.calculateExpeditionStats` would treat missing stats as zero.
-    - 1.1.6.e-k (Symbols j, h, r, T, D, I, mana cost): These symbols are primarily for card text representation.
-        - j, h, r: Parsed into `IAbilityTrigger` conditions/event types (e.g., 'enterPlay', 'playFromHand', 'playFromReserve') handled by `src/engine/AdvancedTriggerHandler.ts`.
-        - T (Exhaust me): Implemented as `ICost.exhaustSelf` in `src/engine/types/abilities.ts` and processed by `src/engine/CostProcessor.ts`.
-        - D (Discard me from Reserve): Potentially part of a cost, would be specified in an ability's cost structure and handled by `src/engine/CostProcessor.ts` (needs specific cost component).
-        - I (Support ability clarification): Represented by `IAbility.isSupportAbility` boolean flag in `src/engine/types/abilities.ts`.
-        - Mana cost circles: Represented by `ICost.mana` in `src/engine/types/abilities.ts`.
+  - 1.1.6.a (Numbers are integers): Standard programming practice; floating point numbers are not typically used for game counters, stats, etc.
+  - 1.1.6.b (Division rounding): If division occurs in an effect, the effect definition in `src/engine/EffectProcessor.ts` or card-specific logic would need to specify rounding. This is specific to certain card effects, not a general engine feature.
+  - 1.1.6.c (Division by zero): Standard error or undefined behavior if not handled by specific effect logic.
+  - 1.1.6.d (Missing number is zero): Handled by game logic, e.g., `GameStateManager.calculateExpeditionStats` would treat missing stats as zero.
+  - 1.1.6.e-k (Symbols j, h, r, T, D, I, mana cost): These symbols are primarily for card text representation.
+    - j, h, r: Parsed into `IAbilityTrigger` conditions/event types (e.g., 'enterPlay', 'playFromHand', 'playFromReserve') handled by `src/engine/AdvancedTriggerHandler.ts`.
+    - T (Exhaust me): Implemented as `ICost.exhaustSelf` in `src/engine/types/abilities.ts` and processed by `src/engine/CostProcessor.ts`.
+    - D (Discard me from Reserve): Potentially part of a cost, would be specified in an ability's cost structure and handled by `src/engine/CostProcessor.ts` (needs specific cost component).
+    - I (Support ability clarification): Represented by `IAbility.isSupportAbility` boolean flag in `src/engine/types/abilities.ts`.
+    - Mana cost circles: Represented by `ICost.mana` in `src/engine/types/abilities.ts`.
 
 ##### 1.1.7 Material
 
 - **Status:** Informational
 - **Code References:** N/A
 - **Details/Discrepancies:** Rules 1.1.7.a-f describe physical game components (cards, tokens, counters, dice, status representations, Adventure board).
-    - Card text source (1.1.7.a): The engine uses JSON card definitions which are assumed to be authoritative.
-    - Tokens (1.1.7.b): Created by `src/engine/ObjectFactory.ts` based on effect definitions. Representation is via `IGameObject`.
-    - Counters (1.1.7.c): `IGameObject.counters` map.
-    - Dice (1.1.7.d): Would require a random number generator if dice roll effects are implemented (e.g., in `src/engine/EffectProcessor.ts`).
-    - Status representation (1.1.7.e): `IGameObject.statuses` set.
-    - Adventure board (1.1.7.f): Implemented virtually in `src/engine/GameStateManager.ts` (`state.sharedZones.adventure`).
+  - Card text source (1.1.7.a): The engine uses JSON card definitions which are assumed to be authoritative.
+  - Tokens (1.1.7.b): Created by `src/engine/ObjectFactory.ts` based on effect definitions. Representation is via `IGameObject`.
+  - Counters (1.1.7.c): `IGameObject.counters` map.
+  - Dice (1.1.7.d): Would require a random number generator if dice roll effects are implemented (e.g., in `src/engine/EffectProcessor.ts`).
+  - Status representation (1.1.7.e): `IGameObject.statuses` set.
+  - Adventure board (1.1.7.f): Implemented virtually in `src/engine/GameStateManager.ts` (`state.sharedZones.adventure`).
 
 #### 1.2 Game Concepts
 
@@ -87,10 +87,10 @@ This document audits the game engine implementation against the Altered Complete
   - `src/engine/GameStateManager.ts`: Manages `this.state.players`.
   - `src/engine/types/game.ts`: Defines `IPlayer`.
 - **Details/Discrepancies:**
-    - 1.2.1.a (Participant): `IPlayer` instances.
-    - 1.2.1.b (Opponent): Implicit in a two-player game via `this.state.players.find(p => p.id !== currentPlayerId)`.
-    - 1.2.1.c (Own deck): Assumed at game start.
-    - 1.2.1.d (Personal zones): `IPlayer.zones` in `src/engine/types/game.ts`, initialized in `src/engine/GameStateManager.ts`.
+  - 1.2.1.a (Participant): `IPlayer` instances.
+  - 1.2.1.b (Opponent): Implicit in a two-player game via `this.state.players.find(p => p.id !== currentPlayerId)`.
+  - 1.2.1.c (Own deck): Assumed at game start.
+  - 1.2.1.d (Personal zones): `IPlayer.zones` in `src/engine/types/game.ts`, initialized in `src/engine/GameStateManager.ts`.
 
 ##### 1.2.2 Objects
 
@@ -100,10 +100,10 @@ This document audits the game engine implementation against the Altered Complete
   - `src/engine/types/objects.ts`: Defines `IGameObject`, `ICardInstance`.
   - `src/engine/types/cards.ts`: Defines `ICardDefinition` (base characteristics).
 - **Details/Discrepancies:**
-    - 1.2.2.a (Game pieces): `IGameObject`.
-    - 1.2.2.b (Most things are objects): Yes, or properties of objects.
-    - 1.2.2.c (Characteristics): Defined in `ICardDefinition` and instantiated in `IGameObject.baseCharacteristics` and `IGameObject.currentCharacteristics`. See Section 2.2 audit for detailed characteristic mapping.
-    - 1.2.2.d (Lacking characteristics): Handled by TypeScript optional properties or default values (e.g., stats are 0 if not applicable).
+  - 1.2.2.a (Game pieces): `IGameObject`.
+  - 1.2.2.b (Most things are objects): Yes, or properties of objects.
+  - 1.2.2.c (Characteristics): Defined in `ICardDefinition` and instantiated in `IGameObject.baseCharacteristics` and `IGameObject.currentCharacteristics`. See Section 2.2 audit for detailed characteristic mapping.
+  - 1.2.2.d (Lacking characteristics): Handled by TypeScript optional properties or default values (e.g., stats are 0 if not applicable).
 
 ##### 1.2.3 Zones
 
@@ -114,15 +114,15 @@ This document audits the game engine implementation against the Altered Complete
   - `src/engine/types/zones.ts`: Defines `IZone`, `ZoneIdentifier`.
   - `src/engine/types/enums.ts`: `ZoneIdentifier` enum.
 - **Details/Discrepancies:**
-    - 1.2.3.a (Sets of cards/objects): `IZone.entities`.
-    - 1.2.3.b (Ten zone types): `ZoneIdentifier` enum lists them.
-    - 1.2.3.c (Expedition sub-zones): These are conceptual (Hero/Companion for each player) rather than distinct `IZone` instances. Logic like `IPlayer.expeditionState` or `IGameObject.expeditionAssignment` differentiates them within the shared expedition zone.
-    - 1.2.3.d (Shared zones: Adventure, Expedition zone, Limbo):
-        - Adventure, Limbo: Correctly implemented as shared in `GameStateManager.state.sharedZones`.
-        - Expedition zone: Now correctly implemented as a single shared zone (`GameStateManager.state.sharedZones.expedition`). Player-specific views are achieved by filtering its contents by `controllerId`.
-    - 1.2.3.e (Personal zones): `Deck, DiscardPile, Hand, HeroZone, LandmarkZone, ManaZone, Reserve` are correctly per-player.
-    - 1.2.3.f (Visible zones): Adventure, DiscardPile, ExpeditionZone, HeroZone, LandmarkZone, Limbo, ManaZone, Reserve have `visibility: 'visible'`.
-    - 1.2.3.g (Hidden zones): Deck, Hand have `visibility: 'hidden'`.
+  - 1.2.3.a (Sets of cards/objects): `IZone.entities`.
+  - 1.2.3.b (Ten zone types): `ZoneIdentifier` enum lists them.
+  - 1.2.3.c (Expedition sub-zones): These are conceptual (Hero/Companion for each player) rather than distinct `IZone` instances. Logic like `IPlayer.expeditionState` or `IGameObject.expeditionAssignment` differentiates them within the shared expedition zone.
+  - 1.2.3.d (Shared zones: Adventure, Expedition zone, Limbo):
+    - Adventure, Limbo: Correctly implemented as shared in `GameStateManager.state.sharedZones`.
+    - Expedition zone: Now correctly implemented as a single shared zone (`GameStateManager.state.sharedZones.expedition`). Player-specific views are achieved by filtering its contents by `controllerId`.
+  - 1.2.3.e (Personal zones): `Deck, DiscardPile, Hand, HeroZone, LandmarkZone, ManaZone, Reserve` are correctly per-player.
+  - 1.2.3.f (Visible zones): Adventure, DiscardPile, ExpeditionZone, HeroZone, LandmarkZone, Limbo, ManaZone, Reserve have `visibility: 'visible'`.
+  - 1.2.3.g (Hidden zones): Deck, Hand have `visibility: 'hidden'`.
 
 ##### 1.2.4 Abilities
 
@@ -135,20 +135,20 @@ This document audits the game engine implementation against the Altered Complete
   - `src/engine/EffectProcessor.ts`: For Effects.
   - `src/engine/SupportAbilityHandler.ts`: For support abilities.
 - **Details/Discrepancies:**
-    - 1.2.4.a (Paragraph is an ability): Parsing card text into `IAbility[]` is a pre-engine step.
-    - 1.2.4.b (Keywords as abilities): `IAbility.keyword` can store this.
-    - 1.2.4.c (Four types of abilities): `AbilityType` enum (`QuickAction`, `Reaction`, `Passive`, `Effect`).
-        - Quick actions: `PlayerActionHandler.ts`.
-        - Reactions: `AdvancedTriggerHandler.ts` identifies triggers, `ReactionManager.ts` (if used as per previous audit, or general reaction loop) would manage resolution.
-        - Passive abilities: `RuleAdjudicator.ts` applies these.
-        - Effects: `EffectProcessor.ts` resolves these (often as part of other ability types).
-    - 1.2.4.d (Ability scope - where they work): This is critical and complex.
-        - Non-Hero objects in play: `RuleAdjudicator.getAllPlayObjects()` filters for this for passives. Other handlers need similar checks.
-        - Heroes in Hero zone: Logic in ability handlers needs to verify Hero's location.
-        - Support abilities in Reserve (ready): `SupportAbilityHandler.ts` and `StatusEffectHandler.hasSupportAbilities()` (checks for not exhausted).
-        - Emblems in Limbo: Emblem abilities are resolved by `EffectProcessor.ts` when the emblem is processed.
-        - Playable from specific zone: `CardPlaySystem.ts` checks source zone.
-        - Cost modification abilities: `CardPlaySystem.calculateModifiedCost()` needs to be ableto find and apply these from any zone the card can be played from.
+  - 1.2.4.a (Paragraph is an ability): Parsing card text into `IAbility[]` is a pre-engine step.
+  - 1.2.4.b (Keywords as abilities): `IAbility.keyword` can store this.
+  - 1.2.4.c (Four types of abilities): `AbilityType` enum (`QuickAction`, `Reaction`, `Passive`, `Effect`).
+    - Quick actions: `PlayerActionHandler.ts`.
+    - Reactions: `AdvancedTriggerHandler.ts` identifies triggers, `ReactionManager.ts` (if used as per previous audit, or general reaction loop) would manage resolution.
+    - Passive abilities: `RuleAdjudicator.ts` applies these.
+    - Effects: `EffectProcessor.ts` resolves these (often as part of other ability types).
+  - 1.2.4.d (Ability scope - where they work): This is critical and complex.
+    - Non-Hero objects in play: `RuleAdjudicator.getAllPlayObjects()` filters for this for passives. Other handlers need similar checks.
+    - Heroes in Hero zone: Logic in ability handlers needs to verify Hero's location.
+    - Support abilities in Reserve (ready): `SupportAbilityHandler.ts` and `StatusEffectHandler.hasSupportAbilities()` (checks for not exhausted).
+    - Emblems in Limbo: Emblem abilities are resolved by `EffectProcessor.ts` when the emblem is processed.
+    - Playable from specific zone: `CardPlaySystem.ts` checks source zone.
+    - Cost modification abilities: `CardPlaySystem.calculateModifiedCost()` needs to be ableto find and apply these from any zone the card can be played from.
 - **Discrepancies/Bugs:** Full and consistent enforcement of ability scope (1.2.4.d) across all ability types and handlers is a complex ongoing task. For example, ensuring a passive ability on a card in hand doesn't apply unless it's a known "works from hand" ability (like Scout).
 
 ##### 1.2.5 Costs
@@ -160,11 +160,11 @@ This document audits the game engine implementation against the Altered Complete
   - `src/engine/CardPlaySystem.ts`: Orchestrates cost payment for playing cards.
   - `src/engine/types/costs.ts` / `src/engine/types/abilities.ts` (for `ICost` structure).
 - **Details/Discrepancies:**
-    - 1.2.5.a (Change to game state): `CostProcessor.pay()` enacts changes (mana, exhaust, counters).
-    - 1.2.5.b (Not forced to pay): Player choice is part of game flow before calling payment functions.
-    - 1.2.5.c (Pay in full): `CostProcessor.canPay()` checks this.
-    - 1.2.5.d (Simultaneous payment): `CostProcessor.pay()` handles all components of a defined `ICost` atomically.
-    - 1.2.5.e (Mana cost by exhausting orbs): `ManaSystem.spendMana()` (called by `CostProcessor.pay()`) handles this.
+  - 1.2.5.a (Change to game state): `CostProcessor.pay()` enacts changes (mana, exhaust, counters).
+  - 1.2.5.b (Not forced to pay): Player choice is part of game flow before calling payment functions.
+  - 1.2.5.c (Pay in full): `CostProcessor.canPay()` checks this.
+  - 1.2.5.d (Simultaneous payment): `CostProcessor.pay()` handles all components of a defined `ICost` atomically.
+  - 1.2.5.e (Mana cost by exhausting orbs): `ManaSystem.spendMana()` (called by `CostProcessor.pay()`) handles this.
 
 ##### 1.2.6 Effects
 
@@ -173,12 +173,12 @@ This document audits the game engine implementation against the Altered Complete
   - `src/engine/EffectProcessor.ts`: Core for resolving effects.
   - `src/engine/types/abilities.ts`: `IEffect`, `IEffectStep`.
 - **Details/Discrepancies:**
-    - 1.2.6.a (Change to game state): Purpose of `EffectProcessor.ts`.
-    - 1.2.6.b (Multiple steps): `IEffect.steps` array, processed sequentially by `EffectProcessor.resolveEffect`.
-    - 1.2.6.c (Targeting): `IEffectStep.target` and `EffectProcessor.resolveTargets`.
-    - 1.2.6.d (Optional "may"): `IEffectStep.isOptional` and `EffectProcessor.shouldExecuteOptionalEffect` (player choice mechanism needed).
-    - 1.2.6.e (Conditional "If"): `IEffectStep.condition` (needs implementation for evaluation).
-    - 1.2.6.f (Partial failure ignored): `EffectProcessor.resolveEffectStep` has error handling to continue with other steps/effects.
+  - 1.2.6.a (Change to game state): Purpose of `EffectProcessor.ts`.
+  - 1.2.6.b (Multiple steps): `IEffect.steps` array, processed sequentially by `EffectProcessor.resolveEffect`.
+  - 1.2.6.c (Targeting): `IEffectStep.target` and `EffectProcessor.resolveTargets`.
+  - 1.2.6.d (Optional "may"): `IEffectStep.isOptional` and `EffectProcessor.shouldExecuteOptionalEffect` (player choice mechanism needed).
+  - 1.2.6.e (Conditional "If"): `IEffectStep.condition` (needs implementation for evaluation).
+  - 1.2.6.f (Partial failure ignored): `EffectProcessor.resolveEffectStep` has error handling to continue with other steps/effects.
 
 ##### 1.2.7 Events
 
@@ -187,10 +187,10 @@ This document audits the game engine implementation against the Altered Complete
   - `src/engine/EventBus.ts`: Manages event publishing and subscription.
   - Various systems publish events (e.g., `GameStateManager.moveEntity`, `PhaseManager`).
 - **Details/Discrepancies:**
-    - 1.2.7.a (Change from one game state to next): `EventBus` notifications represent these.
-    - 1.2.7.b (Paying cost is single event): `CostProcessor.pay()` could publish a single "costPaid" event.
-    - 1.2.7.c (Different event for each step in effect): `EffectProcessor.resolveEffectStep` could publish an event after each step resolution.
-    - 1.2.7.d (Events with no change): Possible if an effect resolves with no net change, an event could still be published.
+  - 1.2.7.a (Change from one game state to next): `EventBus` notifications represent these.
+  - 1.2.7.b (Paying cost is single event): `CostProcessor.pay()` could publish a single "costPaid" event.
+  - 1.2.7.c (Different event for each step in effect): `EffectProcessor.resolveEffectStep` could publish an event after each step resolution.
+  - 1.2.7.d (Events with no change): Possible if an effect resolves with no net change, an event could still be published.
 
 #### 1.3 Game Progress
 
@@ -240,10 +240,10 @@ This document audits the game engine implementation against the Altered Complete
 - **Status:** Fully Implemented
 - **Code References:** `src/engine/RuleAdjudicator.ts`, `src/engine/EffectProcessor.ts`, `src/engine/types/abilities.ts` (for `IEffectStep.canBeModified`). Various validation checks.
 - **Details/Discrepancies:** This is a core principle.
-    - 1.4.1.a (Impossible thing cannot be done): Enforced by validation logic before actions (e.g., `CostProcessor.canPay`).
-    - 1.4.1.b (Impossible cost): `CostProcessor.canPay()` prevents payment.
-    - 1.4.1.c (Impossible effect part ignored): `EffectProcessor.ts` generally attempts to resolve what it can.
-    - 1.4.1.d (Cannot modify impossible event): Implemented via the Modifier System (see Section 6.2). Effect steps can be marked with a 'canBeModified: false' flag, which prevents the EffectProcessor from applying any further modifiers (replacing or additive) to them. This ensures that rules stating an event cannot be modified are respected.
+  - 1.4.1.a (Impossible thing cannot be done): Enforced by validation logic before actions (e.g., `CostProcessor.canPay`).
+  - 1.4.1.b (Impossible cost): `CostProcessor.canPay()` prevents payment.
+  - 1.4.1.c (Impossible effect part ignored): `EffectProcessor.ts` generally attempts to resolve what it can.
+  - 1.4.1.d (Cannot modify impossible event): Implemented via the Modifier System (see Section 6.2). Effect steps can be marked with a 'canBeModified: false' flag, which prevents the EffectProcessor from applying any further modifiers (replacing or additive) to them. This ensures that rules stating an event cannot be modified are respected.
 
 ##### 1.4.2 Specific Beats General
 
@@ -278,18 +278,18 @@ This document audits the game engine implementation against the Altered Complete
 - **Status:** Not Implemented
 - **Code References:** N/A
 - **Details/Discrepancies:**
-    - 1.4.6.b (Quick action limit 100/day): No tracking implemented.
-    - 1.4.6.c (Reaction limit 100/day): No tracking implemented.
+  - 1.4.6.b (Quick action limit 100/day): No tracking implemented.
+  - 1.4.6.c (Reaction limit 100/day): No tracking implemented.
 
 ##### 1.4.7 Who Did That?
 
 - **Status:** Fully Implemented (Implicitly by design)
 - **Code References:** Effect definitions, `EffectProcessor.ts`.
 - **Details/Discrepancies:** The rules for determining action controller (Rules 7.5.5.b-e) are generally handled by:
-    - 1.4.7.b (Effect specifies player): Effect definition targets a specific player.
-    - 1.4.7.c (Controller of effect): `EffectProcessor.ts` uses the `controllerId` of the ability/spell.
-    - 1.4.7.d (Controller of affected object): For abilities inherent to an object, its controller is the default.
-    - 1.4.7.e (Neither player): Game rule actions (like phase changes).
+  - 1.4.7.b (Effect specifies player): Effect definition targets a specific player.
+  - 1.4.7.c (Controller of effect): `EffectProcessor.ts` uses the `controllerId` of the ability/spell.
+  - 1.4.7.d (Controller of affected object): For abilities inherent to an object, its controller is the default.
+  - 1.4.7.e (Neither player): Game rule actions (like phase changes).
     This is consistently applied by how effects are structured and processed.
 
 ### Section 2: Objects
@@ -310,9 +310,9 @@ This document audits the game engine implementation against the Altered Complete
   - **2.1.e (Token leaving Expedition zone ceases to exist):** `GameStateManager.moveEntity` has specific logic:
     ```typescript
     if (definition.type === CardType.Token && fromZone.zoneType === ZoneIdentifier.Expedition) {
-        this.eventBus.publish('entityCeasedToExist', { entity: sourceEntity, from: fromZone });
-        // ... remove from sourceZone ...
-        return null; // Token ceases to exist instead of moving
+    	this.eventBus.publish('entityCeasedToExist', { entity: sourceEntity, from: fromZone });
+    	// ... remove from sourceZone ...
+    	return null; // Token ceases to exist instead of moving
     }
     ```
     This correctly implements the rule.
@@ -328,6 +328,7 @@ This document audits the game engine implementation against the Altered Complete
 
 - **Status:** Fully Implemented (data representation), Partially Implemented (dynamic application of some characteristic-related rules like ability scopes).
 - **Code References:**
+
   - `src/engine/types/cards.ts` (`ICardDefinition`, `ITerrainStats`, `IAbility`)
   - `src/engine/types/objects.ts` (`IGameObject`, `IEmblemObject`, `IHeroObject`)
   - `src/engine/types/enums.ts` (`CardType`, `SubType`, `Rarity`, `Faction`, `PermanentZoneType`, `EmblemSubType`)
@@ -363,10 +364,10 @@ This document audits the game engine implementation against the Altered Complete
     - Support abilities: `IAbility.isSupportAbility` flag. "I" symbol is parser concern.
     - Token abilities from definition.
     - **Ability Scope (2.2.11.g-j):**
-        - (g) In play (Expedition/Landmark): `RuleAdjudicator.getAllPlayObjects()`. Other handlers need similar zone checks.
-        - (h) Heroes in Hero Zone: Hero ability usage must verify Hero is in `player.zones.heroZone`.
-        - (i) Support abilities in Reserve: `SupportAbilityHandler.ts`.
-        - (j) Exhausted objects in Reserve have no support abilities: `StatusEffectHandler.hasSupportAbilities()` checks this.
+      - (g) In play (Expedition/Landmark): `RuleAdjudicator.getAllPlayObjects()`. Other handlers need similar zone checks.
+      - (h) Heroes in Hero Zone: Hero ability usage must verify Hero is in `player.zones.heroZone`.
+      - (i) Support abilities in Reserve: `SupportAbilityHandler.ts`.
+      - (j) Exhausted objects in Reserve have no support abilities: `StatusEffectHandler.hasSupportAbilities()` checks this.
     - Types (Quick, Reaction, Passive, Effect): `AbilityType` enum.
   - **2.2.12 Reserve Limit (Heroes):** Fully Implemented.
     - `ICardDefinition.reserveLimit` for Heroes, copied to `IHeroObject` then `IGameObject.currentCharacteristics.reserveLimit`. Default (2 if no Hero) in `GameStateManager.cleanupPhase`.
@@ -460,15 +461,19 @@ This document audits the game engine implementation against the Altered Complete
     - `GameStateManager.moveEntity` logic for `countersToKeep`:
       ```typescript
       if (sourceGameObject && !isMovingToLosingZone) {
-          if (fromZoneIsReserveOrLimbo) {
-              countersToKeep = sourceGameObject.counters;
-          } else if (fromZoneIsExpeditionOrLandmark && toZone.zoneType === ZoneIdentifier.Reserve) {
-              if (sourceGameObject.abilities.some(a => a.keyword === 'Seasoned')) { // Seasoned check
-                  if (sourceGameObject.counters.has(CounterType.Boost)) {
-                      countersToKeep.set(CounterType.Boost, sourceGameObject.counters.get(CounterType.Boost)!);
-                  }
-              }
-          }
+      	if (fromZoneIsReserveOrLimbo) {
+      		countersToKeep = sourceGameObject.counters;
+      	} else if (fromZoneIsExpeditionOrLandmark && toZone.zoneType === ZoneIdentifier.Reserve) {
+      		if (sourceGameObject.abilities.some((a) => a.keyword === 'Seasoned')) {
+      			// Seasoned check
+      			if (sourceGameObject.counters.has(CounterType.Boost)) {
+      				countersToKeep.set(
+      					CounterType.Boost,
+      					sourceGameObject.counters.get(CounterType.Boost)!
+      				);
+      			}
+      		}
+      	}
       }
       // newObject.counters = countersToKeep;
       ```
@@ -484,6 +489,7 @@ This document audits the game engine implementation against the Altered Complete
 
 - **Status:** Fully Implemented (with noted discrepancy for Expedition Zone shared status).
 - **Code References:**
+
   - `src/engine/Zone.ts` (`BaseZone`, `GenericZone`, `DeckZone`, `HandZone`, `DiscardPileZone`, `LimboZone`)
   - `src/engine/GameStateManager.ts` (`initializeGameState`, `moveEntity`)
   - `src/engine/types/zones.ts` (`IZone`, `ZoneEntity`)
@@ -497,8 +503,8 @@ This document audits the game engine implementation against the Altered Complete
     - **3.1.1.c (Ten kinds of zones):** Fully Implemented. `ZoneIdentifier` enum matches the list.
   - **3.1.2 Shared or Personal:**
     - **3.1.2.a (Shared zones: Adventure, Expedition zone, Limbo):** Fully Implemented.
-        - Adventure, Limbo: Correctly in `GameStateManager.state.sharedZones`.
-        - Expedition Zone: Now correctly implemented as a single shared zone (`GameStateManager.state.sharedZones.expedition`).
+      - Adventure, Limbo: Correctly in `GameStateManager.state.sharedZones`.
+      - Expedition Zone: Now correctly implemented as a single shared zone (`GameStateManager.state.sharedZones.expedition`).
     - **3.1.2.b (Personal zones):** Fully Implemented. `Deck, Hand, HeroZone, LandmarkZone, ManaZone, Reserve, DiscardPile` are properties of `IPlayer.zones`.
     - **3.1.2.c (Card to owner's zone if sent to other's personal zone):** Fully Implemented. `GameStateManager.moveEntity` handles redirection to the owner's correct personal zone.
   - **3.1.3 Visible or Hidden:**
@@ -514,12 +520,14 @@ This document audits the game engine implementation against the Altered Complete
 #### 3.2 Zone-specific Rules
 
 - **3.2.1 Adventure Zone:** Fully Implemented.
+
   - **Code References:** `GameStateManager.initializeAdventureZones()`, `GameStateManager.enterTiebreakerMode()`, `state.sharedZones.adventure`.
   - (a) Shared, visible: Yes. Remark on face-down Tumults: Handled.
   - (b) Regular play layout: Hero region, 6 Tumult regions, Companion region. Handled.
   - (c) Tiebreakers (Arena): `enterTiebreakerMode` replaces regions with Arena. Handled.
 
 - **3.2.2 Deck Zone:** Fully Implemented.
+
   - **Code References:** `src/engine/Zone.ts` (`DeckZone`), `player.zones.deckZone`.
   - (a) Personal, hidden: Yes.
   - (b) Ordered pile (top, bottom): `DeckZone` methods (`removeTop`, `addBottom`, `shuffle`) provide this abstraction.
@@ -529,10 +537,12 @@ This document audits the game engine implementation against the Altered Complete
   - (f) Moving to specific position, not enough cards (top/bottom): `addTop`/`addBottom` handle this. "X cards from top/bottom" for other operations not generally implemented.
 
 - **3.2.3 Discard Pile Zone:** Fully Implemented.
+
   - **Code References:** `src/engine/Zone.ts` (`DiscardPileZone`), `player.zones.discardPileZone`.
   - (a) Personal, visible: Yes.
 
 - **3.2.4 Expedition Zone:** Fully Implemented.
+
   - **Code References:** `GameStateManager.state.sharedZones.expedition` (`GenericZone`).
   - (a) Shared, visible: Fully Implemented. The Expedition Zone is a single shared, visible zone.
   - (b) Sub-zones (Hero/Companion Expeditions): These are conceptual divisions within the shared Expedition Zone. Objects are associated with a player's Hero or Companion expedition via their `controllerId` and an `expeditionAssignment` property (e.g., `{ type: 'Hero' | 'Companion' }`). `IPlayer.expeditionState` tracks positions for Hero and Companion expeditions.
@@ -541,22 +551,26 @@ This document audits the game engine implementation against the Altered Complete
   - (e) Player knows in which Expedition: Game state tracks object locations and their `expeditionAssignment`.
 
 - **3.2.5 Hand Zone:** Fully Implemented.
+
   - **Code References:** `src/engine/Zone.ts` (`HandZone`), `player.zones.handZone`.
   - (a) Personal, hidden: Yes.
   - (b) Owner can look/reorder: Engine access. UI handles view/reorder. `HandZone` (Map) order is by insertion.
   - (c) Acting on card in hand (random/reveal): Effect-specific logic in `EffectProcessor.ts`.
 
 - **3.2.6 Hero Zone:** Fully Implemented.
+
   - **Code References:** `player.zones.heroZone` (`GenericZone`).
   - (a) Personal, visible: Yes.
   - (b) Up to one Hero: Enforced by setup logic in `GameStateManager.placeHeroInZone()`.
 
 - **3.2.7 Landmark Zone:** Fully Implemented.
+
   - **Code References:** `player.zones.landmarkZone` (`GenericZone`).
   - (a) Personal, visible: Yes.
   - (b) Landmark limit: `GameStateManager.cleanupPhase` uses `hero.baseCharacteristics.landmarkLimit ?? 2`.
 
 - **3.2.8 Limbo Zone:** Fully Implemented.
+
   - **Code References:** `src/engine/Zone.ts` (`LimboZone`), `state.sharedZones.limbo`.
   - (a) Shared, visible: Yes.
 
@@ -581,6 +595,7 @@ This document audits the game engine implementation against the Altered Complete
 
 - **Status:** Partially Implemented. Key areas like reaction checking loop and precise "At [Phase]" trigger timing need more robust implementation.
 - **Code References:**
+
   - `src/engine/GameStateManager.ts` (`initializeGame`, `placeHeroInZone`, `initializePlayerDeck`, `initializeManaOrbs`, `preparePhase`, `progressPhase`, `restPhase`, `cleanupPhase`, `checkVictoryConditions`, `drawCards`, `setCurrentPhase`)
   - `src/engine/PhaseManager.ts` (`advancePhase`, `handleFirstMorning`, `handleSubsequentMorning`, `executeNoonPhase`, `executeAfternoonPhase`, `handleDusk`, `handleNight`, `playerExpand`)
   - `src/engine/TurnManager.ts` (`succeedPhase`, `startAfternoon`, `advanceTurn`, `playerPasses`, `checkPhaseEnd`)
@@ -592,6 +607,7 @@ This document audits the game engine implementation against the Altered Complete
 - **Details/Discrepancies:**
 
   - **4.1 Beginning of the Game:** Fully Implemented.
+
     - (a) Zones empty: `initializeGameState` creates new empty zones.
     - (b,c) Adventure setup: `initializeAdventureZones` correctly places Hero/Companion regions and 3 face-down Tumults.
     - (d) Expedition counters: `IPlayer.expeditionState` (positions) initialized.
@@ -602,62 +618,71 @@ This document audits the game engine implementation against the Altered Complete
     - (l) Start first day, skip Morning: `GameStateManager.initializeGame` sets phase to Noon and `firstMorningSkipped = true`. `PhaseManager.handleFirstMorning` correctly skips to Noon logic.
 
   - **4.2 Day Structure:** Partially Implemented.
+
     - (a) Five phases: `GamePhase` enum and `PhaseManager.advancePhase()` are correct.
-    - (b) "At [Phase]" reactions & check: `GameStateManager.setCurrentPhase` calls `AdvancedTriggerHandler.processPhaseTriggersForPhase()`. These triggers should create Emblem-Reactions in Limbo. The subsequent playing of these emblems (Rule 4.4) is the part that needs a robust loop. The remark about new reactions (e.g., from Dredger Drone) not triggering off the same "At [Phase]" event if they appear *during* the resolution of an initial "At [Phase]" reaction requires careful sequencing in the reaction handling loop.
+    - (b) "At [Phase]" reactions & check: `GameStateManager.setCurrentPhase` calls `AdvancedTriggerHandler.processPhaseTriggersForPhase()`. These triggers should create Emblem-Reactions in Limbo. The subsequent playing of these emblems (Rule 4.4) is the part that needs a robust loop. The remark about new reactions (e.g., from Dredger Drone) not triggering off the same "At [Phase]" event if they appear _during_ the resolution of an initial "At [Phase]" reaction requires careful sequencing in the reaction handling loop.
     - (c) Daily effects in Morning, Dusk, Night: `PhaseManager` orchestrates these by calling methods in `GameStateManager`.
-    - (d,e) Check reactions after *each* daily effect / next daily effect or phase: This precise looping and checking is not explicitly clear in `PhaseManager`. It currently processes a block of daily effects for a phase (e.g., all of Morning's effects) and then reaction processing would occur. A more granular check-resolve-check loop after *each* effect (Succeed, then reactions, then Prepare, then reactions, etc.) is implied by the rulebook but likely not implemented this granularly.
+    - (d,e) Check reactions after _each_ daily effect / next daily effect or phase: This precise looping and checking is not explicitly clear in `PhaseManager`. It currently processes a block of daily effects for a phase (e.g., all of Morning's effects) and then reaction processing would occur. A more granular check-resolve-check loop after _each_ effect (Succeed, then reactions, then Prepare, then reactions, etc.) is implied by the rulebook but likely not implemented this granularly.
     - (f,g) Afternoon turns & reactions: `TurnManager` handles turns. Reaction checking after each turn effect needs to be integrated with the main reaction resolution loop.
 
   - **4.2.1 Morning:** Fully Implemented (for effects), Partially Implemented (for reaction timing).
+
     - (a-e) Succeed, Prepare, Draw, Expand are all called by `PhaseManager.handleSubsequentMorning` (or `handleFirstMorning` for initial Expand).
     - `PhaseManager.playerExpand` needs to correctly implement player choice in initiative order if it's not just an automatic "may put one" without collision. Currently, it seems to iterate players.
 
   - **4.2.2 Noon:** Fully Implemented (for effects), Partially Implemented (for reaction timing).
+
     - (a) No daily effects. "At Noon" reactions are triggered by `AdvancedTriggerHandler.processPhaseTriggersForPhase(GamePhase.Noon)`. Resolution via reaction loop (Rule 4.4).
 
   - **4.2.3 Afternoon:** Fully Implemented (for turn structure), Partially Implemented (for reaction timing).
+
     - (a-e) `TurnManager.ts` handles turn alternation, first player, playing actions/cards, passing, and ending Afternoon. Reaction checking after each action is reliant on the main reaction loop.
 
   - **4.2.4 Dusk:** Fully Implemented (for effects), Partially Implemented (for reaction timing).
+
     - (a) One daily effect: Progress.
-    - (b) Progress logic: `GameStateManager.progressPhase` with `calculateExpeditionStats` and `expeditionShouldMove`. Conditions (on terrain, > opponent, > 0) are generally handled. Terrain matching for an expedition being *in* its region's terrain is implicit.
+    - (b) Progress logic: `GameStateManager.progressPhase` with `calculateExpeditionStats` and `expeditionShouldMove`. Conditions (on terrain, > opponent, > 0) are generally handled. Terrain matching for an expedition being _in_ its region's terrain is implicit.
     - (c,d) "Cannot move due to [terrain]" / "Can only move due to [terrain]": These are specific effect types that would modify `IExpeditionState.canMove` or influence stat calculation; not general `progressPhase` logic but supported via effect system.
     - (e,f,g,h) Tie not sufficient, 0 not sufficient, move once, simultaneous move: All correctly handled in `GameStateManager.progressPhase`.
     - (i,j) "Fails to move forward", "Moves forward due to [terrain]": These are definitions. Data is available.
 
   - **4.2.5 Night:** Fully Implemented (for effects), Partially Implemented (for reaction timing).
+
     - (a-d) Rest, Clean-up, Check Victory are called by `PhaseManager.handleNight`.
     - Rest: `GameStateManager.restPhase` handles status interactions (Asleep, Anchored, Fleeting via `StatusEffectHandler`) and Eternal (`KeywordAbilityHandler`).
     - Clean-up: `GameStateManager.cleanupPhase` handles limits. Player choice for selection and initiative order for that choice (Rule 6.1.h) is currently a TODO (uses `pop`).
     - Check Victory: `GameStateManager.checkVictoryConditions` calls `TiebreakerSystem.checkForTiebreaker`.
 
   - **4.3 Tiebreakers:** Fully Implemented.
+
     - (a-f) `TiebreakerSystem.ts` and relevant calls from `GameStateManager.ts` handle Arena setup, modified Progress (stat summation), and win conditions during tiebreakers. "Check Victory" daily effect has no impact here.
 
   - **4.4 Checking Reactions:** Partially Implemented.
     - **Code References:** `AdvancedTriggerHandler.ts`, `ReactionManager.ts` (or equivalent game loop logic), `ObjectFactory.createReactionEmblem`.
     - (a) When to check:
-        1. Beginning of phase: `AdvancedTriggerHandler.processPhaseTriggersForPhase` identifies "At [Phase]" triggers. These should create Emblem-Reactions.
-        2. After daily effect: Needs explicit call to reaction resolution.
-        3. After turn effect: Needs explicit call to reaction resolution.
-        4. After a player plays a Reaction: The loop itself should re-check.
+      1. Beginning of phase: `AdvancedTriggerHandler.processPhaseTriggersForPhase` identifies "At [Phase]" triggers. These should create Emblem-Reactions.
+      2. After daily effect: Needs explicit call to reaction resolution.
+      3. After turn effect: Needs explicit call to reaction resolution.
+      4. After a player plays a Reaction: The loop itself should re-check.
     - (b) Playing an Emblem-Reaction from Limbo by initiative player: `ObjectFactory.createReactionEmblem` creates emblems. A system (likely in `ReactionManager.ts` or main game loop) needs to:
-        - Identify all Emblem-Reactions in Limbo.
-        - Allow current initiative player to choose one they control.
-        - Resolve its `boundEffect` via `EffectProcessor.ts`.
-        - Remove the emblem from Limbo.
+      - Identify all Emblem-Reactions in Limbo.
+      - Allow current initiative player to choose one they control.
+      - Resolve its `boundEffect` via `EffectProcessor.ts`.
+      - Remove the emblem from Limbo.
     - (c) Check again after Reaction: The loop must continue.
     - (d) Game progresses once Limbo empty: Loop terminates.
+
 - **Discrepancies/Bugs for Section 4:**
-    - The main area needing full implementation is the robust **Reaction Checking Loop (4.4)**. While triggers are identified (`AdvancedTriggerHandler`) and emblems can be created (`ObjectFactory`), the process of iterating these emblems in Limbo, respecting initiative, playing them, and re-looping is not clearly defined or fully implemented in the provided file structure (likely intended for `ReactionManager.ts` or a central game loop).
-    - The precise timing of reaction checks "after each daily effect" (4.2.d,e) vs. after a block of phase effects needs clarification and implementation.
-    - Player choice and initiative order for Clean-up (4.2.5.c) and potentially Expand (4.2.1.e) if choices become contested.
-    - The remark for 4.2.b (Dredger Drone example) regarding new "At [Phase]" reactions not re-triggering from the same initial phase event needs to be handled by the reaction sequencing logic.
+  - The main area needing full implementation is the robust **Reaction Checking Loop (4.4)**. While triggers are identified (`AdvancedTriggerHandler`) and emblems can be created (`ObjectFactory`), the process of iterating these emblems in Limbo, respecting initiative, playing them, and re-looping is not clearly defined or fully implemented in the provided file structure (likely intended for `ReactionManager.ts` or a central game loop).
+  - The precise timing of reaction checks "after each daily effect" (4.2.d,e) vs. after a block of phase effects needs clarification and implementation.
+  - Player choice and initiative order for Clean-up (4.2.5.c) and potentially Expand (4.2.1.e) if choices become contested.
+  - The remark for 4.2.b (Dredger Drone example) regarding new "At [Phase]" reactions not re-triggering from the same initial phase event needs to be handled by the reaction sequencing logic.
 
 ### Section 5: Playing cards and objects
 
 - **Status:** Partially Implemented. Core structure in `CardPlaySystem.ts` exists, but several key steps and specific card type handling details need full implementation or refinement.
 - **Code References:**
+
   - `src/engine/CardPlaySystem.ts` (main)
   - `src/engine/PlayerActionHandler.ts` (for Quick Actions)
   - `src/engine/ReactionManager.ts` (or game loop for Reactions)
@@ -674,53 +699,57 @@ This document audits the game engine implementation against the Altered Complete
 - **Details/Discrepancies:**
 
   - **5.1.1 Timing:**
+
     - (a) Possibility to play: Fully Implemented (Conceptual through game structure).
     - (b) During turn (card or quick action): Fully Implemented. `PlayerActionHandler.getAvailableActions` and `executeAction` (which calls `CardPlaySystem.playCard` or `executeQuickAction`).
     - (c) Checking reactions (initiative player plays): Partially Implemented. Relies on Rule 4.4's reaction loop which is not fully implemented.
     - (d) Effects instruct to play a card: Partially Implemented. `EffectProcessor.ts` would need to be able to call `CardPlaySystem.playCard`.
 
   - **5.1.2 Playing process:** Partially Implemented.
+
     - (a) Card (declare, Limbo, cost, resolve): `CardPlaySystem.playCard` outlines this.
-        - `declarePlayIntent` (test stub) - needs full implementation for target/mode choices.
-        - `moveToLimbo` (test stub) - needs to use `GameStateManager.moveEntity` to `sharedZones.limbo`.
-        - `payCosts` (test stub) - needs to use `CostProcessor.pay`.
-        - `resolveCard` (test stub) - needs to move to final zone and trigger effects.
+      - `declarePlayIntent` (test stub) - needs full implementation for target/mode choices.
+      - `moveToLimbo` (test stub) - needs to use `GameStateManager.moveEntity` to `sharedZones.limbo`.
+      - `payCosts` (test stub) - needs to use `CostProcessor.pay`.
+      - `resolveCard` (test stub) - needs to move to final zone and trigger effects.
     - (b) Quick action/Reaction (declare, cost, resolve):
-        - Quick Action: `PlayerActionHandler.executeQuickAction` should follow this.
-        - Reaction: Reaction loop (4.4) should follow this (no cost for reactions).
+      - Quick Action: `PlayerActionHandler.executeQuickAction` should follow this.
+      - Reaction: Reaction loop (4.4) should follow this (no cost for reactions).
     - (c) Declaration of intent details: Partially Implemented.
-        - Reveal from hidden: Implicit when playing from hand.
-        - Modes/alternative costs: `CardPlaySystem.calculateCost` considers `useScoutCost`. General mode selection not implemented.
-        - Declare how costs paid: `CostProcessor.canPay` checks, `pay` executes.
+      - Reveal from hidden: Implicit when playing from hand.
+      - Modes/alternative costs: `CardPlaySystem.calculateCost` considers `useScoutCost`. General mode selection not implemented.
+      - Declare how costs paid: `CostProcessor.canPay` checks, `pay` executes.
     - (d) Mana cost (Hand/Reserve): Fully Implemented. `CardPlaySystem.getPlayingCost`.
     - (e) Cost alterations order (increases, decreases, restrictions): Fully Implemented. `CardPlaySystem.calculateModifiedCost`. Timestamp ordering for multiple same-type restrictions is not explicitly handled.
     - (f) Legality check before state change: Partially Implemented. `CardPlaySystem.validateCanPlay` exists. Needs to be more comprehensive and strictly before any state change.
     - (g) Move card to Limbo: Partially Implemented. `CardPlaySystem.playCard` needs to explicitly call `GameStateManager.moveEntity` to Limbo at the right step.
     - (h) Pay costs simultaneously: Fully Implemented (Conceptual via `CostProcessor.pay`).
     - (i) Resolution steps (destination zones, effects): Partially Implemented.
-        - `CardPlaySystem.playCharacter`, `playPermanent`, `playSpell` handle moving to final zones and basic effect processing.
-        - Reaction emblems from Limbo are handled by the reaction loop (4.4).
+      - `CardPlaySystem.playCharacter`, `playPermanent`, `playSpell` handle moving to final zones and basic effect processing.
+      - Reaction emblems from Limbo are handled by the reaction loop (4.4).
     - (j) "When card is played" trigger timing (leaves Limbo to final zone): Partially Implemented. `AdvancedTriggerHandler` needs to be invoked at this specific point.
 
   - **5.2 Playing a Card:** Partially Implemented.
+
     - (a) From Hand/Reserve: Fully Implemented by `CardPlaySystem.playCard` taking `fromZone`.
     - (b) Passive ability granting counter/status on play creates Emblem-Reaction: **Not Implemented.** `CardPlaySystem` doesn't currently check for external passives that modify the card being played by creating an Emblem-Reaction for it to gain/lose counters/statuses upon resolution. This is a complex interaction.
     - **5.2.1 Playing a Character:** Partially Implemented. (`CardPlaySystem.playCharacter`)
-        - (a) Choose Expedition: `CardPlayOptions.expeditionChoice` exists, needs full integration.
-        - (b) Gains Fleeting if from Reserve (in Limbo): **Discrepancy/Timing.** `StatusEffectHandler.applyFleetingOnPlayFromReserve` is currently called *after* moving to the final zone. Rule 5.2.1.b states it gains Fleeting *as it enters Limbo*. This timing difference could matter for effects checking status in Limbo.
-        - (c) Enters Expedition, gains Fleeting (if had in Limbo): Covered if Fleeting applied correctly in Limbo.
+      - (a) Choose Expedition: `CardPlayOptions.expeditionChoice` exists, needs full integration.
+      - (b) Gains Fleeting if from Reserve (in Limbo): **Discrepancy/Timing.** `StatusEffectHandler.applyFleetingOnPlayFromReserve` is currently called _after_ moving to the final zone. Rule 5.2.1.b states it gains Fleeting _as it enters Limbo_. This timing difference could matter for effects checking status in Limbo.
+      - (c) Enters Expedition, gains Fleeting (if had in Limbo): Covered if Fleeting applied correctly in Limbo.
     - **5.2.2 Playing an Expedition Permanent:** Partially Implemented. (`CardPlaySystem.playPermanent`)
-        - (a) Choose Expedition: Needs integration similar to Characters.
-        - (b) Gains Fleeting if from Reserve (in Limbo): Same timing issue as 5.2.1.b.
-        - (c) Enters Expedition, gains Fleeting (if had in Limbo): Covered if Fleeting applied correctly in Limbo.
+      - (a) Choose Expedition: Needs integration similar to Characters.
+      - (b) Gains Fleeting if from Reserve (in Limbo): Same timing issue as 5.2.1.b.
+      - (c) Enters Expedition, gains Fleeting (if had in Limbo): Covered if Fleeting applied correctly in Limbo.
     - **5.2.3 Playing a Landmark Permanent:** Partially Implemented. (`CardPlaySystem.playPermanent`)
-        - (a) Enters Landmark zone: Correctly handled.
-        - (Remark: Landmark Permanents cannot have Fleeting): **Discrepancy.** `CardPlaySystem.playPermanent` calls `StatusEffectHandler.applyFleetingOnPlayFromReserve`. This should be prevented for `PermanentZoneType.Landmark`.
+      - (a) Enters Landmark zone: Correctly handled.
+      - (Remark: Landmark Permanents cannot have Fleeting): **Discrepancy.** `CardPlaySystem.playPermanent` calls `StatusEffectHandler.applyFleetingOnPlayFromReserve`. This should be prevented for `PermanentZoneType.Landmark`.
     - **5.2.4 Playing a Spell Card:** Partially Implemented. (`CardPlaySystem.playSpell`)
-        - (a) Fleeting application order in Limbo: This sequence (from Reserve, then passive Fleeting on card, then external passives) needs to be explicitly implemented when the spell is conceptually in Limbo. `CardPlaySystem.playSpell` currently resolves effects then determines destination/status.
-        - (b) Spell resolution & destination (Reserve/Discard, Cooldown): `CardPlaySystem.playSpell` correctly handles moving to Reserve (and exhausting if Cooldown via `StatusEffectHandler.applyStatusEffect`) or Discard (if Fleeting).
+      - (a) Fleeting application order in Limbo: This sequence (from Reserve, then passive Fleeting on card, then external passives) needs to be explicitly implemented when the spell is conceptually in Limbo. `CardPlaySystem.playSpell` currently resolves effects then determines destination/status.
+      - (b) Spell resolution & destination (Reserve/Discard, Cooldown): `CardPlaySystem.playSpell` correctly handles moving to Reserve (and exhausting if Cooldown via `StatusEffectHandler.applyStatusEffect`) or Discard (if Fleeting).
 
   - **5.3 Playing a Quick Action:** Partially Implemented.
+
     - **Code References:** `src/engine/PlayerActionHandler.ts`
     - (a) Process: `PlayerActionHandler.executeAction` (for 'quickAction') needs to ensure declare intent (implicit), pay costs (`CostProcessor`), and resolve effects (`EffectProcessor`).
     - (b) Control/zone requirements: `PlayerActionHandler.getAvailableQuickActions` needs to check object control and correct zone (in play, or Reserve for support).
@@ -734,19 +763,21 @@ This document audits the game engine implementation against the Altered Complete
     - (b) Played from Limbo, don't change zones: Emblem-Reactions are created and exist in Limbo.
     - (c) No costs: Correct.
     - (d) Ceases to exist after resolution: Emblem-Reaction should be removed from Limbo.
+
 - **Discrepancies/Bugs for Section 5:**
-    - The precise multi-step playing process (declare, Limbo, cost, resolve) in `CardPlaySystem.playCard` needs to be fully implemented beyond the current stub/test methods.
-    - Rule 5.2.b (external passives creating emblems for cards being played) is Not Implemented.
-    - Timing of Fleeting application for cards played from Reserve (should be upon entering Limbo, not final zone).
-    - Landmark Permanents incorrectly gain Fleeting if played from Reserve.
-    - Fleeting application for Spells (Rule 5.2.4.a) needs to correctly model the sequence in Limbo.
-    - Quick Action limit (5.3.e) is Not Implemented.
-    - The full reaction playing loop (5.4, dependent on 4.4) is not complete.
+  - The precise multi-step playing process (declare, Limbo, cost, resolve) in `CardPlaySystem.playCard` needs to be fully implemented beyond the current stub/test methods.
+  - Rule 5.2.b (external passives creating emblems for cards being played) is Not Implemented.
+  - Timing of Fleeting application for cards played from Reserve (should be upon entering Limbo, not final zone).
+  - Landmark Permanents incorrectly gain Fleeting if played from Reserve.
+  - Fleeting application for Spells (Rule 5.2.4.a) needs to correctly model the sequence in Limbo.
+  - Quick Action limit (5.3.e) is Not Implemented.
+  - The full reaction playing loop (5.4, dependent on 4.4) is not complete.
 
 ### Section 6: From Costs and Effects to Events
 
 - **Status:** Partially Implemented. Core concepts of effects and costs are present, but advanced features like the Modifier System and detailed reaction triggering nuances require significant development.
 - **Code References:**
+
   - `src/engine/EffectProcessor.ts`
   - `src/engine/CostProcessor.ts`
   - `src/engine/EventBus.ts`
@@ -759,6 +790,7 @@ This document audits the game engine implementation against the Altered Complete
 - **Details/Discrepancies:**
 
   - **6.1 General (Costs & Effects Structure):**
+
     - (a) Costs/effects are sequences of instructions: Fully Implemented. `IEffect` has `IEffectStep[]`. `ICost` has components.
     - (b) Effect may involve multiple steps: Fully Implemented. `EffectProcessor.resolveEffect` iterates `effect.steps`.
     - (c) Separate step per verb, unless "simultaneously": Fully Implemented. `EffectProcessor.resolveEffectStep` handles one main action. True simultaneity of different verbs is not generally supported beyond atomic actions within one step.
@@ -769,6 +801,7 @@ This document audits the game engine implementation against the Altered Complete
     - (h) Multi-player decisions in initiative order: Partially Implemented. `GameStateManager.state.firstPlayerId` and `currentPlayerId` exist. However, consistent application for "Each player..." effects or choices like in Clean-up (4.2.5.c) is needed in `EffectProcessor` or specific game phase logic.
 
   - **6.2 Modifiers:**
+
     - **Status:** Fully Implemented.
     - **Code References:**
       - `src/engine/types/abilities.ts` (for `IModifier` interface, `IEffectStep.canBeModified`)
@@ -776,27 +809,28 @@ This document audits the game engine implementation against the Altered Complete
       - `src/engine/RuleAdjudicator.ts` (`getActiveModifiers` method)
       - `src/engine/EffectProcessor.ts` (`resolveSingleStep` method, modifier application logic)
     - **Details/Discrepancies:**
-        - The Modifier System allows dynamic alteration of effect step resolution.
-        - **Source of Modifiers (6.2.d):** Modifiers are primarily defined by passive abilities on game objects. These abilities use specific effect step verbs: `DEFINE_REPLACEMENT_MODIFIER`, `DEFINE_ADD_STEP_BEFORE_MODIFIER`, or `DEFINE_ADD_STEP_AFTER_MODIFIER`.
-        - **Sourcing Modifiers:** The `RuleAdjudicator.getActiveModifiers` method identifies these defining steps in active passive abilities, evaluates their `applicationCriteria` against the current context (e.g., the effect step being processed), and constructs `IModifier` objects.
-        - **Modifier Types & Parameters:**
-            - `IModifier` objects store their `modifierType` (`ReplaceStep`, `AddStepBefore`, `AddStepAfter`), `priority` (timestamp-based or explicit), `applicationCriteria`, the `replacementEffectStep` or `additionalEffectStep` to be applied, and a `canBeModified` flag for the modifier rule itself (defaulting to true, meta-modification not currently a primary feature).
-            - The effect steps introduced by modifiers also respect their own `IEffectStep.canBeModified` flag.
-        - **Application (6.2.a, 6.2.b, 6.2.e, 6.2.g, 6.2.h, 6.2.i):**
-            - `EffectProcessor.resolveSingleStep` retrieves active modifiers for the current step.
-            - Replacing modifiers are applied first (highest priority wins if multiple). If a step is replaced, additive modifiers targeting the original step are ignored (6.2.i).
-            - Additive modifiers (`AddStepBefore`, `AddStepAfter`) are applied in order of priority, before or after the main (potentially replaced) step. Their effects are resolved recursively by calling `EffectProcessor.resolveSingleStep`.
-        - **Non-Modifiable Steps (6.2.l, 1.4.1.d):** If an `IEffectStep` (whether original or introduced by a modifier) has its `canBeModified` property set to `false`, the `EffectProcessor` will not apply any further modifiers to that specific step. This upholds the "Cannot modify impossible event" principle.
-        - **No Self-Modification (6.2.j):** The system inherently prevents direct self-modification as modifiers are fetched and applied to distinct steps. A step introduced by a modifier is treated as a new step subject to its own `canBeModified` flag during its own resolution.
-        - **Persistence (6.2.k):** Modifiers are transiently generated by `RuleAdjudicator.getActiveModifiers` based on the current game state (active passive abilities). They cease to "exist" if their source passive ability is no longer active or its conditions no longer met on the next query.
-        - **Optional Modifiers with Alternatives (6.2.c):** Rule 6.2.c ("If you don't X, then Y happens") is typically handled by the `IEffectStep` structure itself (e.g., using `isOptional` and conditional follow-up steps or the `CHOOSE_MODE` verb), rather than as a distinct modifier type within this system.
+      - The Modifier System allows dynamic alteration of effect step resolution.
+      - **Source of Modifiers (6.2.d):** Modifiers are primarily defined by passive abilities on game objects. These abilities use specific effect step verbs: `DEFINE_REPLACEMENT_MODIFIER`, `DEFINE_ADD_STEP_BEFORE_MODIFIER`, or `DEFINE_ADD_STEP_AFTER_MODIFIER`.
+      - **Sourcing Modifiers:** The `RuleAdjudicator.getActiveModifiers` method identifies these defining steps in active passive abilities, evaluates their `applicationCriteria` against the current context (e.g., the effect step being processed), and constructs `IModifier` objects.
+      - **Modifier Types & Parameters:**
+        - `IModifier` objects store their `modifierType` (`ReplaceStep`, `AddStepBefore`, `AddStepAfter`), `priority` (timestamp-based or explicit), `applicationCriteria`, the `replacementEffectStep` or `additionalEffectStep` to be applied, and a `canBeModified` flag for the modifier rule itself (defaulting to true, meta-modification not currently a primary feature).
+        - The effect steps introduced by modifiers also respect their own `IEffectStep.canBeModified` flag.
+      - **Application (6.2.a, 6.2.b, 6.2.e, 6.2.g, 6.2.h, 6.2.i):**
+        - `EffectProcessor.resolveSingleStep` retrieves active modifiers for the current step.
+        - Replacing modifiers are applied first (highest priority wins if multiple). If a step is replaced, additive modifiers targeting the original step are ignored (6.2.i).
+        - Additive modifiers (`AddStepBefore`, `AddStepAfter`) are applied in order of priority, before or after the main (potentially replaced) step. Their effects are resolved recursively by calling `EffectProcessor.resolveSingleStep`.
+      - **Non-Modifiable Steps (6.2.l, 1.4.1.d):** If an `IEffectStep` (whether original or introduced by a modifier) has its `canBeModified` property set to `false`, the `EffectProcessor` will not apply any further modifiers to that specific step. This upholds the "Cannot modify impossible event" principle.
+      - **No Self-Modification (6.2.j):** The system inherently prevents direct self-modification as modifiers are fetched and applied to distinct steps. A step introduced by a modifier is treated as a new step subject to its own `canBeModified` flag during its own resolution.
+      - **Persistence (6.2.k):** Modifiers are transiently generated by `RuleAdjudicator.getActiveModifiers` based on the current game state (active passive abilities). They cease to "exist" if their source passive ability is no longer active or its conditions no longer met on the next query.
+      - **Optional Modifiers with Alternatives (6.2.c):** Rule 6.2.c ("If you don't X, then Y happens") is typically handled by the `IEffectStep` structure itself (e.g., using `isOptional` and conditional follow-up steps or the `CHOOSE_MODE` verb), rather than as a distinct modifier type within this system.
 
   - **6.3 Reactions:** Partially Implemented.
+
     - (a) "Trigger -> Effect": Fully Implemented. `IAbility` with `AbilityType.Reaction` and `IAbilityTrigger`.
     - (b) Trigger specifies event and condition: Fully Implemented. `IAbilityTrigger.eventType` and `condition` function.
     - (c) Self-move Reactions (j,h,r): Fully Implemented. Handled as specific `eventType`s (e.g., `ZoneChange_EnterPlay`, `CardPlayed_FromHand`, `CardPlayed_FromReserve`) by `AdvancedTriggerHandler`.
     - (d) Self-move Reaction activation (exists after event, trigger matches): Fully Implemented. `AdvancedTriggerHandler.processMovementAndPlayTriggers` is typically called after the move/play, so the object is in its new state/zone.
-    - (e) Other Reaction activation (exists and works before event, trigger matches): Partially Implemented. `AdvancedTriggerHandler` needs to consistently ensure it captures the state of the object *before* the event for these non-self-move triggers, including checking if the ability was active in its source zone.
+    - (e) Other Reaction activation (exists and works before event, trigger matches): Partially Implemented. `AdvancedTriggerHandler` needs to consistently ensure it captures the state of the object _before_ the event for these non-self-move triggers, including checking if the ability was active in its source zone.
     - (f) Multiple activations from single event (distinct atomic actions): Partially Implemented. The event processing loop that calls `AdvancedTriggerHandler` would need to break down multi-target events into individual atomic actions and check triggers for each.
     - (g) Reaction-activating step creates Emblem-Reactions in Limbo: Fully Implemented. `AdvancedTriggerHandler` calls `ObjectFactory.createReactionEmblem` which creates an `IEmblemObject` intended for Limbo.
     - (h) Emblem-Reaction effect bound to trigger objects: Fully Implemented. `createReactionEmblem` stores `sourceObject` and `triggerPayload` in the emblem for its `boundEffect`.
@@ -806,6 +840,7 @@ This document audits the game engine implementation against the Altered Complete
     - (l) Reaction limit 100/day (Rule 1.4.6.c): Not Implemented.
 
   - **6.4 Costs:** Fully Implemented.
+
     - (a) Single step: `CostProcessor.pay` is atomic.
     - (b) Player may decline: Handled by game flow before calling `pay`.
     - (c) Pay in full: `CostProcessor.canPay` checks this.
@@ -821,16 +856,18 @@ This document audits the game engine implementation against the Altered Complete
     - (g) Modal effects ("Choose X"): Not supported by `IEffectStep` structure.
     - (h) Partial failure ignored: `EffectProcessor.resolveEffectStep` has try-catch, continues with other steps.
     - (i) Multiple times / For each: `EffectProcessor` methods can iterate targets or use a count.
+
 - **Discrepancies/Bugs for Section 6:**
-    - **Modifier System (6.2) is entirely Not Implemented.** This is a major feature for dynamic effect alteration.
-    - Reaction Triggering (6.3): Nuances around LKI (6.3.j), checking ability status *before* event for non-self-move (6.3.e), and conditions based on past state (6.3.k) need robust implementation in `AdvancedTriggerHandler` and `EffectProcessor`. Multiple activations from single multi-target event (6.3.f) also needs care.
-    - Effect Resolution (6.5): Advanced targeting, player choice for optional steps, conditional step evaluation, and modal effects are mostly placeholders or not fully implemented in `IEffectStep` and `EffectProcessor`.
-    - Initiative Order for multi-player decisions (6.1.h) needs consistent implementation in `EffectProcessor` for relevant effects.
+  - **Modifier System (6.2) is entirely Not Implemented.** This is a major feature for dynamic effect alteration.
+  - Reaction Triggering (6.3): Nuances around LKI (6.3.j), checking ability status _before_ event for non-self-move (6.3.e), and conditions based on past state (6.3.k) need robust implementation in `AdvancedTriggerHandler` and `EffectProcessor`. Multiple activations from single multi-target event (6.3.f) also needs care.
+  - Effect Resolution (6.5): Advanced targeting, player choice for optional steps, conditional step evaluation, and modal effects are mostly placeholders or not fully implemented in `IEffectStep` and `EffectProcessor`.
+  - Initiative Order for multi-player decisions (6.1.h) needs consistent implementation in `EffectProcessor` for relevant effects.
 
 ### Section 7: Vocabulary
 
 - **Status:** Partially Implemented. Many terms are defined by their implementation within specific systems, but some keyword actions or complex abilities are still placeholders or need full integration.
 - **Code References:**
+
   - `src/engine/types/enums.ts` (for `TerrainType`, `Faction`, `CostSymbol` (conceptual), `KeywordAbility`, `EffectType` which maps to many keyword actions)
   - `src/engine/types/abilities.ts` (`IAbilityTrigger`, `ICost`)
   - `src/engine/EffectProcessor.ts` (implements many keyword actions as `EffectType` cases)
@@ -843,26 +880,29 @@ This document audits the game engine implementation against the Altered Complete
 - **Details/Discrepancies:**
 
   - **7.1 Symbols:**
+
     - **7.1.1 Trigger Symbols (j, h, r):** Fully Implemented.
-        - Handled by `IAbilityTrigger.eventType` in `AdvancedTriggerHandler.ts` (e.g., `ZoneChange_EnterPlay`, `CardPlayed_FromHand`, `CardPlayed_FromReserve`).
+      - Handled by `IAbilityTrigger.eventType` in `AdvancedTriggerHandler.ts` (e.g., `ZoneChange_EnterPlay`, `CardPlayed_FromHand`, `CardPlayed_FromReserve`).
     - **7.1.2 Terrains and Statistics (V, M, O):** Fully Implemented.
-        - `TerrainType` enum. `ITerrainStats` interface. Used in `ICardDefinition.statistics` and `IGameObject.currentCharacteristics.statistics`.
+      - `TerrainType` enum. `ITerrainStats` interface. Used in `ICardDefinition.statistics` and `IGameObject.currentCharacteristics.statistics`.
     - **7.1.3 Faction Symbol:** Fully Implemented.
-        - `Faction` enum. `ICardDefinition.faction`.
+      - `Faction` enum. `ICardDefinition.faction`.
     - **7.1.4 Cost Symbols:**
-        - (T) "Exhaust me": Fully Implemented. `ICost.exhaustSelf`. Handled by `CostProcessor.pay()`.
-        - (D) "Discard me from the Reserve": Partially Implemented. Not an explicit `ICost` component. Would be an `IEffectStep` if part of an ability's effect, or needs a new `ICost` component if a payment option.
-        - (Mana 1, 2, ..., X): Fully Implemented. `ICost.mana`. Handled by `CostProcessor.pay()`.
+      - (T) "Exhaust me": Fully Implemented. `ICost.exhaustSelf`. Handled by `CostProcessor.pay()`.
+      - (D) "Discard me from the Reserve": Partially Implemented. Not an explicit `ICost` component. Would be an `IEffectStep` if part of an ability's effect, or needs a new `ICost` component if a payment option.
+      - (Mana 1, 2, ..., X): Fully Implemented. `ICost.mana`. Handled by `CostProcessor.pay()`.
     - **7.1.5 Clarification Symbols (I - Support Ability):** Fully Implemented.
-        - `IAbility.isSupportAbility` boolean flag.
+      - `IAbility.isSupportAbility` boolean flag.
 
   - **7.2 Pronouns:** Fully Implemented (Conceptual by system design).
+
     - (I - self): `effectContext.sourceId` in `EffectProcessor.ts`.
     - (You - controller): `effectContext.controllerId` or `object.controllerId`.
     - (They - players): General iteration.
     - (It - objects/cards): Generic object references.
 
   - **7.3 Keywords Actions:** Partially Implemented. Many are `EffectType` enums processed by `EffectProcessor.ts`.
+
     - **7.3.1 Activates (a reaction):** Partially Implemented. `AdvancedTriggerHandler.ts` and reaction loop (4.4). Direct activation by effect is not general.
     - **7.3.2 After You:** Not Implemented. Would be a specific quick action effect.
     - **7.3.3 Augment:** Partially Implemented. `EffectType.Augment` exists, `EffectProcessor.effectAugment` is a placeholder. (V3.0 Keyword)
@@ -893,6 +933,7 @@ This document audits the game engine implementation against the Altered Complete
     - **7.3.28 Switch Expeditions:** Partially Implemented. No specific `EffectType`. Would be `EffectType.MoveCard` with specific targeting to move a character within a player's own expedition zones (conceptual areas).
 
   - **7.4 Keyword Abilities:** Partially Implemented. Managed by `KeywordAbilityHandler.ts` and specific game phase logic.
+
     - **7.4.1 Cooldown:** Fully Implemented. `KeywordAbility.Cooldown`. `CardPlaySystem.playSpell` checks to exhaust.
     - **7.4.2 Defender:** Fully Implemented. `KeywordAbility.Defender`. `KeywordAbilityHandler.checkDefenderRestrictions` called by `GameStateManager.progressPhase`.
     - **7.4.3 Eternal:** Fully Implemented. `KeywordAbility.Eternal`. `KeywordAbilityHandler.isEternal` called by `GameStateManager.restPhase`.
@@ -914,10 +955,11 @@ This document audits the game engine implementation against the Altered Complete
     - **7.5.10 Play (card is played):** Fully Implemented (Conceptual). Defined as when a card leaves Limbo after resolution (Rule 5.1.2.j). This is a specific timing for triggers.
 
 - **Discrepancies/Bugs for Section 7:**
-    - **Cost Symbol 'D' (7.1.4.b):** Not an explicit cost component in `ICost`.
-    - **Resupply (7.3.22.a):** Rulebook: Deck to Reserve. Engine: Discard to Reserve. This is a significant functional difference.
-    - Many Keyword Actions (Augment, Create, Double, Exchange, Ignore, Roll a Die, Sabotage, Sacrifice, Switch Expeditions) are placeholders in `EffectProcessor.ts` or not implemented.
-    - Complex Keyword Abilities (Gigantic, Scout X dynamic ability, Tough X cost) require significant implementation.
+  - **Cost Symbol 'D' (7.1.4.b):** Not an explicit cost component in `ICost`.
+  - **Resupply (7.3.22.a):** Rulebook: Deck to Reserve. Engine: Discard to Reserve. This is a significant functional difference.
+  - Many Keyword Actions (Augment, Create, Double, Exchange, Ignore, Roll a Die, Sabotage, Sacrifice, Switch Expeditions) are placeholders in `EffectProcessor.ts` or not implemented.
+  - Complex Keyword Abilities (Gigantic, Scout X dynamic ability, Tough X cost) require significant implementation.
 
 ### Section 8: Changes From the Previous Version
+
 ... (Content from previous audit state, to be audited in a future step) ...

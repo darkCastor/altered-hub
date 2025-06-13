@@ -27,19 +27,28 @@ export abstract class BaseZone implements IZone {
 		// Use 'objectId' for IGameObject, and 'instanceId' for ICardInstance
 		const key = isGameObject(entity) ? entity.objectId : entity.instanceId;
 		if (!key) {
-			console.error(`[Zone.add] Zone ${this.id}: Attempted to add entity with no valid key. Entity defId: ${entity.definitionId}`, entity);
+			console.error(
+				`[Zone.add] Zone ${this.id}: Attempted to add entity with no valid key. Entity defId: ${entity.definitionId}`,
+				entity
+			);
 			throw new Error('Entity has no valid key (objectId or instanceId) to be added to a zone.');
 		}
-		console.log(`[Zone.add] Zone ${this.id}: Adding entity with key '${key}' (defId: ${entity.definitionId}).`);
+		console.log(
+			`[Zone.add] Zone ${this.id}: Adding entity with key '${key}' (defId: ${entity.definitionId}).`
+		);
 		this.entities.set(key, entity);
 	}
 
 	remove(entityId: string): ZoneEntity | undefined {
-		console.log(`[Zone.remove] Zone ${this.id}: Attempting to remove entity with key: '${entityId}'. Current keys before removal: [${Array.from(this.entities.keys()).join(', ')}]`);
+		console.log(
+			`[Zone.remove] Zone ${this.id}: Attempting to remove entity with key: '${entityId}'. Current keys before removal: [${Array.from(this.entities.keys()).join(', ')}]`
+		);
 		const entity = this.entities.get(entityId);
 		if (entity) {
 			const deleteResult = this.entities.delete(entityId);
-			console.log(`[Zone.remove] Zone ${this.id}: Entity '${entityId}' (defId: ${entity.definitionId}) found. Map.delete result: ${deleteResult}. New size: ${this.entities.size}`);
+			console.log(
+				`[Zone.remove] Zone ${this.id}: Entity '${entityId}' (defId: ${entity.definitionId}) found. Map.delete result: ${deleteResult}. New size: ${this.entities.size}`
+			);
 		} else {
 			console.warn(`[Zone.remove] Zone ${this.id}: Entity with key '${entityId}' NOT found.`);
 		}

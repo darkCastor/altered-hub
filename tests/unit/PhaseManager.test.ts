@@ -147,7 +147,8 @@ describe('PhaseManager - Phase Transition Rules', () => {
 	});
 
 	describe('Rule 4.2: Day Structure - Five Phases', () => {
-		test('Rule 4.2.a: Day should consist of exactly 5 phases in correct order', async () => { // Made async
+		test('Rule 4.2.a: Day should consist of exactly 5 phases in correct order', async () => {
+			// Made async
 			const expectedPhases = [
 				// Starting from Setup, as initializeGame likely leaves it in Setup or a defined start.
 				// Or, explicitly set to a known state before loop.
@@ -168,7 +169,8 @@ describe('PhaseManager - Phase Transition Rules', () => {
 			expect(gameStateManager.state.currentDay).toBe(2);
 
 			// Test phase progression through a complete day (Day 2)
-			for (let i = 0; i < expectedPhases.length -1; i++) { // Iterate 4 times for 5 phases
+			for (let i = 0; i < expectedPhases.length - 1; i++) {
+				// Iterate 4 times for 5 phases
 				await phaseManager.advancePhase();
 				expect(gameStateManager.state.currentPhase).toBe(expectedPhases[i + 1]);
 			}
@@ -264,10 +266,8 @@ describe('PhaseManager - Phase Transition Rules', () => {
 			player1.zones.expeditionZone.add(charInExp); // ensure they are in zone
 			player1.zones.reserveZone.add(cardInReserve);
 
-
 			await phaseManager.advancePhase(); // Night -> Morning. This will call handleMorning.
 			expect(gameStateManager.state.currentPhase).toBe(GamePhase.Morning);
-
 
 			expect(charInExp.statuses.has(StatusType.Exhausted)).toBe(false);
 			expect(cardInReserve.statuses.has(StatusType.Exhausted)).toBe(false);
@@ -279,9 +279,13 @@ describe('PhaseManager - Phase Transition Rules', () => {
 			// Ensure players have decks to draw from
 			const player1 = gameStateManager.getPlayer('player1')!;
 			const player2 = gameStateManager.getPlayer('player2')!;
-			for(let i=0; i<3; i++) {
-				player1.zones.deckZone.add(gameStateManager.objectFactory.createCard('test-card', player1.id));
-				player2.zones.deckZone.add(gameStateManager.objectFactory.createCard('test-card', player2.id));
+			for (let i = 0; i < 3; i++) {
+				player1.zones.deckZone.add(
+					gameStateManager.objectFactory.createCard('test-card', player1.id)
+				);
+				player2.zones.deckZone.add(
+					gameStateManager.objectFactory.createCard('test-card', player2.id)
+				);
 			}
 			const initialHandSizeP1 = player1.zones.handZone.count;
 			const initialHandSizeP2 = player2.zones.handZone.count;
@@ -323,7 +327,10 @@ describe('PhaseManager - Phase Transition Rules', () => {
 			// Add cards to deck for draw step that happens before expand in handleMorning
 			// Ensure deck is clear before adding if this is a re-setup for the same test logic block
 			player1.zones.deckZone.clear(); // Clear deck before re-adding for this part of test.
-			for(let i=0; i<2; i++) player1.zones.deckZone.add(gameStateManager.objectFactory.createCard('test-card', player1.id));
+			for (let i = 0; i < 2; i++)
+				player1.zones.deckZone.add(
+					gameStateManager.objectFactory.createCard('test-card', player1.id)
+				);
 
 			// const initialManaCount = player1.zones.manaZone.count; // Already declared above
 			// const initialHandCount = player1.zones.handZone.count; // Already declared above
@@ -342,19 +349,22 @@ describe('PhaseManager - Phase Transition Rules', () => {
 			player1.zones.handZone.clear(); // Clear hand from previous advances if any
 			player1.zones.deckZone.clear(); // Clear deck
 			player1.zones.handZone.add(cardToExpand); // Add the specific card
-			for(let i=0; i<2; i++) player1.zones.deckZone.add(gameStateManager.objectFactory.createCard('test-card', player1.id)); // Setup deck for draw
+			for (let i = 0; i < 2; i++)
+				player1.zones.deckZone.add(
+					gameStateManager.objectFactory.createCard('test-card', player1.id)
+				); // Setup deck for draw
 			player1.flags.hasExpandedThisTurn = false; // Reset flag
 			const newInitialHandCount = player1.zones.handZone.count; // Hand count before advancing to morning
 			const newInitialManaCount = player1.zones.manaZone.count;
 
-
 			await phaseManager.advancePhase(); // Night -> Morning. This calls handleMorning.
 			expect(gameStateManager.state.currentPhase).toBe(GamePhase.Morning);
 
-
 			expect(player1.zones.manaZone.count).toBe(newInitialManaCount + 1);
 			expect(player1.zones.handZone.count).toBe(newInitialHandCount + 2 - 1); // Draw 2, Expand 1
-			const newManaOrb = player1.zones.manaZone.getAll().find(c => c.originalCardId === cardToExpand.id);
+			const newManaOrb = player1.zones.manaZone
+				.getAll()
+				.find((c) => c.originalCardId === cardToExpand.id);
 			expect(newManaOrb).toBeDefined();
 			expect(newManaOrb?.statuses.has(StatusType.Exhausted)).toBe(false); // New mana is ready
 			expect(player1.flags.hasExpandedThisTurn).toBe(true); // Check flag
@@ -378,12 +388,15 @@ describe('PhaseManager - Phase Transition Rules', () => {
 
 			// Add a specific card to hand for expansion
 			const cardToExpand = gameStateManager.objectFactory.createCard('test-card', player1.id);
-			cardToExpand.instanceId = "expand-card-instance"; // Unique ID for clarity
+			cardToExpand.instanceId = 'expand-card-instance'; // Unique ID for clarity
 			player1.zones.handZone.add(cardToExpand);
 
 			// Ensure deck has cards for the drawing part of handleMorning (2 cards will be drawn)
-			for(let i = 0; i < 3; i++) { // Add a few cards to deck
-				player1.zones.deckZone.add(gameStateManager.objectFactory.createCard('test-card', player1.id));
+			for (let i = 0; i < 3; i++) {
+				// Add a few cards to deck
+				player1.zones.deckZone.add(
+					gameStateManager.objectFactory.createCard('test-card', player1.id)
+				);
 			}
 
 			const initialManaCount = player1.zones.manaZone.count;
@@ -402,7 +415,9 @@ describe('PhaseManager - Phase Transition Rules', () => {
 
 			// Verify the characteristics of the newly created mana orb
 			// Need to find the card that was just moved. ManaSystem.expandMana uses originalCardId.
-			const newManaOrb = player1.zones.manaZone.getAll().find(c => c.originalCardId === cardToExpand.id);
+			const newManaOrb = player1.zones.manaZone
+				.getAll()
+				.find((c) => c.originalCardId === cardToExpand.id);
 			expect(newManaOrb).toBeDefined();
 			if (newManaOrb) {
 				expect(newManaOrb.type).toBe(CardType.ManaOrb);
@@ -418,11 +433,13 @@ describe('PhaseManager - Phase Transition Rules', () => {
 
 			// Add another card to hand to attempt expansion (if hand was empty)
 			const anotherCard = gameStateManager.objectFactory.createCard('test-card', player1.id);
-			anotherCard.instanceId = "another-card-instance";
+			anotherCard.instanceId = 'another-card-instance';
 			player1.zones.handZone.add(anotherCard);
 			// Add cards to deck for draw step in handleMorning
-			for(let i = 0; i < 2; i++) player1.zones.deckZone.add(gameStateManager.objectFactory.createCard('test-card', player1.id));
-
+			for (let i = 0; i < 2; i++)
+				player1.zones.deckZone.add(
+					gameStateManager.objectFactory.createCard('test-card', player1.id)
+				);
 
 			// Disable player2's ability to expand to isolate the test to player1
 			const player2 = gameStateManager.getPlayer('player2')!;
@@ -454,18 +471,21 @@ describe('PhaseManager - Phase Transition Rules', () => {
 			player.flags.hasExpandedThisTurn = false;
 
 			const cardToExpand = gameStateManager.objectFactory.createCard('test-card', 'player1');
-			cardToExpand.instanceId = "card-for-once-per-turn-test";
+			cardToExpand.instanceId = 'card-for-once-per-turn-test';
 			player.zones.handZone.add(cardToExpand);
 			// Ensure deck has cards for drawing
-			for(let i = 0; i < 3; i++) {
-				player.zones.deckZone.add(gameStateManager.objectFactory.createCard('test-card', player.id));
+			for (let i = 0; i < 3; i++) {
+				player.zones.deckZone.add(
+					gameStateManager.objectFactory.createCard('test-card', player.id)
+				);
 			}
 
 			await phaseManager.handleMorning(); // This will perform draw and expand
 			expect(player.flags.hasExpandedThisTurn).toBe(true); // Flag is set after expansion
 
 			// Verify that player cannot expand again if hasExpandedThisTurn is true
-			const canExpandAgain = player.playerExpand && !player.flags.hasExpandedThisTurn && player.zones.handZone.count > 0;
+			const canExpandAgain =
+				player.playerExpand && !player.flags.hasExpandedThisTurn && player.zones.handZone.count > 0;
 			expect(canExpandAgain).toBe(false);
 
 			// Test "only in Morning phase": expandMana should not be called if not Morning.
@@ -474,12 +494,14 @@ describe('PhaseManager - Phase Transition Rules', () => {
 			// Ensure card in hand for a hypothetical expand attempt
 			if (player.zones.handZone.count === 0) {
 				const newCardForHand = gameStateManager.objectFactory.createCard('test-card', player.id);
-				newCardForHand.instanceId = "card-for-phase-test";
+				newCardForHand.instanceId = 'card-for-phase-test';
 				player.zones.handZone.add(newCardForHand);
 			}
 			// Add cards to deck for draw step if we were to call handleMorning (though we won't)
-			for(let i = 0; i < 2; i++) player.zones.deckZone.add(gameStateManager.objectFactory.createCard('test-card', player.id));
-
+			for (let i = 0; i < 2; i++)
+				player.zones.deckZone.add(
+					gameStateManager.objectFactory.createCard('test-card', player.id)
+				);
 
 			// Advance to a different phase (e.g., Noon) and call its handler (via advancePhase)
 			await phaseManager.advancePhase(); // Morning -> Noon
@@ -503,7 +525,11 @@ describe('PhaseManager - Phase Transition Rules', () => {
 			// For this specific test, we want a completely fresh game state to ensure Day 1 logic is tested correctly.
 			// So, we re-initialize GSM, TM, PM here using the mockCardDefinitions from the outer scope.
 			const localEventBus = new EventBus();
-			const localGameStateManager = new GameStateManager(['player1', 'player2'], mockCardDefinitions, localEventBus);
+			const localGameStateManager = new GameStateManager(
+				['player1', 'player2'],
+				mockCardDefinitions,
+				localEventBus
+			);
 			const localTurnManager = new TurnManager(localGameStateManager, localEventBus); // Added eventBus
 			localGameStateManager.turnManager = localTurnManager;
 			const localPhaseManager = new PhaseManager(localGameStateManager, localEventBus);
@@ -541,9 +567,11 @@ describe('PhaseManager - Phase Transition Rules', () => {
 			// initializePlayerState in GSM draws 6 cards. So hand size is 6.
 			const handSizeAfterDay1 = p1.zones.handZone.count;
 			p1.zones.deckZone.clear(); // Clear deck from initializeGame
-			for(let i=0; i<2; i++) p1.zones.deckZone.add(localGameStateManager.objectFactory.createCard('test-card', p1.id));
+			for (let i = 0; i < 2; i++)
+				p1.zones.deckZone.add(localGameStateManager.objectFactory.createCard('test-card', p1.id));
 			p2.zones.deckZone.clear();
-			for(let i=0; i<2; i++) p2.zones.deckZone.add(localGameStateManager.objectFactory.createCard('test-card', p2.id));
+			for (let i = 0; i < 2; i++)
+				p2.zones.deckZone.add(localGameStateManager.objectFactory.createCard('test-card', p2.id));
 			p1.playerExpand = false;
 			p2.playerExpand = false;
 
@@ -575,7 +603,10 @@ describe('PhaseManager - Phase Transition Rules', () => {
 			const player1 = gameStateManager.getPlayer('player1')!;
 			// Initialize manaState for player1 if it doesn't exist, for test purposes
 			if (!player1.manaState) {
-				player1.manaState = { available: { total: 0, forest: 0, mountain: 0, water: 0, orbs: 0 }, spent: { total: 0, forest: 0, mountain: 0, water: 0, orbs: 0 } };
+				player1.manaState = {
+					available: { total: 0, forest: 0, mountain: 0, water: 0, orbs: 0 },
+					spent: { total: 0, forest: 0, mountain: 0, water: 0, orbs: 0 }
+				};
 			}
 			const atNoonCard = gameStateManager.objectFactory.createGameObject(
 				gameStateManager.objectFactory.createCard('at-noon-effect-card', player1.id),
@@ -623,7 +654,8 @@ describe('PhaseManager - Phase Transition Rules', () => {
 
 			// Setup: Exhaust mana, note hand size
 			player1.zones.manaZone.getAll().forEach((orb) => {
-				if (orb) orb.statuses.add(StatusType.Exhausted); else console.warn("Mana orb was undefined during setup");
+				if (orb) orb.statuses.add(StatusType.Exhausted);
+				else console.warn('Mana orb was undefined during setup');
 			});
 			const initialHandSize = player1.zones.handZone.count;
 			player1.hasExpandedThisTurn = false; // Corrected: hasExpandedThisTurn is direct property
@@ -711,8 +743,18 @@ describe('PhaseManager - Phase Transition Rules', () => {
 		// Helper to set expedition stats for testing
 		const setExpeditionStats = (playerId: string, heroStats: any, companionStats?: any) => {
 			const player = gameStateManager.getPlayer(playerId)!;
-			if (!player.expeditionState) { // Ensure expeditionState exists
-				player.expeditionState = { heroPosition: 0, companionPosition: 0, heroStats: {}, companionStats: {}, heroExpeditionObjects: [], companionExpeditionObjects: [], heroMovedThisTurn: false, companionMovedThisTurn: false };
+			if (!player.expeditionState) {
+				// Ensure expeditionState exists
+				player.expeditionState = {
+					heroPosition: 0,
+					companionPosition: 0,
+					heroStats: {},
+					companionStats: {},
+					heroExpeditionObjects: [],
+					companionExpeditionObjects: [],
+					heroMovedThisTurn: false,
+					companionMovedThisTurn: false
+				};
 			}
 			player.expeditionState.heroStats = heroStats;
 			player.expeditionState.heroPosition = 0;
@@ -783,8 +825,16 @@ describe('PhaseManager - Phase Transition Rules', () => {
 
 		test('Rule 4.2.4.h: All successful expeditions move simultaneously (conceptual)', async () => {
 			gameStateManager.setCurrentPhase(GamePhase.Dusk); // Set to Dusk
-			setExpeditionStats('player1', { forest: 3, mountain: 0, water: 0 }, { forest: 3, mountain: 0, water: 0 });
-			setExpeditionStats('player2', { forest: 1, mountain: 0, water: 0 }, { forest: 1, mountain: 0, water: 0 });
+			setExpeditionStats(
+				'player1',
+				{ forest: 3, mountain: 0, water: 0 },
+				{ forest: 3, mountain: 0, water: 0 }
+			);
+			setExpeditionStats(
+				'player2',
+				{ forest: 1, mountain: 0, water: 0 },
+				{ forest: 1, mountain: 0, water: 0 }
+			);
 
 			await phaseManager.handleDusk(); // Call handler
 
@@ -812,12 +862,25 @@ describe('PhaseManager - Phase Transition Rules', () => {
 				p1.id
 			);
 			p1.zones.expeditionZone.add(charMovedExp); // IGameObject
-			p1.zones.expeditionZone.add(gearMovedExp);   // IGameObject
-			if (!p1.expeditionState) p1.expeditionState = { heroPosition: 0, companionPosition: 0, heroStats:{}, companionStats:{}, heroExpeditionObjects: [], companionExpeditionObjects: [], heroMovedThisTurn: false, companionMovedThisTurn: false };
+			p1.zones.expeditionZone.add(gearMovedExp); // IGameObject
+			if (!p1.expeditionState)
+				p1.expeditionState = {
+					heroPosition: 0,
+					companionPosition: 0,
+					heroStats: {},
+					companionStats: {},
+					heroExpeditionObjects: [],
+					companionExpeditionObjects: [],
+					heroMovedThisTurn: false,
+					companionMovedThisTurn: false
+				};
 			p1.expeditionState.heroExpeditionObjects = [charMovedExp.objectId, gearMovedExp.objectId];
 			p1.expeditionState.heroMovedThisTurn = true;
 
-			const charStayExp = gameStateManager.objectFactory.createGameObject(gameStateManager.objectFactory.createCard('character-001', p1.id), p1.id);
+			const charStayExp = gameStateManager.objectFactory.createGameObject(
+				gameStateManager.objectFactory.createCard('character-001', p1.id),
+				p1.id
+			);
 			charStayExp.instanceId = 'charStay';
 			p1.zones.expeditionZone.add(charStayExp);
 			p1.expeditionState.companionExpeditionObjects = [charStayExp.objectId];
@@ -828,8 +891,11 @@ describe('PhaseManager - Phase Transition Rules', () => {
 			// 1. Be in Night. 2. Setup state. 3. Call handleNight().
 			gameStateManager.setCurrentPhase(GamePhase.Night); // Ensure we are in Night
 			// Setup state again, as advancePhase might have cleared/changed it
-			p1.zones.expeditionZone.clear(); p1.zones.reserveZone.clear(); // Clear for clean test
-			p1.zones.expeditionZone.add(charMovedExp); p1.zones.expeditionZone.add(gearMovedExp); p1.zones.expeditionZone.add(charStayExp);
+			p1.zones.expeditionZone.clear();
+			p1.zones.reserveZone.clear(); // Clear for clean test
+			p1.zones.expeditionZone.add(charMovedExp);
+			p1.zones.expeditionZone.add(gearMovedExp);
+			p1.zones.expeditionZone.add(charStayExp);
 			p1.expeditionState.heroExpeditionObjects = [charMovedExp.objectId, gearMovedExp.objectId];
 			p1.expeditionState.heroMovedThisTurn = true;
 			p1.expeditionState.companionExpeditionObjects = [charStayExp.objectId];
@@ -852,11 +918,18 @@ describe('PhaseManager - Phase Transition Rules', () => {
 			p1.zones.reserveZone.add(gameStateManager.objectFactory.createCard('character-001', p1.id));
 			p1.zones.reserveZone.add(gameStateManager.objectFactory.createCard('test-card', p1.id));
 			// Add 2 Landmarks
-			p1.zones.landmarkZone.add(gameStateManager.objectFactory.createGameObject(gameStateManager.objectFactory.createCard('landmark-001', p1.id), p1.id));
-			const landmark2Instance = gameStateManager.objectFactory.createGameObject(gameStateManager.objectFactory.createCard('landmark-001', p1.id), p1.id);
-			landmark2Instance.instanceId = "landmark-unique-for-cleanup";
+			p1.zones.landmarkZone.add(
+				gameStateManager.objectFactory.createGameObject(
+					gameStateManager.objectFactory.createCard('landmark-001', p1.id),
+					p1.id
+				)
+			);
+			const landmark2Instance = gameStateManager.objectFactory.createGameObject(
+				gameStateManager.objectFactory.createCard('landmark-001', p1.id),
+				p1.id
+			);
+			landmark2Instance.instanceId = 'landmark-unique-for-cleanup';
 			p1.zones.landmarkZone.add(landmark2Instance);
-
 
 			expect(p1.zones.reserveZone.count).toBe(2);
 			expect(p1.zones.landmarkZone.count).toBe(2);
@@ -869,9 +942,10 @@ describe('PhaseManager - Phase Transition Rules', () => {
 			// The prompt for cleanup is "choose cards to discard/sacrifice *down to the limit*".
 			// So it should be "choose a card to discard".
 			const reserveCardToDiscard = p1.zones.reserveZone.getAll()[1]; // Target the second card for discard
-			const landmarkToSacrifice = p1.zones.landmarkZone.getAll()[1];   // Target the second landmark
+			const landmarkToSacrifice = p1.zones.landmarkZone.getAll()[1]; // Target the second landmark
 
-			const playerInteractionManagerMock = vi.spyOn(gameStateManager.playerInteractionManager, 'getChoice')
+			const playerInteractionManagerMock = vi
+				.spyOn(gameStateManager.playerInteractionManager, 'getChoice')
 				.mockResolvedValueOnce(reserveCardToDiscard.instanceId) // P1 chooses to discard the 2nd reserve card
 				.mockResolvedValueOnce(landmarkToSacrifice.instanceId); // P1 chooses to sacrifice the 2nd landmark
 
@@ -897,8 +971,28 @@ describe('PhaseManager - Phase Transition Rules', () => {
 			const p1 = gameStateManager.getPlayer('player1')!;
 			const p2 = gameStateManager.getPlayer('player2')!;
 
-			if (!p1.expeditionState) p1.expeditionState = { heroPosition: 0, companionPosition: 0, heroStats:{}, companionStats:{}, heroExpeditionObjects: [], companionExpeditionObjects: [], heroMovedThisTurn: false, companionMovedThisTurn: false };
-			if (!p2.expeditionState) p2.expeditionState = { heroPosition: 0, companionPosition: 0, heroStats:{}, companionStats:{}, heroExpeditionObjects: [], companionExpeditionObjects: [], heroMovedThisTurn: false, companionMovedThisTurn: false };
+			if (!p1.expeditionState)
+				p1.expeditionState = {
+					heroPosition: 0,
+					companionPosition: 0,
+					heroStats: {},
+					companionStats: {},
+					heroExpeditionObjects: [],
+					companionExpeditionObjects: [],
+					heroMovedThisTurn: false,
+					companionMovedThisTurn: false
+				};
+			if (!p2.expeditionState)
+				p2.expeditionState = {
+					heroPosition: 0,
+					companionPosition: 0,
+					heroStats: {},
+					companionStats: {},
+					heroExpeditionObjects: [],
+					companionExpeditionObjects: [],
+					heroMovedThisTurn: false,
+					companionMovedThisTurn: false
+				};
 			p1.expeditionState.heroPosition = 3;
 			p1.expeditionState.companionPosition = 4;
 			p2.expeditionState.heroPosition = 4;

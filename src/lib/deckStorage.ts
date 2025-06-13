@@ -24,7 +24,7 @@ export function loadDecks(): Deck[] {
 	try {
 		const stored = localStorage.getItem(STORAGE_KEY);
 		if (!stored) return [];
-		
+
 		const deckDocs: DeckDoc[] = JSON.parse(stored);
 		return deckDocs.map(fromDocToDeck);
 	} catch (error) {
@@ -47,14 +47,14 @@ function saveDecks(decks: Deck[]): void {
 // Save a single deck (upsert)
 export function saveDeck(deck: Deck): Deck {
 	const decks = loadDecks();
-	const index = decks.findIndex(d => d.id === deck.id);
-	
+	const index = decks.findIndex((d) => d.id === deck.id);
+
 	if (index >= 0) {
 		decks[index] = deck;
 	} else {
 		decks.push(deck);
 	}
-	
+
 	saveDecks(decks);
 	return deck;
 }
@@ -62,12 +62,12 @@ export function saveDeck(deck: Deck): Deck {
 // Delete a deck by ID
 export function deleteDeck(deckId: string): { id: string } {
 	const decks = loadDecks();
-	const filteredDecks = decks.filter(d => d.id !== deckId);
-	
+	const filteredDecks = decks.filter((d) => d.id !== deckId);
+
 	if (filteredDecks.length === decks.length) {
 		throw new Error('Deck not found for deletion');
 	}
-	
+
 	saveDecks(filteredDecks);
 	return { id: deckId };
 }
@@ -75,5 +75,5 @@ export function deleteDeck(deckId: string): { id: string } {
 // Get a single deck by ID
 export function getDeckById(deckId: string): Deck | null {
 	const decks = loadDecks();
-	return decks.find(d => d.id === deckId) || null;
+	return decks.find((d) => d.id === deckId) || null;
 }

@@ -12,7 +12,7 @@ export class RuleAdjudicator {
 	public getActiveCostModifiersForCardPlay(
 		cardBeingPlayed: IGameObject | ICardInstance,
 		playingPlayerId: string,
-		fromZone: ZoneIdentifier,
+		fromZone: ZoneIdentifier
 		// gsm is available via this.gsm
 	): CostModifier[] {
 		const activeModifiers: CostModifier[] = [];
@@ -25,15 +25,31 @@ export class RuleAdjudicator {
 			if (!modifierSource.currentCharacteristics) continue; // Object might not have had passives applied yet or is base
 
 			const abilitiesToCheck: IAbility[] = [];
-			if (modifierSource.abilities) { // Base abilities
-				abilitiesToCheck.push(...modifierSource.abilities.map(a => ({ ...a, sourceObjectId: modifierSource.objectId })));
+			if (modifierSource.abilities) {
+				// Base abilities
+				abilitiesToCheck.push(
+					...modifierSource.abilities.map((a) => ({
+						...a,
+						sourceObjectId: modifierSource.objectId
+					}))
+				);
 			}
-			if (modifierSource.currentCharacteristics.grantedAbilities) { // Granted abilities
-				abilitiesToCheck.push(...modifierSource.currentCharacteristics.grantedAbilities.map(a => ({ ...a, sourceObjectId: modifierSource.objectId })));
+			if (modifierSource.currentCharacteristics.grantedAbilities) {
+				// Granted abilities
+				abilitiesToCheck.push(
+					...modifierSource.currentCharacteristics.grantedAbilities.map((a) => ({
+						...a,
+						sourceObjectId: modifierSource.objectId
+					}))
+				);
 			}
 
 			for (const ability of abilitiesToCheck) {
-				if (ability.abilityType !== AbilityType.Passive || !ability.effect || !ability.effect.steps) {
+				if (
+					ability.abilityType !== AbilityType.Passive ||
+					!ability.effect ||
+					!ability.effect.steps
+				) {
 					continue;
 				}
 				// Check if this ability is negated on its source
@@ -41,12 +57,14 @@ export class RuleAdjudicator {
 					continue;
 				}
 
-
 				for (const step of ability.effect.steps) {
 					if (step.verb === 'MODIFY_PLAY_COST') {
 						const params = step.parameters as ModifyPlayCostParameters;
 						if (!params || !params.type || params.value === undefined) {
-							console.warn(`[RuleAdjudicator] MODIFY_PLAY_COST step on ${modifierSource.name} (Ability: ${ability.abilityId}) is missing critical parameters.`, params);
+							console.warn(
+								`[RuleAdjudicator] MODIFY_PLAY_COST step on ${modifierSource.name} (Ability: ${ability.abilityId}) is missing critical parameters.`,
+								params
+							);
 							continue;
 						}
 
@@ -75,7 +93,10 @@ export class RuleAdjudicator {
 							}
 
 							// Check appliesToCardDefinitionId
-							if (params.appliesToCardDefinitionId && cardDef.id !== params.appliesToCardDefinitionId) {
+							if (
+								params.appliesToCardDefinitionId &&
+								cardDef.id !== params.appliesToCardDefinitionId
+							) {
 								return false;
 							}
 
@@ -108,16 +129,20 @@ export class RuleAdjudicator {
 						};
 
 						// Pass modifierSource to appliesTo closure
-						const boundAppliesTo = (evalCard: IGameObject | ICardInstance, evalGsm: GameStateManager, evalPlayerId: string, evalFromZone: ZoneIdentifier) => {
+						const boundAppliesTo = (
+							evalCard: IGameObject | ICardInstance,
+							evalGsm: GameStateManager,
+							evalPlayerId: string,
+							evalFromZone: ZoneIdentifier
+						) => {
 							return appliesTo(evalCard, evalGsm, evalPlayerId, evalFromZone, modifierSource);
 						};
-
 
 						const newModifier: CostModifier = {
 							type: params.type,
 							value: params.value,
 							appliesTo: boundAppliesTo,
-							sourceObjectId: modifierSource.objectId,
+							sourceObjectId: modifierSource.objectId
 						};
 						activeModifiers.push(newModifier);
 					}
@@ -155,15 +180,18 @@ export class RuleAdjudicator {
 				grantedAbilities: [], // Initialize as empty array
 				negatedAbilityIds: [], // Initialize as empty array
 				// Ensure statistics and keywords are initialized if not present on baseCharacteristics
-                statistics: obj.baseCharacteristics.statistics ? { ...obj.baseCharacteristics.statistics } : { forest: 0, mountain: 0, water: 0, power: 0, health: 0 },
-                keywords: obj.baseCharacteristics.keywords ? { ...obj.baseCharacteristics.keywords } : {},
+				statistics: obj.baseCharacteristics.statistics
+					? { ...obj.baseCharacteristics.statistics }
+					: { forest: 0, mountain: 0, water: 0, power: 0, health: 0 },
+				keywords: obj.baseCharacteristics.keywords ? { ...obj.baseCharacteristics.keywords } : {}
 			};
 		});
 
 		// 2. Gather all passive abilities from base abilities and granted abilities
 		// Filter out negated abilities at this stage.
 		const allPassiveAbilities: IAbility[] = [];
-		for (const obj of allObjectsIncludingHeroes) { // Iterate over all objects including heroes
+		for (const obj of allObjectsIncludingHeroes) {
+			// Iterate over all objects including heroes
 			// Ensure sourceObjectId is attached to each ability for context
 			const baseAbilities = obj.abilities
 				.map((a) => ({ ...a, sourceObjectId: obj.objectId }))
@@ -206,7 +234,11 @@ export class RuleAdjudicator {
 	): boolean {
 		// Rule 2.3.2: A depends on B if B's application could change A's existence, text, or how it applies.
 		if (!abilityA.sourceObjectId || !abilityB.sourceObjectId) {
-			console.warn('[RuleAdjudicator.doesADependOnB] Abilities missing sourceObjectIds.', abilityA.abilityId, abilityB.abilityId);
+			console.warn(
+				'[RuleAdjudicator.doesADependOnB] Abilities missing sourceObjectIds.',
+				abilityA.abilityId,
+				abilityB.abilityId
+			);
 			return false;
 		}
 
@@ -214,18 +246,25 @@ export class RuleAdjudicator {
 		const sourceB = this.gsm.getObject(abilityB.sourceObjectId); // Fetched for completeness, though id is primary for resolveTargetsForDependency
 
 		if (!sourceA) {
-			console.warn(`[RuleAdjudicator.doesADependOnB] Source object for ability A (${abilityA.abilityId}, source ID: ${abilityA.sourceObjectId}) not found.`);
+			console.warn(
+				`[RuleAdjudicator.doesADependOnB] Source object for ability A (${abilityA.abilityId}, source ID: ${abilityA.sourceObjectId}) not found.`
+			);
 			return false;
 		}
 		if (!sourceB) {
 			// While sourceB's object isn't directly used in all checks if abilityB.sourceObjectId is valid for effects,
 			// its absence might indicate an issue. For now, we'll proceed if abilityB.sourceObjectId is valid for effect resolution.
-			console.warn(`[RuleAdjudicator.doesADependOnB] Source object for ability B (${abilityB.abilityId}, source ID: ${abilityB.sourceObjectId}) not found. Proceeding with ID if available for effects.`);
+			console.warn(
+				`[RuleAdjudicator.doesADependOnB] Source object for ability B (${abilityB.abilityId}, source ID: ${abilityB.sourceObjectId}) not found. Proceeding with ID if available for effects.`
+			);
 			// If abilityB.sourceObjectId itself was the issue, the initial check would fail.
 		}
 
 		// Rule 2.3.2.g: An ability cannot depend on itself.
-		if (abilityA.abilityId === abilityB.abilityId && abilityA.sourceObjectId === abilityB.sourceObjectId) {
+		if (
+			abilityA.abilityId === abilityB.abilityId &&
+			abilityA.sourceObjectId === abilityB.sourceObjectId
+		) {
 			// A more robust check might involve a unique instance ID for abilities if they can be granted multiple times.
 			// For now, abilityId + sourceObjectId is a good proxy.
 			return false;
@@ -243,14 +282,27 @@ export class RuleAdjudicator {
 
 			// 2.3.2.d.i: B's effect removes sourceA from a zone where its abilities are active,
 			// or moves it to a zone where it ceases to exist or its abilities become inactive.
-			const removalVerbs = ['moveTo', 'move_to', 'putInZone', 'put_in_zone', 'discard', 'sacrifice', 'destroy_object', 'remove_from_game'];
+			const removalVerbs = [
+				'moveTo',
+				'move_to',
+				'putInZone',
+				'put_in_zone',
+				'discard',
+				'sacrifice',
+				'destroy_object',
+				'remove_from_game'
+			];
 			if (removalVerbs.includes(stepB.verb.toLowerCase())) {
 				if (targetIdsOfB.includes(sourceA.objectId)) {
-					const destinationZoneId = stepB.parameters?.destinationZoneIdentifier as ZoneIdentifier | undefined;
+					const destinationZoneId = stepB.parameters?.destinationZoneIdentifier as
+						| ZoneIdentifier
+						| undefined;
 					// It could also be a string like 'source_expeditions_choice' which needs resolving,
 					// but for dependency, we can be a bit more general. If it *could* go to a bad zone.
 
-					const objectAIsToken = sourceA.baseCharacteristics.isToken === true || sourceA.currentCharacteristics?.isToken === true;
+					const objectAIsToken =
+						sourceA.baseCharacteristics.isToken === true ||
+						sourceA.currentCharacteristics?.isToken === true;
 
 					if (objectAIsToken) {
 						// Tokens cease to exist if moved to Hand, Deck, DiscardPile, Limbo (usually), Reserve
@@ -259,30 +311,47 @@ export class RuleAdjudicator {
 							ZoneIdentifier.Deck,
 							ZoneIdentifier.DiscardPile,
 							ZoneIdentifier.Limbo, // Typically, unless it's an emblem-like reaction token
-							ZoneIdentifier.Reserve,
+							ZoneIdentifier.Reserve
 							// ZoneIdentifier.RemovedFromGame // If this is a formal zone
 						];
 						if (destinationZoneId && nonExistenceZonesForTokens.includes(destinationZoneId)) {
-							console.log(`Dependency: ${abilityA.abilityId} (token source) depends on ${abilityB.abilityId} (moves to non-existence zone ${destinationZoneId})`);
+							console.log(
+								`Dependency: ${abilityA.abilityId} (token source) depends on ${abilityB.abilityId} (moves to non-existence zone ${destinationZoneId})`
+							);
 							return true;
 						}
 						// If destination is dynamic, assume dependency if any potential outcome is a non-existence zone.
 						// This part is tricky without fully resolving the destination for dynamic targets.
 						// For now, if destinationZoneId is undefined but verb implies removal, and A is a token, assume dependency.
-						if (!destinationZoneId && ['sacrifice', 'destroy_object', 'remove_from_game'].includes(stepB.verb.toLowerCase())) {
-							console.log(`Dependency: ${abilityA.abilityId} (token source) depends on ${abilityB.abilityId} (verb ${stepB.verb} implies removal)`);
+						if (
+							!destinationZoneId &&
+							['sacrifice', 'destroy_object', 'remove_from_game'].includes(stepB.verb.toLowerCase())
+						) {
+							console.log(
+								`Dependency: ${abilityA.abilityId} (token source) depends on ${abilityB.abilityId} (verb ${stepB.verb} implies removal)`
+							);
 							return true;
 						}
-					} else { // Non-token
+					} else {
+						// Non-token
 						// Non-tokens lose abilities if moved to hidden zones (Hand, Deck)
 						const hiddenZones: ZoneIdentifier[] = [ZoneIdentifier.Hand, ZoneIdentifier.Deck];
 						if (destinationZoneId && hiddenZones.includes(destinationZoneId)) {
-							console.log(`Dependency: ${abilityA.abilityId} (source) depends on ${abilityB.abilityId} (moves to hidden zone ${destinationZoneId})`);
+							console.log(
+								`Dependency: ${abilityA.abilityId} (source) depends on ${abilityB.abilityId} (moves to hidden zone ${destinationZoneId})`
+							);
 							return true;
 						}
 						// Explicit removal
-						if (stepB.verb.toLowerCase() === 'remove_from_game' || stepB.verb.toLowerCase() === 'destroy_object' && destinationZoneId === ZoneIdentifier.Limbo) { // Assuming destroy sends to Limbo
-						    console.log(`Dependency: ${abilityA.abilityId} (source) depends on ${abilityB.abilityId} (verb ${stepB.verb} implies removal)`);
+						if (
+							stepB.verb.toLowerCase() === 'remove_from_game' ||
+							(stepB.verb.toLowerCase() === 'destroy_object' &&
+								destinationZoneId === ZoneIdentifier.Limbo)
+						) {
+							// Assuming destroy sends to Limbo
+							console.log(
+								`Dependency: ${abilityA.abilityId} (source) depends on ${abilityB.abilityId} (verb ${stepB.verb} implies removal)`
+							);
 							return true;
 						}
 					}
@@ -290,14 +359,19 @@ export class RuleAdjudicator {
 			}
 
 			// 2.3.2.d.ii: B's effect explicitly negates or removes A's specific ability.
-			if (stepB.verb.toLowerCase() === 'lose_ability' || stepB.verb.toLowerCase() === 'loseability') {
+			if (
+				stepB.verb.toLowerCase() === 'lose_ability' ||
+				stepB.verb.toLowerCase() === 'loseability'
+			) {
 				if (targetIdsOfB.includes(sourceA.objectId)) {
 					if (
 						stepB.parameters?.abilityId === abilityA.abilityId ||
 						stepB.parameters?.allAbilities === true ||
-						(stepB.parameters?.abilityDefinitionId === abilityA.definitionId) // If losing by definition ID
+						stepB.parameters?.abilityDefinitionId === abilityA.definitionId // If losing by definition ID
 					) {
-						console.log(`Dependency: ${abilityA.abilityId} depends on ${abilityB.abilityId} (negates ability)`);
+						console.log(
+							`Dependency: ${abilityA.abilityId} depends on ${abilityB.abilityId} (negates ability)`
+						);
 						return true;
 					}
 				}
@@ -309,12 +383,18 @@ export class RuleAdjudicator {
 				let zoneCriterionA: ZoneIdentifier | string | undefined = undefined; // For zone checks specifically
 
 				// 1. Identify characteristics from stepA.targets.criteria
-				if (typeof stepA.targets === 'object' && stepA.targets !== null && (stepA.targets as any).type === 'select') {
+				if (
+					typeof stepA.targets === 'object' &&
+					stepA.targets !== null &&
+					(stepA.targets as any).type === 'select'
+				) {
 					const criteria = (stepA.targets as any).criteria;
 					if (criteria) {
 						if (criteria.cardType) characteristicsAExtamines.add('type'); // Assuming cardType maps to 'type' characteristic
-						if (criteria.subTypes && criteria.subTypes.length > 0) characteristicsAExtamines.add('subTypes');
-						if (criteria.keywords && criteria.keywords.length > 0) characteristicsAExtamines.add('keywords');
+						if (criteria.subTypes && criteria.subTypes.length > 0)
+							characteristicsAExtamines.add('subTypes');
+						if (criteria.keywords && criteria.keywords.length > 0)
+							characteristicsAExtamines.add('keywords');
 						if (criteria.controller) characteristicsAExtamines.add('controllerId');
 						if (criteria.zone) zoneCriterionA = criteria.zone; // Special handling for zone
 						if (criteria.definitionId) characteristicsAExtamines.add('definitionId');
@@ -322,8 +402,8 @@ export class RuleAdjudicator {
 						if (criteria.isCharacter !== undefined) characteristicsAExtamines.add('isCharacter'); // map to type=Character
 						if (criteria.isGigantic !== undefined) characteristicsAExtamines.add('isGigantic');
 
-
-						if (criteria.stats) { // e.g., { stats: { power: 5, health: ">3" } }
+						if (criteria.stats) {
+							// e.g., { stats: { power: 5, health: ">3" } }
 							for (const statKey in criteria.stats) {
 								characteristicsAExtamines.add(statKey); // e.g. 'power', 'health'
 							}
@@ -343,31 +423,42 @@ export class RuleAdjudicator {
 					} else if (condition.type === 'check_object_characteristic' && condition.characteristic) {
 						characteristicsAExtamines.add(condition.characteristic as string);
 						if (condition.zone) zoneCriterionA = condition.zone; // If condition also checks zone
-					} else if (condition.type === 'zone_state_check') { // e.g. { type: 'zone_state_check', zone: 'source_hero_expedition', check: 'has_cards_matching', criteria: {...} }
+					} else if (condition.type === 'zone_state_check') {
+						// e.g. { type: 'zone_state_check', zone: 'source_hero_expedition', check: 'has_cards_matching', criteria: {...} }
 						if (condition.zone) zoneCriterionA = condition.zone;
-						if (condition.criteria) { // Nested criteria
+						if (condition.criteria) {
+							// Nested criteria
 							if (condition.criteria.cardType) characteristicsAExtamines.add('type');
-							if (condition.criteria.subTypes && condition.criteria.subTypes.length > 0) characteristicsAExtamines.add('subTypes');
+							if (condition.criteria.subTypes && condition.criteria.subTypes.length > 0)
+								characteristicsAExtamines.add('subTypes');
 							// ... add more from nested criteria
 						}
 					}
 					// Add more comprehensive condition parsing as needed
 				}
 
-
 				// 3. Check if stepB modifies any of these characteristics or zones for any of its targets
 				if (characteristicsAExtamines.size > 0 || zoneCriterionA) {
 					const modifiedCharByStepB = this.getCharacteristicModifiedByStepB(stepB); // Gets the general characteristic name
-					const newZoneSetByStepB = (stepB.verb.toLowerCase() === 'moveTo' || stepB.verb.toLowerCase() === 'move_to' || stepB.verb.toLowerCase() === 'put_in_zone')
-						? stepB.parameters?.destinationZoneIdentifier as (ZoneIdentifier | string | undefined)
-						: undefined;
+					const newZoneSetByStepB =
+						stepB.verb.toLowerCase() === 'moveTo' ||
+						stepB.verb.toLowerCase() === 'move_to' ||
+						stepB.verb.toLowerCase() === 'put_in_zone'
+							? (stepB.parameters?.destinationZoneIdentifier as ZoneIdentifier | string | undefined)
+							: undefined;
 
-					for (const targetIdOfB of targetIdsOfB) { // B affects targetIdOfB
+					for (const targetIdOfB of targetIdsOfB) {
+						// B affects targetIdOfB
 						// It doesn't matter if targetIdOfB is sourceA or another object.
 						// We check if B's effect on targetIdOfB could change whether A's condition/targeting (which might involve targetIdOfB or any other object) resolves differently.
 
-						if (modifiedCharByStepB && characteristicsAExtamines.has(modifiedCharByStepB.characteristic)) {
-							console.log(`Dependency (Applicability): ${abilityA.abilityId} (examines ${modifiedCharByStepB.characteristic}) depends on ${abilityB.abilityId} (modifies ${modifiedCharByStepB.characteristic} on ${targetIdOfB})`);
+						if (
+							modifiedCharByStepB &&
+							characteristicsAExtamines.has(modifiedCharByStepB.characteristic)
+						) {
+							console.log(
+								`Dependency (Applicability): ${abilityA.abilityId} (examines ${modifiedCharByStepB.characteristic}) depends on ${abilityB.abilityId} (modifies ${modifiedCharByStepB.characteristic} on ${targetIdOfB})`
+							);
 							return true; // B modifies a characteristic A examines
 						}
 						if (zoneCriterionA && newZoneSetByStepB) {
@@ -376,38 +467,81 @@ export class RuleAdjudicator {
 							// e.g. if A targets "cards in hand" and B moves a card to hand or from hand.
 							// For now, if B changes *any* zone, and A cares about *any* zone, assume dependency.
 							// A more refined check: (newZoneSetByStepB === zoneCriterionA || targetObjectBWasInZoneCriterionA)
-							console.log(`Dependency (Applicability - Zone): ${abilityA.abilityId} (zone criterion ${zoneCriterionA}) depends on ${abilityB.abilityId} (moves object ${targetIdOfB} to/from zone)`);
+							console.log(
+								`Dependency (Applicability - Zone): ${abilityA.abilityId} (zone criterion ${zoneCriterionA}) depends on ${abilityB.abilityId} (moves object ${targetIdOfB} to/from zone)`
+							);
 							return true;
 						}
-						if (zoneCriterionA && stepB.verb.toLowerCase() === 'change_controller' && characteristicsAExtamines.has('controllerId')) {
+						if (
+							zoneCriterionA &&
+							stepB.verb.toLowerCase() === 'change_controller' &&
+							characteristicsAExtamines.has('controllerId')
+						) {
 							// If A's targeting depends on controller (often implied by zone like 'self_hand'),
 							// and B changes controller, this could affect zone contents for A.
-							console.log(`Dependency (Applicability - Controller/Zone): ${abilityA.abilityId} (zone criterion ${zoneCriterionA}, controller dep) depends on ${abilityB.abilityId} (changes controller of ${targetIdOfB})`);
+							console.log(
+								`Dependency (Applicability - Controller/Zone): ${abilityA.abilityId} (zone criterion ${zoneCriterionA}, controller dep) depends on ${abilityB.abilityId} (changes controller of ${targetIdOfB})`
+							);
 							return true;
 						}
 
 						// Specific verb checks for B that imply characteristic changes A might care about
-						if (characteristicsAExtamines.has('subTypes') && (stepB.verb.toLowerCase() === 'add_subtype' || stepB.verb.toLowerCase() === 'remove_subtype')) {
-							console.log(`Dependency (Applicability): ${abilityA.abilityId} (examines subTypes) depends on ${abilityB.abilityId} (changes subTypes on ${targetIdOfB})`);
+						if (
+							characteristicsAExtamines.has('subTypes') &&
+							(stepB.verb.toLowerCase() === 'add_subtype' ||
+								stepB.verb.toLowerCase() === 'remove_subtype')
+						) {
+							console.log(
+								`Dependency (Applicability): ${abilityA.abilityId} (examines subTypes) depends on ${abilityB.abilityId} (changes subTypes on ${targetIdOfB})`
+							);
 							return true;
 						}
-						if (characteristicsAExtamines.has('keywords') && (stepB.verb.toLowerCase() === 'grant_keyword' || stepB.verb.toLowerCase() === 'lose_keyword')) {
-							console.log(`Dependency (Applicability): ${abilityA.abilityId} (examines keywords) depends on ${abilityB.abilityId} (changes keywords on ${targetIdOfB})`);
+						if (
+							characteristicsAExtamines.has('keywords') &&
+							(stepB.verb.toLowerCase() === 'grant_keyword' ||
+								stepB.verb.toLowerCase() === 'lose_keyword')
+						) {
+							console.log(
+								`Dependency (Applicability): ${abilityA.abilityId} (examines keywords) depends on ${abilityB.abilityId} (changes keywords on ${targetIdOfB})`
+							);
 							return true;
 						}
-						if (characteristicsAExtamines.has('controllerId') && stepB.verb.toLowerCase() === 'change_controller') {
-							console.log(`Dependency (Applicability): ${abilityA.abilityId} (examines controllerId) depends on ${abilityB.abilityId} (changes controller on ${targetIdOfB})`);
+						if (
+							characteristicsAExtamines.has('controllerId') &&
+							stepB.verb.toLowerCase() === 'change_controller'
+						) {
+							console.log(
+								`Dependency (Applicability): ${abilityA.abilityId} (examines controllerId) depends on ${abilityB.abilityId} (changes controller on ${targetIdOfB})`
+							);
 							return true;
 						}
-						if (characteristicsAExtamines.has('type') && stepB.verb.toLowerCase() === 'set_characteristic' && stepB.parameters?.characteristic === 'type') {
-							console.log(`Dependency (Applicability): ${abilityA.abilityId} (examines type) depends on ${abilityB.abilityId} (changes type on ${targetIdOfB})`);
+						if (
+							characteristicsAExtamines.has('type') &&
+							stepB.verb.toLowerCase() === 'set_characteristic' &&
+							stepB.parameters?.characteristic === 'type'
+						) {
+							console.log(
+								`Dependency (Applicability): ${abilityA.abilityId} (examines type) depends on ${abilityB.abilityId} (changes type on ${targetIdOfB})`
+							);
 							return true;
 						}
 						// Check for stats if A examines them
-						if (stepB.verb.toLowerCase() === 'modify_statistics' || (stepB.verb.toLowerCase() === 'set_characteristic' && ['power', 'health', 'forest', 'mountain', 'water'].includes(stepB.parameters?.characteristic as string))) {
-							const changedStat = stepB.parameters?.characteristic || (stepB.parameters?.statsChange ? Object.keys(stepB.parameters.statsChange)[0] : undefined);
+						if (
+							stepB.verb.toLowerCase() === 'modify_statistics' ||
+							(stepB.verb.toLowerCase() === 'set_characteristic' &&
+								['power', 'health', 'forest', 'mountain', 'water'].includes(
+									stepB.parameters?.characteristic as string
+								))
+						) {
+							const changedStat =
+								stepB.parameters?.characteristic ||
+								(stepB.parameters?.statsChange
+									? Object.keys(stepB.parameters.statsChange)[0]
+									: undefined);
 							if (changedStat && characteristicsAExtamines.has(changedStat)) {
-								console.log(`Dependency (Applicability): ${abilityA.abilityId} (examines ${changedStat}) depends on ${abilityB.abilityId} (changes ${changedStat} on ${targetIdOfB})`);
+								console.log(
+									`Dependency (Applicability): ${abilityA.abilityId} (examines ${changedStat}) depends on ${abilityB.abilityId} (changes ${changedStat} on ${targetIdOfB})`
+								);
 								return true;
 							}
 						}
@@ -428,7 +562,7 @@ export class RuleAdjudicator {
 						const parts = paramValue.split('.'); // e.g., "source.power", "target.health"
 						if (parts.length === 2) {
 							const objectRef = parts[0]; // "source", "target"
-							const charRef = parts[1];   // "power", "health"
+							const charRef = parts[1]; // "power", "health"
 
 							let objectIdAReadsFrom: string | undefined = undefined;
 							if (objectRef === 'source' || objectRef === 'self') {
@@ -442,23 +576,37 @@ export class RuleAdjudicator {
 								// Let's simplify: if B modifies charRef on ANY of its targets, and A reads charRef from A's target.
 							}
 
-							if (charRef) { // charRef is a characteristic name like 'power'
+							if (charRef) {
+								// charRef is a characteristic name like 'power'
 								const modifiedCharByStepB = this.getCharacteristicModifiedByStepB(stepB);
 								if (modifiedCharByStepB && modifiedCharByStepB.characteristic === charRef) {
 									// Now check if B's targets include the object A reads from
 									if (objectIdAReadsFrom && targetIdsOfB.includes(objectIdAReadsFrom)) {
-										console.log(`Dependency (Effect Magnitude): ${abilityA.abilityId} (reads ${charRef} from ${objectIdAReadsFrom}) depends on ${abilityB.abilityId} (modifies ${charRef} on ${objectIdAReadsFrom})`);
+										console.log(
+											`Dependency (Effect Magnitude): ${abilityA.abilityId} (reads ${charRef} from ${objectIdAReadsFrom}) depends on ${abilityB.abilityId} (modifies ${charRef} on ${objectIdAReadsFrom})`
+										);
 										return true;
 									}
 									// If A reads from 'target' and B modifies that characteristic on one of its targets,
 									// it's a potential dependency. This is a simplification.
 									if (objectRef === 'target' && targetIdsOfB.length > 0) {
-                                        // Check if stepA targets any of targetIdsOfB
-                                        const targetsOfStepA_forDependency = this.gsm.effectProcessor.resolveTargetsForDependency(stepA, abilityA.sourceObjectId, abilityA._triggerPayload);
-                                        if (targetIdsOfB.some(bTargetId => targetsOfStepA_forDependency.includes(bTargetId))) {
-										    console.log(`Dependency (Effect Magnitude - Broad): ${abilityA.abilityId} (reads ${charRef} from its target) depends on ${abilityB.abilityId} (modifies ${charRef} on an object that could be A's target)`);
-										    return true;
-                                        }
+										// Check if stepA targets any of targetIdsOfB
+										const targetsOfStepA_forDependency =
+											this.gsm.effectProcessor.resolveTargetsForDependency(
+												stepA,
+												abilityA.sourceObjectId,
+												abilityA._triggerPayload
+											);
+										if (
+											targetIdsOfB.some((bTargetId) =>
+												targetsOfStepA_forDependency.includes(bTargetId)
+											)
+										) {
+											console.log(
+												`Dependency (Effect Magnitude - Broad): ${abilityA.abilityId} (reads ${charRef} from its target) depends on ${abilityB.abilityId} (modifies ${charRef} on an object that could be A's target)`
+											);
+											return true;
+										}
 									}
 								}
 							}
@@ -470,7 +618,6 @@ export class RuleAdjudicator {
 				// Example:
 				// if (stepA.verb === 'deal_power_damage' && this.getCharacteristicModifiedByStepB(stepB)?.characteristic === 'power') return true;
 			}
-
 
 			// --- Original simpler heuristic for 2.3.2.f ---
 			// This part can be removed or refined if the above is sufficient.
@@ -497,7 +644,10 @@ export class RuleAdjudicator {
 	 * Helper to identify what characteristic a step of B might modify.
 	 * Used for Rule 2.3.2.f heuristics.
 	 */
-	private getCharacteristicModifiedByStepB(stepB: IEffectStep): { characteristic: string; modificationType: 'set' | 'modify' | 'keyword' | 'subtype' | 'controller' | 'zone' } | null {
+	private getCharacteristicModifiedByStepB(stepB: IEffectStep): {
+		characteristic: string;
+		modificationType: 'set' | 'modify' | 'keyword' | 'subtype' | 'controller' | 'zone';
+	} | null {
 		const verb = stepB.verb.toLowerCase();
 		const params = stepB.parameters;
 
@@ -516,15 +666,30 @@ export class RuleAdjudicator {
 			if (params?.characteristic && typeof params.characteristic === 'string') {
 				return { characteristic: params.characteristic, modificationType: 'set' };
 			}
-		} else if (verb === 'add_subtype' || verb === 'addsubtype' || verb === 'remove_subtype' || verb === 'removesubtype') {
+		} else if (
+			verb === 'add_subtype' ||
+			verb === 'addsubtype' ||
+			verb === 'remove_subtype' ||
+			verb === 'removesubtype'
+		) {
 			return { characteristic: 'subTypes', modificationType: 'subtype' };
-		} else if (verb === 'grant_keyword' || verb === 'grantkeyword' || verb === 'lose_keyword' || verb === 'losekeyword') {
+		} else if (
+			verb === 'grant_keyword' ||
+			verb === 'grantkeyword' ||
+			verb === 'lose_keyword' ||
+			verb === 'losekeyword'
+		) {
 			if (params?.keyword && typeof params.keyword === 'string') {
 				return { characteristic: 'keywords', modificationType: 'keyword' }; // Could also be params.keyword itself
 			}
 		} else if (verb === 'change_controller' || verb === 'changecontroller') {
 			return { characteristic: 'controllerId', modificationType: 'controller' };
-		} else if (verb === 'moveTo' || verb === 'move_to' || verb === 'put_in_zone' || verb === 'putinzone') {
+		} else if (
+			verb === 'moveTo' ||
+			verb === 'move_to' ||
+			verb === 'put_in_zone' ||
+			verb === 'putinzone'
+		) {
 			return { characteristic: 'zone', modificationType: 'zone' }; // Object's zone changes
 		}
 		// The following block was identified as misplaced and refers to variables (abilityA, targetIdsOfB) not in this scope.
@@ -668,7 +833,11 @@ export class RuleAdjudicator {
 				const objA = this.gsm.getObject(a.sourceObjectId || '');
 				const objB = this.gsm.getObject(b.sourceObjectId || '');
 				if (!objA || !objB) {
-					console.warn('[RuleAdjudicator] Could not find source object for one or more abilities during sorting:', a.abilityId, b.abilityId);
+					console.warn(
+						'[RuleAdjudicator] Could not find source object for one or more abilities during sorting:',
+						a.abilityId,
+						b.abilityId
+					);
 					return 0;
 				}
 				if (objA.timestamp === objB.timestamp) {
@@ -683,7 +852,7 @@ export class RuleAdjudicator {
 				unappliedAbilities = unappliedAbilities.filter((a) => a !== nextAbility);
 				// const sourceObject = this.gsm.getObject(nextAbility.sourceObjectId || ''); // Not needed for appliedTimestamps anymore
 				// if (sourceObject) {
-					// appliedTimestamps.add(sourceObject.timestamp); // Removed
+				// appliedTimestamps.add(sourceObject.timestamp); // Removed
 				// }
 			}
 			// The following 'else if' block is removed because the primary fallback
@@ -743,7 +912,9 @@ export class RuleAdjudicator {
 				// will not fire from this characteristic change alone. If specific triggers are needed for this
 				// conceptual join, they would need to be custom-handled, possibly by publishing a specific event here.
 				// TODO: Verify if specific triggers for "conceptually joining other expedition" are needed.
-				console.log(`[RuleAdjudicator] ${target.name} gained Gigantic. Conceptually present in other expedition.`);
+				console.log(
+					`[RuleAdjudicator] ${target.name} gained Gigantic. Conceptually present in other expedition.`
+				);
 				break;
 			case 'tough':
 				(target.currentCharacteristics as any).isTough = value !== undefined ? value : 1;
@@ -786,7 +957,9 @@ export class RuleAdjudicator {
 				// will not fire from this characteristic change alone. If specific triggers are needed,
 				// they would need to be custom-handled.
 				// TODO: Verify if specific triggers for "conceptually leaving other expedition" are needed.
-				console.log(`[RuleAdjudicator] ${target.name} lost Gigantic. No longer conceptually present in other expedition.`);
+				console.log(
+					`[RuleAdjudicator] ${target.name} lost Gigantic. No longer conceptually present in other expedition.`
+				);
 				break;
 			case 'tough':
 				delete (target.currentCharacteristics as any).isTough;
@@ -820,7 +993,9 @@ export class RuleAdjudicator {
 		sourceOfGrantEffectId: string // The object ID of the ability granting this one
 	): void {
 		if (!this.gsm.objectFactory || typeof this.gsm.objectFactory.createAbility !== 'function') {
-			console.error('[RuleAdjudicator] ObjectFactory or createAbility method not available on GSM.');
+			console.error(
+				'[RuleAdjudicator] ObjectFactory or createAbility method not available on GSM.'
+			);
 			return;
 		}
 		// The new ability's source is the object it's granted TO (target).
@@ -838,7 +1013,8 @@ export class RuleAdjudicator {
 			);
 		} else {
 			console.error(
-				`[RuleAdjudicator] Failed to create ability from definition for ${target.name}`, newAbilityDefinition
+				`[RuleAdjudicator] Failed to create ability from definition for ${target.name}`,
+				newAbilityDefinition
 			);
 		}
 	}
@@ -854,14 +1030,14 @@ export class RuleAdjudicator {
 
 		if (allAbilitiesFlag) {
 			// Negate all base abilities
-			target.abilities.forEach(a => {
+			target.abilities.forEach((a) => {
 				if (!target.currentCharacteristics.negatedAbilityIds?.includes(a.abilityId)) {
 					target.currentCharacteristics.negatedAbilityIds?.push(a.abilityId);
 				}
 			});
 			// Clear previously granted abilities and mark them as negated (in case they are re-granted)
 			if (target.currentCharacteristics.grantedAbilities) {
-				target.currentCharacteristics.grantedAbilities.forEach(a => {
+				target.currentCharacteristics.grantedAbilities.forEach((a) => {
 					if (!target.currentCharacteristics.negatedAbilityIds?.includes(a.abilityId)) {
 						target.currentCharacteristics.negatedAbilityIds?.push(a.abilityId);
 					}
@@ -875,9 +1051,10 @@ export class RuleAdjudicator {
 			}
 			// If the ability to lose was a granted one, also remove it from grantedAbilities
 			if (target.currentCharacteristics.grantedAbilities) {
-				target.currentCharacteristics.grantedAbilities = target.currentCharacteristics.grantedAbilities.filter(
-					(a) => a.abilityId !== abilityIdToLose
-				);
+				target.currentCharacteristics.grantedAbilities =
+					target.currentCharacteristics.grantedAbilities.filter(
+						(a) => a.abilityId !== abilityIdToLose
+					);
 			}
 			console.log(`[RuleAdjudicator] Lost ability ${abilityIdToLose} from ${target.name}`);
 		}
@@ -903,8 +1080,12 @@ export class RuleAdjudicator {
 				...sourceObject.baseCharacteristics,
 				grantedAbilities: [],
 				negatedAbilityIds: [],
-				statistics: sourceObject.baseCharacteristics.statistics ? { ...sourceObject.baseCharacteristics.statistics } : { forest: 0, mountain: 0, water: 0, power: 0, health: 0 },
-                keywords: sourceObject.baseCharacteristics.keywords ? { ...sourceObject.baseCharacteristics.keywords } : {},
+				statistics: sourceObject.baseCharacteristics.statistics
+					? { ...sourceObject.baseCharacteristics.statistics }
+					: { forest: 0, mountain: 0, water: 0, power: 0, health: 0 },
+				keywords: sourceObject.baseCharacteristics.keywords
+					? { ...sourceObject.baseCharacteristics.keywords }
+					: {}
 			};
 		}
 
@@ -913,8 +1094,12 @@ export class RuleAdjudicator {
 		);
 
 		// Handle keyword abilities that are defined by the ability.keyword property itself
-        // (This is for abilities that *are* keywords, like "Eternal" defined as an ability object)
-		if (ability.isKeyword && ability.keyword && Object.values(KeywordAbility).includes(ability.keyword)) {
+		// (This is for abilities that *are* keywords, like "Eternal" defined as an ability object)
+		if (
+			ability.isKeyword &&
+			ability.keyword &&
+			Object.values(KeywordAbility).includes(ability.keyword)
+		) {
 			// The target of such a keyword ability is its source object.
 			this._grantKeyword(sourceObject, ability.keyword, ability.keywordValue); // Use keywordValue for things like Scout X
 		}
@@ -932,7 +1117,9 @@ export class RuleAdjudicator {
 				// If a passive needs to select targets, EffectProcessor might be needed.
 				// For now, this example assumes passives primarily target 'self' or have global-like conditions handled in appliesTo.
 				// Or, if a passive grants an ability to another object, that's handled by 'grant_ability' verb with specific parameters.
-				console.warn(`[RuleAdjudicator] Passive ability step for ${ability.abilityId} has complex target selection. This may need EffectProcessor involvement or a different design for passive targeting.`);
+				console.warn(
+					`[RuleAdjudicator] Passive ability step for ${ability.abilityId} has complex target selection. This may need EffectProcessor involvement or a different design for passive targeting.`
+				);
 				// Defaulting to self for safety, but this needs review based on game design.
 				targetsOfStep = [sourceObject];
 			} else {
@@ -941,23 +1128,32 @@ export class RuleAdjudicator {
 			}
 
 			for (const target of targetsOfStep) {
-				if (!target.currentCharacteristics) { // Ensure target also has currentCharacteristics
+				if (!target.currentCharacteristics) {
+					// Ensure target also has currentCharacteristics
 					target.currentCharacteristics = {
 						...target.baseCharacteristics,
 						grantedAbilities: [],
 						negatedAbilityIds: [],
-						statistics: target.baseCharacteristics.statistics ? { ...target.baseCharacteristics.statistics } : { forest: 0, mountain: 0, water: 0, power: 0, health: 0 },
-						keywords: target.baseCharacteristics.keywords ? { ...target.baseCharacteristics.keywords } : {},
+						statistics: target.baseCharacteristics.statistics
+							? { ...target.baseCharacteristics.statistics }
+							: { forest: 0, mountain: 0, water: 0, power: 0, health: 0 },
+						keywords: target.baseCharacteristics.keywords
+							? { ...target.baseCharacteristics.keywords }
+							: {}
 					};
 				}
 
 				// Skip applying effect step if the source ability is negated on the target
 				// This is mostly relevant if a passive can target other objects. For 'self' target, this is covered by the initial check.
-				if (target.objectId !== sourceObject.objectId && target.currentCharacteristics.negatedAbilityIds?.includes(ability.abilityId)) {
-					console.log(`[RuleAdjudicator] Skipping effect step for ${ability.abilityId} on target ${target.name} because ability is negated on target.`);
+				if (
+					target.objectId !== sourceObject.objectId &&
+					target.currentCharacteristics.negatedAbilityIds?.includes(ability.abilityId)
+				) {
+					console.log(
+						`[RuleAdjudicator] Skipping effect step for ${ability.abilityId} on target ${target.name} because ability is negated on target.`
+					);
 					continue;
 				}
-
 
 				switch (step.verb.toLowerCase()) {
 					case 'modify_statistics':
@@ -969,7 +1165,9 @@ export class RuleAdjudicator {
 						if (step.parameters?.keyword && typeof step.parameters.keyword === 'string') {
 							this._grantKeyword(target, step.parameters.keyword, (step.parameters as any).value);
 						} else {
-							console.warn(`[RuleAdjudicator] grant_keyword step for ${ability.abilityId} missing or invalid keyword parameter.`);
+							console.warn(
+								`[RuleAdjudicator] grant_keyword step for ${ability.abilityId} missing or invalid keyword parameter.`
+							);
 						}
 						break;
 					case 'lose_keyword':
@@ -977,19 +1175,27 @@ export class RuleAdjudicator {
 						if (step.parameters?.keyword && typeof step.parameters.keyword === 'string') {
 							this._loseKeyword(target, step.parameters.keyword);
 						} else {
-							console.warn(`[RuleAdjudicator] lose_keyword step for ${ability.abilityId} missing or invalid keyword parameter.`);
+							console.warn(
+								`[RuleAdjudicator] lose_keyword step for ${ability.abilityId} missing or invalid keyword parameter.`
+							);
 						}
 						break;
 					case 'set_characteristic':
 					case 'setcharacteristic':
-						if (step.parameters?.characteristic && typeof step.parameters.characteristic === 'string' && step.parameters.value !== undefined) {
+						if (
+							step.parameters?.characteristic &&
+							typeof step.parameters.characteristic === 'string' &&
+							step.parameters.value !== undefined
+						) {
 							this._setCharacteristic(
 								target,
 								step.parameters.characteristic,
 								step.parameters.value
 							);
 						} else {
-							console.warn(`[RuleAdjudicator] set_characteristic step for ${ability.abilityId} missing or invalid parameters.`);
+							console.warn(
+								`[RuleAdjudicator] set_characteristic step for ${ability.abilityId} missing or invalid parameters.`
+							);
 						}
 						break;
 					case 'grant_ability':
@@ -998,7 +1204,9 @@ export class RuleAdjudicator {
 						if (step.parameters?.ability && sourceObject.objectId) {
 							this._grantAbility(target, step.parameters.ability, sourceObject.objectId);
 						} else {
-							console.warn(`[RuleAdjudicator] grant_ability step for ${ability.abilityId} missing parameters or source object ID.`);
+							console.warn(
+								`[RuleAdjudicator] grant_ability step for ${ability.abilityId} missing parameters or source object ID.`
+							);
 						}
 						break;
 					case 'lose_ability':
@@ -1015,7 +1223,8 @@ export class RuleAdjudicator {
 						if (Object.values(KeywordAbility).includes(step.verb as KeywordAbility)) {
 							this._grantKeyword(target, step.verb); // Granting the verb itself as a keyword
 						} else {
-							console.warn( // Changed from log to warn
+							console.warn(
+								// Changed from log to warn
 								`[RuleAdjudicator] Passive ability ${ability.abilityId} step verb '${step.verb}' has no specific application logic in applyAbility.`
 							);
 						}
@@ -1065,19 +1274,39 @@ export class RuleAdjudicator {
 		for (const source of potentialModifierSources) {
 			const abilitiesToCheck: IAbility[] = [];
 			if (source.abilities) {
-				abilitiesToCheck.push(...source.abilities.map(a => ({ ...a, sourceObjectId: source.objectId })));
+				abilitiesToCheck.push(
+					...source.abilities.map((a) => ({ ...a, sourceObjectId: source.objectId }))
+				);
 			}
 			if ('currentCharacteristics' in source && source.currentCharacteristics?.grantedAbilities) {
-				abilitiesToCheck.push(...source.currentCharacteristics.grantedAbilities.map(a => ({ ...a, sourceObjectId: source.objectId })));
-			} else if ('grantedAbilities' in source && source.grantedAbilities) { // For IEmblemObject if it has grantedAbilities directly
-				abilitiesToCheck.push(...(source.grantedAbilities as IAbility[]).map(a => ({...a, sourceObjectId: source.objectId })));
+				abilitiesToCheck.push(
+					...source.currentCharacteristics.grantedAbilities.map((a) => ({
+						...a,
+						sourceObjectId: source.objectId
+					}))
+				);
+			} else if ('grantedAbilities' in source && source.grantedAbilities) {
+				// For IEmblemObject if it has grantedAbilities directly
+				abilitiesToCheck.push(
+					...(source.grantedAbilities as IAbility[]).map((a) => ({
+						...a,
+						sourceObjectId: source.objectId
+					}))
+				);
 			}
 
 			for (const ability of abilitiesToCheck) {
-				if (ability.abilityType !== AbilityType.Passive || !ability.effect || !ability.effect.steps) {
+				if (
+					ability.abilityType !== AbilityType.Passive ||
+					!ability.effect ||
+					!ability.effect.steps
+				) {
 					continue;
 				}
-				if ('currentCharacteristics' in source && source.currentCharacteristics?.negatedAbilityIds?.includes(ability.abilityId)) {
+				if (
+					'currentCharacteristics' in source &&
+					source.currentCharacteristics?.negatedAbilityIds?.includes(ability.abilityId)
+				) {
 					continue;
 				}
 
@@ -1104,7 +1333,9 @@ export class RuleAdjudicator {
 
 					const modParams = step.parameters as any;
 					if (!modParams || !modParams.criteria || !modParams[effectStepProperty!]) {
-						console.warn(`[RuleAdjudicator] Modifier definition step ${step.verb} on ${source.name} (Ability: ${ability.abilityId}) is missing critical parameters.`);
+						console.warn(
+							`[RuleAdjudicator] Modifier definition step ${step.verb} on ${source.name} (Ability: ${ability.abilityId}) is missing critical parameters.`
+						);
 						return;
 					}
 
@@ -1117,11 +1348,18 @@ export class RuleAdjudicator {
 							if (!verbs.includes(context.step.verb)) criteriaMet = false;
 						}
 						if (criteriaMet && criteria.sourceCardDefinitionId) {
-							if (context.sourceObjectOfStep?.definitionId !== criteria.sourceCardDefinitionId) criteriaMet = false;
+							if (context.sourceObjectOfStep?.definitionId !== criteria.sourceCardDefinitionId)
+								criteriaMet = false;
 						}
 						if (criteriaMet && criteria.targetIncludesDefinitionId) {
-							const resolvedTargets = context.effectContext?.resolvedTargets as IGameObject[] | undefined;
-							if (!resolvedTargets || !resolvedTargets.some(t => t.definitionId === criteria.targetIncludesDefinitionId)) criteriaMet = false;
+							const resolvedTargets = context.effectContext?.resolvedTargets as
+								| IGameObject[]
+								| undefined;
+							if (
+								!resolvedTargets ||
+								!resolvedTargets.some((t) => t.definitionId === criteria.targetIncludesDefinitionId)
+							)
+								criteriaMet = false;
 						}
 						if (criteriaMet && criteria.customCondition) {
 							if (!criteria.customCondition(context.effectContext, this.gsm)) criteriaMet = false;
@@ -1135,7 +1373,10 @@ export class RuleAdjudicator {
 						let priority = source.timestamp; // Default priority
 						if (modParams.priority !== undefined) {
 							priority = modParams.priority;
-						} else if (modParams.prioritySource === 'objectTimestamp' && source.timestamp !== undefined) {
+						} else if (
+							modParams.prioritySource === 'objectTimestamp' &&
+							source.timestamp !== undefined
+						) {
 							priority = source.timestamp;
 						}
 
@@ -1147,9 +1388,17 @@ export class RuleAdjudicator {
 							modifierType: definedModifierType!,
 							priority: priority,
 							applicationCriteria: JSON.parse(JSON.stringify(criteria)),
-							replacementEffectStep: definedModifierType === ModifierType.ReplaceStep ? effectStepPayload : undefined,
-							additionalEffectStep: (definedModifierType === ModifierType.AddStepBefore || definedModifierType === ModifierType.AddStepAfter) ? effectStepPayload : undefined,
-							canBeModified: modParams.modifierRuleCanBeModified !== undefined ? modParams.modifierRuleCanBeModified : true,
+							replacementEffectStep:
+								definedModifierType === ModifierType.ReplaceStep ? effectStepPayload : undefined,
+							additionalEffectStep:
+								definedModifierType === ModifierType.AddStepBefore ||
+								definedModifierType === ModifierType.AddStepAfter
+									? effectStepPayload
+									: undefined,
+							canBeModified:
+								modParams.modifierRuleCanBeModified !== undefined
+									? modParams.modifierRuleCanBeModified
+									: true
 						};
 						activeModifiers.push(newModifier);
 					}
@@ -1161,12 +1410,17 @@ export class RuleAdjudicator {
 			if (a.priority !== b.priority) return a.priority - b.priority;
 			const sourceA = this.gsm.getObject(a.sourceObjectId);
 			const sourceB = this.gsm.getObject(b.sourceObjectId);
-			if (sourceA && sourceB && sourceA.timestamp !== sourceB.timestamp) return sourceA.timestamp - sourceB.timestamp;
+			if (sourceA && sourceB && sourceA.timestamp !== sourceB.timestamp)
+				return sourceA.timestamp - sourceB.timestamp;
 			return 0;
 		});
 
 		if (activeModifiers.length > 0) {
-			console.log(`[RuleAdjudicator] Found ${activeModifiers.length} active modifiers for context:`, context, activeModifiers);
+			console.log(
+				`[RuleAdjudicator] Found ${activeModifiers.length} active modifiers for context:`,
+				context,
+				activeModifiers
+			);
 		}
 		return activeModifiers;
 	}
@@ -1179,12 +1433,16 @@ export class RuleAdjudicator {
 	): {
 		passiveAbility: IAbility;
 		sourceObject: IGameObject;
-		itemToGrant: { type: 'counter'; counterType: CounterType; amount: number } | { type: 'status'; statusType: StatusType };
+		itemToGrant:
+			| { type: 'counter'; counterType: CounterType; amount: number }
+			| { type: 'status'; statusType: StatusType };
 	}[] {
 		const results: {
 			passiveAbility: IAbility;
 			sourceObject: IGameObject;
-			itemToGrant: { type: 'counter'; counterType: CounterType; amount: number } | { type: 'status'; statusType: StatusType };
+			itemToGrant:
+				| { type: 'counter'; counterType: CounterType; amount: number }
+				| { type: 'status'; statusType: StatusType };
 		}[] = [];
 
 		const potentialSources = this.getAllObjectsAndHeroesInPlay(); // Helper to get all relevant objects
@@ -1196,14 +1454,25 @@ export class RuleAdjudicator {
 
 			const abilitiesToCheck: IAbility[] = [];
 			if (sourceObject.abilities) {
-				abilitiesToCheck.push(...sourceObject.abilities.map(a => ({ ...a, sourceObjectId: sourceObject.objectId })));
+				abilitiesToCheck.push(
+					...sourceObject.abilities.map((a) => ({ ...a, sourceObjectId: sourceObject.objectId }))
+				);
 			}
 			if (sourceObject.currentCharacteristics?.grantedAbilities) {
-				abilitiesToCheck.push(...sourceObject.currentCharacteristics.grantedAbilities.map(a => ({ ...a, sourceObjectId: sourceObject.objectId })));
+				abilitiesToCheck.push(
+					...sourceObject.currentCharacteristics.grantedAbilities.map((a) => ({
+						...a,
+						sourceObjectId: sourceObject.objectId
+					}))
+				);
 			}
 
 			for (const ability of abilitiesToCheck) {
-				if (ability.abilityType !== AbilityType.Passive || !ability.effect || !ability.effect.steps) {
+				if (
+					ability.abilityType !== AbilityType.Passive ||
+					!ability.effect ||
+					!ability.effect.steps
+				) {
 					continue;
 				}
 				if (sourceObject.currentCharacteristics?.negatedAbilityIds?.includes(ability.abilityId)) {
@@ -1214,7 +1483,10 @@ export class RuleAdjudicator {
 					if (step.verb === 'DEFINE_PASSIVE_GRANT_ON_PLAY') {
 						const params = step.parameters as PassiveGrantOnPlayParameters | undefined;
 						if (!params || !params.itemToGrant) {
-							console.warn(`[RuleAdjudicator.getPassivesGrantingItemsOnPlay] DEFINE_PASSIVE_GRANT_ON_PLAY step on ${sourceObject.name} (Ability: ${ability.abilityId}) is missing itemToGrant.`, params);
+							console.warn(
+								`[RuleAdjudicator.getPassivesGrantingItemsOnPlay] DEFINE_PASSIVE_GRANT_ON_PLAY step on ${sourceObject.name} (Ability: ${ability.abilityId}) is missing itemToGrant.`,
+								params
+							);
 							continue;
 						}
 
@@ -1231,13 +1503,24 @@ export class RuleAdjudicator {
 							if (!defOfPlayedCard) {
 								targetCriteriaMet = false; // Should not happen if playedCardObject is valid
 							} else {
-								if (params.targetCriteria.cardType && !params.targetCriteria.cardType.includes(defOfPlayedCard.type)) {
+								if (
+									params.targetCriteria.cardType &&
+									!params.targetCriteria.cardType.includes(defOfPlayedCard.type)
+								) {
 									targetCriteriaMet = false;
 								}
-								if (targetCriteriaMet && params.targetCriteria.faction && defOfPlayedCard.faction !== params.targetCriteria.faction) {
+								if (
+									targetCriteriaMet &&
+									params.targetCriteria.faction &&
+									defOfPlayedCard.faction !== params.targetCriteria.faction
+								) {
 									targetCriteriaMet = false;
 								}
-								if (targetCriteriaMet && params.targetCriteria.definitionId && defOfPlayedCard.id !== params.targetCriteria.definitionId) {
+								if (
+									targetCriteriaMet &&
+									params.targetCriteria.definitionId &&
+									defOfPlayedCard.id !== params.targetCriteria.definitionId
+								) {
 									targetCriteriaMet = false;
 								}
 								// TODO: Add more criteria checks as defined in PassiveGrantOnPlayParameters.targetCriteria
@@ -1250,7 +1533,10 @@ export class RuleAdjudicator {
 								sourceObject: sourceObject,
 								itemToGrant: params.itemToGrant
 							});
-							console.log(`[RuleAdjudicator.getPassivesGrantingItemsOnPlay] Found qualifying passive: ${ability.abilityId} on ${sourceObject.name} for played card ${playedCardObject.name}. Item:`, params.itemToGrant);
+							console.log(
+								`[RuleAdjudicator.getPassivesGrantingItemsOnPlay] Found qualifying passive: ${ability.abilityId} on ${sourceObject.name} for played card ${playedCardObject.name}. Item:`,
+								params.itemToGrant
+							);
 						}
 					}
 				}
@@ -1273,7 +1559,8 @@ export class RuleAdjudicator {
 			if (player.zones.landmarkZone) {
 				objects.push(...player.zones.landmarkZone.getAll().filter(isGameObject));
 			}
-			if (player.zones.heroZone) { // Assuming heroes are IGameObjects
+			if (player.zones.heroZone) {
+				// Assuming heroes are IGameObjects
 				objects.push(...player.zones.heroZone.getAll().filter(isGameObject));
 			}
 			// Potentially add Battlefield zones if they exist and can have objects with such passives
