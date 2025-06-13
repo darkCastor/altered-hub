@@ -145,6 +145,7 @@ export class PlayerActionHandler {
 			const playerObjects = zone.getAll().filter(
 				(e): e is IGameObject => isGameObject(e) && e.controllerId === playerId
 			);
+			const zoneType = zone.zoneType; // Get zoneType for easier access
 
 			for (const sourceObject of playerObjects) {
 				const allAbilities = [
@@ -155,9 +156,24 @@ export class PlayerActionHandler {
 				for (const ability of allAbilities) {
 					if (ability.abilityType !== AbilityType.QuickAction) continue;
 
-					// Support Quick Actions (Rule 2.2.11.e)
-					if (zone.zoneType === ZoneIdentifier.Reserve && !ability.isSupportAbility) continue;
-					if (zone.zoneType !== ZoneIdentifier.Reserve && ability.isSupportAbility) continue;
+					// Enforce ability scope rules
+					if (zoneType === ZoneIdentifier.ReserveZone) {
+						if (ability.isSupportAbility) {
+							// Explicit check for exhausted status for support abilities from reserve
+							if (sourceObject.statuses.has(StatusType.Exhausted)) continue;
+						} else {
+							// Non-support QAs cannot be activated from Reserve
+							continue;
+						}
+					} else if (sourceObject.type === CardType.Hero) {
+						// Hero QAs only from HeroZone
+						if (zoneType !== ZoneIdentifier.HeroZone) continue;
+					} else { // Non-Hero, not in Reserve
+						// Non-Hero QAs only from Expedition or LandmarkZone
+						if (zoneType !== ZoneIdentifier.Expedition && zoneType !== ZoneIdentifier.LandmarkZone) continue;
+						// Also, support abilities cannot be used from these zones (implicit by not being Reserve)
+						if (ability.isSupportAbility) continue;
+					}
 
 					const currentActivations = sourceObject.abilityActivationsToday?.get(ability.abilityId) || 0;
 					if (currentActivations >= activationLimit) continue;
