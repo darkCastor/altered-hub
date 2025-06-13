@@ -204,4 +204,144 @@ describe('PlayerActionHandler', () => {
             expect(convertAction).toBeUndefined();
         });
     });
+
+	describe('Quick Action Scope Enforcement', () => {
+		let player1: ReturnType<GameStateManager['getPlayer']>;
+		let heroDef: ICardDefinition;
+		let nonHeroDef: ICardDefinition;
+		let supportAbilityDef: ICardDefinition;
+
+		const qaAbility = {
+			abilityId: 'qa1',
+			abilityType: 'quickAction',
+			text: 'Test Quick Action',
+			isSupportAbility: false,
+			cost: { mana: 1 },
+			effect: { steps: [{ verb: 'do_nothing', targets: 'self' }] },
+		};
+
+		const supportQaAbility = {
+			abilityId: 'supportQa1',
+			abilityType: 'quickAction',
+			text: 'Test Support Quick Action',
+			isSupportAbility: true,
+			cost: { mana: 1 }, // Support QAs can have costs
+			effect: { steps: [{ verb: 'do_nothing', targets: 'self' }] },
+		};
+
+		beforeEach(() => {
+			player1 = gameStateManager.getPlayer('player1')!;
+			// Ensure player zones are clear for each test
+			player1.zones.heroZone.clear();
+			player1.zones.handZone.clear();
+			player1.zones.reserveZone.clear();
+			player1.zones.landmarkZone.clear();
+			gameStateManager.state.sharedZones.expedition.clear();
+
+
+			heroDef = {
+				id: 'hero-def', name: 'Test Hero', type: CardType.Hero, subTypes: [], faction: Faction.Axiom,
+				handCost: { total: 0 }, reserveCost: {total: 0}, statistics: { forest:0, mountain:0, water:0},
+				abilities: [qaAbility], rarity: 'Common', version: '1.0'
+			};
+			nonHeroDef = {
+				id: 'nonhero-def', name: 'Test Non-Hero', type: CardType.Character, subTypes: [], faction: Faction.Axiom,
+				handCost: { total: 0 }, reserveCost: {total: 0}, statistics: { forest:0, mountain:0, water:0},
+				abilities: [qaAbility], rarity: 'Common', version: '1.0'
+			};
+			supportAbilityDef = {
+				id: 'support-def', name: 'Test Support Object', type: CardType.Spell, // Or Character, doesn't strictly matter for ability
+				subTypes: [], faction: Faction.Axiom,
+				handCost: { total: 0 }, reserveCost: {total: 0}, statistics: { forest:0, mountain:0, water:0},
+				abilities: [supportQaAbility], rarity: 'Common', version: '1.0'
+			};
+
+			// Add these definitions to GSM's known definitions for this test suite
+			gameStateManager.cardDefinitions.set(heroDef.id, heroDef);
+			gameStateManager.cardDefinitions.set(nonHeroDef.id, nonHeroDef);
+			gameStateManager.cardDefinitions.set(supportAbilityDef.id, supportAbilityDef);
+
+			// Ensure player has mana if costs are checked (though PlayerActionHandler doesn't check mana for getAvailableActions)
+			// ManaSystem mock in PlayerActionHandler tests currently doesn't exist, but canPayMana is called.
+			// For these scope tests, let's assume cost payment is not the blocker.
+			// If PlayerActionHandler's canPayAllCosts becomes more stringent and uses ManaSystem directly,
+			// we might need to mock ManaSystem or give player mana.
+			// The current PAH checks `this.gsm.manaSystem.canPayMana`
+			vi.spyOn(gameStateManager.manaSystem, 'canPayMana').mockReturnValue(true);
+		});
+
+		const createAndPlaceObject = (definitionId: string, zone: ZoneIdentifier, isExhausted = false): IGameObject => {
+			const cardInst = gameStateManager.objectFactory.createCardInstance(definitionId, player1!.id);
+			const gameObj = gameStateManager.objectFactory.createGameObject(cardInst, player1!.id);
+			if (isExhausted) {
+				gameObj.statuses.add(StatusType.Exhausted);
+			}
+
+			switch(zone) {
+				case ZoneIdentifier.HeroZone: player1!.zones.heroZone.add(gameObj); break;
+				case ZoneIdentifier.HandZone: player1!.zones.handZone.add(gameObj); break; // Note: hand usually has ICardInstance
+				case ZoneIdentifier.ReserveZone: player1!.zones.reserveZone.add(gameObj); break;
+				case ZoneIdentifier.Expedition: gameStateManager.state.sharedZones.expedition.add(gameObj); break;
+				case ZoneIdentifier.LandmarkZone: player1!.zones.landmarkZone.add(gameObj); break;
+			}
+			return gameObj;
+		};
+
+		// Hero QAs
+		test('Hero in HeroZone with QA should have action available', async () => {
+			createAndPlaceObject(heroDef.id, ZoneIdentifier.HeroZone);
+			const actions = await playerActionHandler.getActivatableQuickActions('player1');
+			expect(actions.some(a => a.abilityId === qaAbility.abilityId)).toBe(true);
+		});
+
+		test('Hero in HandZone with QA should NOT have action available', async () => {
+			createAndPlaceObject(heroDef.id, ZoneIdentifier.HandZone);
+			const actions = await playerActionHandler.getActivatableQuickActions('player1');
+			expect(actions.some(a => a.abilityId === qaAbility.abilityId)).toBe(false);
+		});
+
+		// Non-Hero "In Play" QAs
+		test('Non-Hero in ExpeditionZone with QA should have action available', async () => {
+			createAndPlaceObject(nonHeroDef.id, ZoneIdentifier.Expedition);
+			const actions = await playerActionHandler.getActivatableQuickActions('player1');
+			expect(actions.some(a => a.abilityId === qaAbility.abilityId)).toBe(true);
+		});
+
+		test('Non-Hero in LandmarkZone with QA should have action available', async () => {
+			createAndPlaceObject(nonHeroDef.id, ZoneIdentifier.LandmarkZone);
+			const actions = await playerActionHandler.getActivatableQuickActions('player1');
+			expect(actions.some(a => a.abilityId === qaAbility.abilityId)).toBe(true);
+		});
+
+		test('Non-Hero in ReserveZone with non-support QA should NOT have action available', async () => {
+			createAndPlaceObject(nonHeroDef.id, ZoneIdentifier.ReserveZone); // nonHeroDef has a non-support QA
+			const actions = await playerActionHandler.getActivatableQuickActions('player1');
+			expect(actions.some(a => a.abilityId === qaAbility.abilityId)).toBe(false);
+		});
+
+		test('Non-Hero in HandZone with QA should NOT have action available', async () => {
+			createAndPlaceObject(nonHeroDef.id, ZoneIdentifier.HandZone);
+			const actions = await playerActionHandler.getActivatableQuickActions('player1');
+			expect(actions.some(a => a.abilityId === qaAbility.abilityId)).toBe(false);
+		});
+
+		// Reserve Zone QAs
+		test('Object in ReserveZone with support QA, not exhausted, should have action available', async () => {
+			createAndPlaceObject(supportAbilityDef.id, ZoneIdentifier.ReserveZone, false);
+			const actions = await playerActionHandler.getActivatableQuickActions('player1');
+			expect(actions.some(a => a.abilityId === supportQaAbility.abilityId)).toBe(true);
+		});
+
+		test('Object in ReserveZone with support QA, exhausted, should NOT have action available', async () => {
+			createAndPlaceObject(supportAbilityDef.id, ZoneIdentifier.ReserveZone, true);
+			const actions = await playerActionHandler.getActivatableQuickActions('player1');
+			expect(actions.some(a => a.abilityId === supportQaAbility.abilityId)).toBe(false);
+		});
+
+		test('Object in ReserveZone with non-support QA should NOT have action available', async () => {
+			createAndPlaceObject(nonHeroDef.id, ZoneIdentifier.ReserveZone); // nonHeroDef has a non-support QA
+			const actions = await playerActionHandler.getActivatableQuickActions('player1');
+			expect(actions.some(a => a.abilityId === qaAbility.abilityId)).toBe(false);
+		});
+	});
 });

@@ -1,7 +1,7 @@
 import type { IGameObject, IEmblemObject } from './types/objects'; // Added IEmblemObject
 import type { GameStateManager } from './GameStateManager';
 import type { IZone } from './types/zones';
-import { ZoneIdentifier, CardType } from './types/enums'; // Added CardType
+import { ZoneIdentifier, CardType, StatusType } from './types/enums'; // Added CardType, StatusType
 import { AbilityType, type IAbility } from './types/abilities'; // Added IAbility
 import { isGameObject } from './types/objects';
 
@@ -21,8 +21,29 @@ export class AdvancedTriggerHandler {
 	private createEmblemForTriggeredAbility(
 		triggeredAbility: IAbility,
 		sourceObject: IGameObject,
-		eventPayload: any
+		eventPayload: any,
+		eventType: string // Added eventType to help determine zone for scope check
 	): IEmblemObject | null {
+
+		// Determine the zone to use for scope checking
+		let zoneIdForScopeCheck: ZoneIdentifier | undefined;
+		const isLeaveEvent = eventType === 'leavePlay' || eventType === 'goToReserve' || eventPayload?.fromZone?.zoneType;
+
+		if (isLeaveEvent && eventPayload?.fromZone?.zoneType) {
+			zoneIdForScopeCheck = eventPayload.fromZone.zoneType;
+		} else if (eventPayload?.zone?.zoneType && (eventType === 'enterPlay' || eventType === 'objectEntersZone')) { // objectEntersZone is hypothetical
+			zoneIdForScopeCheck = eventPayload.zone.zoneType;
+		}
+		 else {
+			const currentZone = this.gsm.findZoneOfObject(sourceObject.objectId);
+			zoneIdForScopeCheck = currentZone?.zoneType;
+		}
+
+		if (!this._canAbilityTrigger(triggeredAbility, sourceObject, zoneIdForScopeCheck, eventType)) {
+			console.log(`[TriggerHandler] Scope check failed for ability ${triggeredAbility.abilityId} on ${sourceObject.name} in zone ${zoneIdForScopeCheck}. Not creating emblem.`);
+			return null;
+		}
+
 		// Initialize reactionActivationsToday if it's undefined
 		if (triggeredAbility.reactionActivationsToday === undefined) {
 			triggeredAbility.reactionActivationsToday = 0;
@@ -85,7 +106,7 @@ export class AdvancedTriggerHandler {
 					console.log(`[TriggerHandler] Condition not met for ability ${ability.abilityId} on ${object.name}.`);
 					continue;
 				}
-				this.createEmblemForTriggeredAbility(ability, object, triggerPayload);
+				this.createEmblemForTriggeredAbility(ability, object, triggerPayload, 'enterPlay');
 			}
 		}
 		// Also check for keyword triggers that might be simpler than full reaction abilities
@@ -109,7 +130,7 @@ export class AdvancedTriggerHandler {
 					console.log(`[TriggerHandler] Condition not met for ability ${ability.abilityId} on ${object.name}.`);
 					continue;
 				}
-				this.createEmblemForTriggeredAbility(ability, object, triggerPayload);
+				this.createEmblemForTriggeredAbility(ability, object, triggerPayload, 'leavePlay');
 			}
 		}
 	}
@@ -131,7 +152,7 @@ export class AdvancedTriggerHandler {
 					console.log(`[TriggerHandler] Condition not met for ability ${ability.abilityId} on ${object.name}.`);
 					continue;
 				}
-				this.createEmblemForTriggeredAbility(ability, object, triggerPayload);
+				this.createEmblemForTriggeredAbility(ability, object, triggerPayload, 'goToReserve');
 			}
 		}
 	}
@@ -168,7 +189,7 @@ export class AdvancedTriggerHandler {
 					console.log(`[TriggerHandler] Condition not met for ability ${ability.abilityId} on ${object.name} for phase ${phaseName}.`);
 					continue;
 				}
-				this.createEmblemForTriggeredAbility(ability, object, triggerPayload);
+				this.createEmblemForTriggeredAbility(ability, object, triggerPayload, `at${phaseName}`);
 			}
 		}
 	}
@@ -191,7 +212,7 @@ export class AdvancedTriggerHandler {
 								console.log(`[TriggerHandler] Condition not met for ability ${ability.abilityId} on ${entity.name} for event ${eventType}.`);
 								continue;
 							}
-							this.createEmblemForTriggeredAbility(ability, entity, eventPayload);
+							this.createEmblemForTriggeredAbility(ability, entity, eventPayload, eventType);
 						}
 					}
 				}
@@ -237,5 +258,42 @@ export class AdvancedTriggerHandler {
 		yield this.gsm.state.sharedZones.adventure;
 		yield this.gsm.state.sharedZones.limbo;
 		// Potentially other shared zones if they can contain objects with reactions
+	}
+
+	/**
+	 * Helper function to check if an ability can trigger based on its source object's zone and type.
+	 */
+	private _canAbilityTrigger(
+		ability: IAbility,
+		sourceObject: IGameObject,
+		zoneIdForScopeCheck: ZoneIdentifier | undefined,
+		eventType: string // eventType might be used for more nuanced LKI later if needed
+	): boolean {
+		if (zoneIdForScopeCheck === undefined) {
+			console.warn(`[TriggerHandler._canAbilityTrigger] Zone for scope check is undefined for ${sourceObject.name} (event: ${eventType}). Denying trigger.`);
+			return false; // Cannot determine scope if zone is unknown
+		}
+
+		if (zoneIdForScopeCheck === ZoneIdentifier.ReserveZone) {
+			if (ability.isSupportAbility) {
+				// For support abilities in reserve, check if the source object is exhausted.
+				// This uses the current status of the sourceObject. If LKI of status is needed,
+				// it would have to be passed or retrieved from lkiSourceObject if available.
+				return !sourceObject.statuses.has(StatusType.Exhausted);
+			} else {
+				// Non-support abilities cannot trigger from Reserve.
+				return false;
+			}
+		} else if (sourceObject.type === CardType.Hero) {
+			// Hero abilities trigger only if the hero is in the HeroZone.
+			return zoneIdForScopeCheck === ZoneIdentifier.HeroZone;
+		} else {
+			// Non-Hero objects' abilities (that are not support abilities, handled above)
+			// trigger only if they are in Expedition or LandmarkZone.
+			return zoneIdForScopeCheck === ZoneIdentifier.Expedition || zoneIdForScopeCheck === ZoneIdentifier.LandmarkZone;
+		}
+		// Default to false if none of the above permissive conditions are met.
+		// This line is technically unreachable due to prior conditions but good for safety.
+		// return false;
 	}
 }

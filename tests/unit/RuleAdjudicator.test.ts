@@ -319,4 +319,177 @@ describe('RuleAdjudicator', () => {
 		});
 
 	});
+
+	describe('Passive Ability Scope - HeroZone', () => {
+		let hero: IGameObject;
+		let passiveAbility: IAbility;
+		let player1: any;
+		let player2: any; // For testing opponent interactions if necessary
+
+		beforeEach(() => {
+			passiveAbility = createMockAbility('heroPassive1', [{ verb: 'modify_statistics', targets: 'self', parameters: { power: 1 } }], 'Grants +1 Power');
+			hero = createMockGameObject('hero1', 'player1', [passiveAbility]);
+			hero.type = CardType.Hero;
+			passiveAbility.sourceObjectId = hero.objectId; // Set sourceObjectId
+
+			// Mock zones for players
+			player1 = {
+				playerId: 'player1',
+				zones: {
+					heroZone: { zoneType: 'HeroZone', getAll: jest.fn().mockReturnValue([]), controllerId: 'player1' },
+					handZone: { zoneType: 'HandZone', getAll: jest.fn().mockReturnValue([]), controllerId: 'player1' },
+					discardPileZone: { zoneType: 'DiscardPileZone', getAll: jest.fn().mockReturnValue([]), controllerId: 'player1' },
+					expeditionZone: { zoneType: 'ExpeditionZone', getAll: jest.fn().mockReturnValue([]), controllerId: 'player1' }, // Individual expedition for player1
+					landmarkZone: { zoneType: 'LandmarkZone', getAll: jest.fn().mockReturnValue([]), controllerId: 'player1' },
+				},
+			};
+			player2 = { // Opponent, if needed for specific tests
+				playerId: 'player2',
+				zones: {
+					heroZone: { zoneType: 'HeroZone', getAll: jest.fn().mockReturnValue([]), controllerId: 'player2' },
+					expeditionZone: { zoneType: 'ExpeditionZone', getAll: jest.fn().mockReturnValue([]), controllerId: 'player2' },
+				},
+			};
+
+			// Mock gsm.state.players
+			const playersMap = new Map();
+			playersMap.set('player1', player1);
+			playersMap.set('player2', player2);
+			gsm.state = { players: playersMap } as any; // Simplified state mock
+
+			// Default mock for getObject
+			gsm.getObject.mockImplementation(id => {
+				if (id === hero.objectId) return hero;
+				return undefined;
+			});
+
+			// Default mock for getAllPlayObjects (can be overridden in tests)
+			// This mock represents objects in Expedition/Landmark zones.
+			(ruleAdjudicator as any).getAllPlayObjects = jest.fn().mockReturnValue([]);
+
+			// Reset hero characteristics
+			hero.currentCharacteristics = {
+				...hero.baseCharacteristics,
+				grantedAbilities: [],
+				negatedAbilityIds: [],
+				statistics: { power: 0, health: 0, forest: 0, mountain: 0, water: 0 },
+				keywords: {},
+			};
+			hero.baseCharacteristics.statistics = { power: 0, health: 0, forest: 0, mountain: 0, water: 0 };
+		});
+
+		it('Hero in HeroZone should have its passive ability active', () => {
+			player1.zones.heroZone.getAll.mockReturnValue([hero]); // Hero is in Player 1's HeroZone
+
+			ruleAdjudicator.applyAllPassiveAbilities();
+
+			expect(hero.currentCharacteristics.statistics?.power).toBe(1);
+		});
+
+		it('Hero in HandZone should NOT have its passive ability active', () => {
+			player1.zones.handZone.getAll.mockReturnValue([hero]); // Hero is in Player 1's HandZone
+			// Ensure it's not accidentally in heroZone from a previous mock
+			player1.zones.heroZone.getAll.mockReturnValue([]);
+
+			ruleAdjudicator.applyAllPassiveAbilities();
+
+			expect(hero.currentCharacteristics.statistics?.power).toBe(0);
+		});
+
+		it('Hero in DiscardPileZone should NOT have its passive ability active', () => {
+			player1.zones.discardPileZone.getAll.mockReturnValue([hero]); // Hero is in Player 1's DiscardPileZone
+			player1.zones.heroZone.getAll.mockReturnValue([]);
+
+			ruleAdjudicator.applyAllPassiveAbilities();
+
+			expect(hero.currentCharacteristics.statistics?.power).toBe(0);
+		});
+
+		it('Hero in another players HeroZone should have its passive ability active (global application)', () => {
+			player2.zones.heroZone.getAll.mockReturnValue([hero]); // Hero is in Player 2's HeroZone
+			hero.controllerId = 'player2'; // Change controller to player2
+			passiveAbility.sourceObjectId = hero.objectId; // Ensure sourceObjectId is still correct
+
+			// Reset hero characteristics for this specific scenario with new controller
+			hero.currentCharacteristics = {
+				...hero.baseCharacteristics,
+				controllerId: 'player2', // Update controller in characteristics
+				grantedAbilities: [],
+				negatedAbilityIds: [],
+				statistics: { power: 0, health: 0, forest: 0, mountain: 0, water: 0 },
+				keywords: {},
+			};
+			hero.baseCharacteristics.statistics = { power: 0, health: 0, forest: 0, mountain: 0, water: 0 };
+			hero.baseCharacteristics.controllerId = 'player2';
+
+
+			gsm.getObject.mockImplementation(id => { // Ensure getObject returns the hero
+				if (id === hero.objectId) return hero;
+				return undefined;
+			});
+
+			ruleAdjudicator.applyAllPassiveAbilities();
+
+			expect(hero.currentCharacteristics.statistics?.power).toBe(1);
+		});
+
+		it('Non-Hero in ExpeditionZone should have its passive ability active', () => {
+			const nonHeroPassive = createMockAbility('nonHeroPassive', [{ verb: 'modify_statistics', targets: 'self', parameters: { health: 5 } }], '+5 Health');
+			const nonHero = createMockGameObject('nonHero1', 'player1', [nonHeroPassive]);
+			nonHero.type = CardType.Character; // Ensure it's not a Hero
+			nonHeroPassive.sourceObjectId = nonHero.objectId;
+
+			nonHero.currentCharacteristics = {
+				...nonHero.baseCharacteristics,
+				grantedAbilities: [],
+				negatedAbilityIds: [],
+				statistics: { power: 0, health: 0, forest: 0, mountain: 0, water: 0 },
+				keywords: {},
+			};
+			nonHero.baseCharacteristics.statistics = { power: 0, health: 0, forest: 0, mountain: 0, water: 0 };
+
+			// Mock that this nonHero object is returned by getAllPlayObjects
+			(ruleAdjudicator as any).getAllPlayObjects = jest.fn().mockReturnValue([nonHero]);
+			gsm.getObject.mockImplementation(id => { // Ensure getObject can find this nonHero
+				if (id === nonHero.objectId) return nonHero;
+				return undefined;
+			});
+
+
+			ruleAdjudicator.applyAllPassiveAbilities();
+
+			expect(nonHero.currentCharacteristics.statistics?.health).toBe(5);
+		});
+
+		it('Hero in HeroZone AND Non-Hero in Expedition should BOTH have passives active', () => {
+			player1.zones.heroZone.getAll.mockReturnValue([hero]); // Hero in P1's HeroZone
+
+			const nonHeroPassive = createMockAbility('nonHeroPassiveExp', [{ verb: 'modify_statistics', targets: 'self', parameters: { health: 3 } }], '+3 Health');
+			const nonHeroExp = createMockGameObject('nonHeroExp1', 'player1', [nonHeroPassive]);
+			nonHeroExp.type = CardType.Structure;
+			nonHeroPassive.sourceObjectId = nonHeroExp.objectId;
+
+			nonHeroExp.currentCharacteristics = {
+				...nonHeroExp.baseCharacteristics,
+				grantedAbilities: [],
+				negatedAbilityIds: [],
+				statistics: { power: 0, health: 0, forest: 0, mountain: 0, water: 0 },
+				keywords: {},
+			};
+			nonHeroExp.baseCharacteristics.statistics = { power: 0, health: 0, forest: 0, mountain: 0, water: 0 };
+
+			(ruleAdjudicator as any).getAllPlayObjects = jest.fn().mockReturnValue([nonHeroExp]);
+
+			gsm.getObject.mockImplementation(id => {
+				if (id === hero.objectId) return hero;
+				if (id === nonHeroExp.objectId) return nonHeroExp;
+				return undefined;
+			});
+
+			ruleAdjudicator.applyAllPassiveAbilities();
+
+			expect(hero.currentCharacteristics.statistics?.power).toBe(1);
+			expect(nonHeroExp.currentCharacteristics.statistics?.health).toBe(3);
+		});
+	});
 });

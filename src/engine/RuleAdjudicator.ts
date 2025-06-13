@@ -133,10 +133,23 @@ export class RuleAdjudicator {
 	 * Implements Rule 2.3.
 	 */
 	public applyAllPassiveAbilities(): void {
-		const allObjects = this.getAllPlayObjects();
+		const allObjectsFromPlay = this.getAllPlayObjects();
+		const allObjectsIncludingHeroes: IGameObject[] = [...allObjectsFromPlay];
 
-		// 1. Reset all objects to their base characteristics, including new fields
-		allObjects.forEach((obj) => {
+		// Add heroes from hero zones
+		for (const player of this.gsm.state.players.values()) {
+			if (player.zones.heroZone) {
+				const heroObjects = player.zones.heroZone.getAll();
+				if (heroObjects.length > 0) {
+					// Assuming one hero per heroZone, take the first.
+					// Or add logic to ensure it's the correct hero if multiple objects could be there.
+					allObjectsIncludingHeroes.push(heroObjects[0]);
+				}
+			}
+		}
+
+		// 1. Reset all objects (including heroes) to their base characteristics
+		allObjectsIncludingHeroes.forEach((obj) => {
 			obj.currentCharacteristics = {
 				...obj.baseCharacteristics,
 				grantedAbilities: [], // Initialize as empty array
@@ -150,7 +163,7 @@ export class RuleAdjudicator {
 		// 2. Gather all passive abilities from base abilities and granted abilities
 		// Filter out negated abilities at this stage.
 		const allPassiveAbilities: IAbility[] = [];
-		for (const obj of allObjects) {
+		for (const obj of allObjectsIncludingHeroes) { // Iterate over all objects including heroes
 			// Ensure sourceObjectId is attached to each ability for context
 			const baseAbilities = obj.abilities
 				.map((a) => ({ ...a, sourceObjectId: obj.objectId }))
@@ -161,6 +174,10 @@ export class RuleAdjudicator {
 				.filter((a) => a.abilityType === AbilityType.Passive);
 
 			const currentObjectAbilities = [...baseAbilities, ...grantedAbilities];
+
+			// For Heroes, ensure we are only adding their passives if they are in the HeroZone.
+			// This is implicitly handled because we are iterating over objects from player.zones.heroZone.getAll().
+			// If a hero is not in the heroZone, it wouldn't be in allObjectsIncludingHeroes via that path.
 
 			for (const ability of currentObjectAbilities) {
 				// If an ability is negated on its source object, it should not be collected for application.

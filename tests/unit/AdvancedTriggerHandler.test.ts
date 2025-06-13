@@ -172,4 +172,160 @@ describe('AdvancedTriggerHandler', () => {
 			console.log("[Test Info] NIF reset test relies on simulated preparePhase logic for reactionActivationsToday.");
 		});
 	});
+
+	describe('Reaction Scope Enforcement', () => {
+		let sourceObject: IGameObject;
+		let reactionAbility: IAbility;
+
+		// Mock zone definitions to be returned by findZoneOfObject
+		const mockHeroZone = { zoneType: ZoneIdentifier.HeroZone, id: 'heroZoneP1', controllerId: 'player1', visibility: 'visible' } as any;
+		const mockHandZone = { zoneType: ZoneIdentifier.HandZone, id: 'handZoneP1', controllerId: 'player1', visibility: 'hidden' } as any;
+		const mockExpeditionZone = { zoneType: ZoneIdentifier.Expedition, id: 'expeditionShared', controllerId: 'shared', visibility: 'visible' } as any;
+		const mockLandmarkZone = { zoneType: ZoneIdentifier.LandmarkZone, id: 'landmarkP1', controllerId: 'player1', visibility: 'visible' } as any;
+		const mockReserveZone = { zoneType: ZoneIdentifier.ReserveZone, id: 'reserveP1', controllerId: 'player1', visibility: 'visible' } as any;
+
+		beforeEach(() => {
+			// Reset mocks for objectFactory and gsm methods for each test
+			objectFactory.createReactionEmblem.mockClear();
+			mockLimboZone.add.mockClear(); // Clear spy on limboZone.add
+			if (gsm.findZoneOfObject) {
+				(gsm.findZoneOfObject as jest.Mock).mockClear();
+			} else {
+				gsm.findZoneOfObject = jest.fn();
+			}
+			gsm.getAllVisibleZones = jest.fn().mockReturnValue([]); // Default to no zones unless specified
+		});
+
+		const setupAndTrigger = (
+			objectType: CardType,
+			objectZoneType: ZoneIdentifier | undefined, // Undefined if not in a zone for some tests, or for leave triggers where fromZone is key
+			ability: IAbility,
+			isExhausted: boolean = false,
+			eventType: string = 'genericTestEvent',
+			eventPayload: any = {},
+			fromZoneTypeForLeaveEvent?: ZoneIdentifier // Specifically for leave triggers
+		) => {
+			sourceObject = createMockGameObject('scopedObj', [ability]);
+			sourceObject.type = objectType;
+			ability.sourceObjectId = sourceObject.objectId;
+			if (isExhausted) {
+				sourceObject.statuses.add('Exhausted' as any); // Using StatusType.Exhausted would be better if enum is directly usable here
+			}
+
+			if (objectZoneType) {
+				let zoneToReturn;
+				if (objectZoneType === ZoneIdentifier.HeroZone) zoneToReturn = mockHeroZone;
+				else if (objectZoneType === ZoneIdentifier.HandZone) zoneToReturn = mockHandZone;
+				else if (objectZoneType === ZoneIdentifier.Expedition) zoneToReturn = mockExpeditionZone;
+				else if (objectZoneType === ZoneIdentifier.LandmarkZone) zoneToReturn = mockLandmarkZone;
+				else if (objectZoneType === ZoneIdentifier.ReserveZone) zoneToReturn = mockReserveZone;
+				(gsm.findZoneOfObject as jest.Mock).mockReturnValue(zoneToReturn);
+			} else {
+				(gsm.findZoneOfObject as jest.Mock).mockReturnValue(undefined); // Object not in a zone or zone doesn't matter
+			}
+
+			// For generic event processing, ensure the object is "found" by getAllVisibleZones
+			if (eventType === 'genericTestEvent' && objectZoneType) {
+				const containingZone = new GenericZone('testContainingZone', objectZoneType, 'visible');
+				containingZone.add(sourceObject);
+				gsm.getAllVisibleZones = jest.fn().mockReturnValue([containingZone as any]);
+			}
+
+
+			let finalPayload = eventPayload;
+			if (fromZoneTypeForLeaveEvent) {
+				finalPayload = { ...eventPayload, fromZone: { zoneType: fromZoneTypeForLeaveEvent } };
+			}
+
+
+			// Call a method that uses createEmblemForTriggeredAbility internally
+			// Using processGenericEventTriggers as a common pathway
+			if (eventType === 'leavePlay' && fromZoneTypeForLeaveEvent) {
+				triggerHandler.processLeavePlayTriggers(sourceObject, { zoneType: fromZoneTypeForLeaveEvent } as any, mockHandZone);
+			} else if (eventType === 'enterPlay' && objectZoneType) {
+				triggerHandler.processEnterPlayTriggers(sourceObject, { zoneType: objectZoneType } as any);
+			}
+			 else {
+				triggerHandler.processGenericEventTriggers(eventType, finalPayload);
+			}
+		};
+
+		// Hero Reactions
+		describe('Hero Reactions', () => {
+			beforeEach(() => reactionAbility = createMockAbility('heroReact', 'genericTestEvent'));
+
+			test('Hero in HeroZone with reaction -> emblem IS created', () => {
+				setupAndTrigger(CardType.Hero, ZoneIdentifier.HeroZone, reactionAbility);
+				expect(objectFactory.createReactionEmblem).toHaveBeenCalled();
+			});
+			test('Hero in HandZone with reaction -> emblem IS NOT created', () => {
+				setupAndTrigger(CardType.Hero, ZoneIdentifier.HandZone, reactionAbility);
+				expect(objectFactory.createReactionEmblem).not.toHaveBeenCalled();
+			});
+		});
+
+		// Non-Hero "In Play" Reactions
+		describe('Non-Hero "In Play" Reactions', () => {
+			beforeEach(() => reactionAbility = createMockAbility('nonHeroReact', 'genericTestEvent'));
+
+			test('Non-Hero in ExpeditionZone with reaction -> emblem IS created', () => {
+				setupAndTrigger(CardType.Character, ZoneIdentifier.Expedition, reactionAbility);
+				expect(objectFactory.createReactionEmblem).toHaveBeenCalled();
+			});
+			test('Non-Hero in LandmarkZone with reaction -> emblem IS created', () => {
+				setupAndTrigger(CardType.Structure, ZoneIdentifier.LandmarkZone, reactionAbility);
+				expect(objectFactory.createReactionEmblem).toHaveBeenCalled();
+			});
+			test('Non-Hero in ReserveZone with non-support reaction -> emblem IS NOT created', () => {
+				reactionAbility.isSupportAbility = false;
+				setupAndTrigger(CardType.Character, ZoneIdentifier.ReserveZone, reactionAbility);
+				expect(objectFactory.createReactionEmblem).not.toHaveBeenCalled();
+			});
+		});
+
+		// Reserve Zone Reactions
+		describe('Reserve Zone Reactions', () => {
+			test('Object in ReserveZone with support reaction, not exhausted -> emblem IS created', () => {
+				reactionAbility = createMockAbility('supportReserveReact', 'genericTestEvent');
+				reactionAbility.isSupportAbility = true;
+				setupAndTrigger(CardType.Spell, ZoneIdentifier.ReserveZone, reactionAbility, false);
+				expect(objectFactory.createReactionEmblem).toHaveBeenCalled();
+			});
+			test('Object in ReserveZone with support reaction, exhausted -> emblem IS NOT created', () => {
+				reactionAbility = createMockAbility('supportReserveExhaustedReact', 'genericTestEvent');
+				reactionAbility.isSupportAbility = true;
+				setupAndTrigger(CardType.Spell, ZoneIdentifier.ReserveZone, reactionAbility, true); // Exhausted
+				expect(objectFactory.createReactionEmblem).not.toHaveBeenCalled();
+			});
+			test('Object in ReserveZone with non-support reaction -> emblem IS NOT created', () => {
+				reactionAbility = createMockAbility('nonSupportReserveReact', 'genericTestEvent');
+				reactionAbility.isSupportAbility = false;
+				setupAndTrigger(CardType.Character, ZoneIdentifier.ReserveZone, reactionAbility);
+				expect(objectFactory.createReactionEmblem).not.toHaveBeenCalled();
+			});
+		});
+
+		// LKI for "Leave" Triggers
+		describe('LKI for "Leave" Triggers', () => {
+			test('Non-Hero object leaving ExpeditionZone with "leavePlay" reaction -> emblem IS created', () => {
+				reactionAbility = createMockAbility('leaveExpReact', 'leavePlay');
+				// For leave triggers, current zone of object might be its destination or limbo.
+				// The scope check relies on eventPayload.fromZone.zoneType.
+				setupAndTrigger(CardType.Character, undefined, reactionAbility, false, 'leavePlay', {}, ZoneIdentifier.Expedition);
+				expect(objectFactory.createReactionEmblem).toHaveBeenCalled();
+			});
+
+			test('Hero leaving HeroZone with "leavePlay" reaction -> emblem IS created', () => {
+				reactionAbility = createMockAbility('leaveHeroReact', 'leavePlay');
+				setupAndTrigger(CardType.Hero, undefined, reactionAbility, false, 'leavePlay', {}, ZoneIdentifier.HeroZone);
+				expect(objectFactory.createReactionEmblem).toHaveBeenCalled();
+			});
+
+			test('Non-Hero object leaving HandZone with "leavePlay" reaction -> emblem IS NOT created (invalid scope for reaction)', () => {
+				reactionAbility = createMockAbility('leaveHandReact', 'leavePlay');
+				setupAndTrigger(CardType.Character, undefined, reactionAbility, false, 'leavePlay', {}, ZoneIdentifier.HandZone);
+				expect(objectFactory.createReactionEmblem).not.toHaveBeenCalled();
+			});
+		});
+	});
 });
