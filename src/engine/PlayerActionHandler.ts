@@ -352,9 +352,8 @@ export class PlayerActionHandler {
 				throw new Error(`Unknown action type: ${(action as any).type}`);
 		}
 
-		if (action.type !== 'pass' && action.type !== 'convertManaOrb') {
-			await this.gsm.resolveReactions();
-		}
+		// Reactions are now handled within each specific execute<Type>Action method (playCard, quickAction)
+		// or in TurnManager for passes.
 
 		return turnEnds;
 	}
@@ -372,6 +371,7 @@ export class PlayerActionHandler {
 		// Tough cost payment will be handled inside CardPlaySystem.playCard or EffectProcessor if it's for effect targets
 	): Promise<void> {
 		await this.gsm.cardPlaySystem.playCard(playerId, cardId, fromZone, selectedExpeditionType, targets, isScoutPlay, scoutRawCost);
+		await this.gsm.resolveReactions(this.gsm.state);
 	}
 
 	public async executeActivateAbilityAction(
@@ -494,7 +494,7 @@ export class PlayerActionHandler {
 		sourceObject.abilityActivationsToday.set(abilityId, currentActivations + 1);
 		console.log(`[PlayerActionHandler] Incremented QA count for ${abilityId} on ${sourceObject.name} to ${currentActivations + 1}.`);
 
-		await this.gsm.resolveReactions();
+		await this.gsm.resolveReactions(this.gsm.state);
 	}
 
 	// Remove old synchronous helper methods as their logic is now part of the new async flow or CardPlaySystem
