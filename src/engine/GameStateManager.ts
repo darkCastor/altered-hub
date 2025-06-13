@@ -1293,6 +1293,97 @@ export class GameStateManager {
 	}
 
 	/**
+	 * Handles passive abilities that grant counters or statuses to a card as it's being played.
+	 * This method is called after costs are paid but before the card resolves or moves to its final zone.
+	 * It creates Emblem-Reactions in Limbo based on Rule 5.2.b.
+	 */
+	public async handlePassivesGrantingCountersOrStatusesOnPlay(
+		playedCardObject: IGameObject,
+		playingPlayerId: string // Player playing the card
+	): Promise<void> {
+		if (!this.ruleAdjudicator) {
+			console.warn('[GSM.handlePassives] RuleAdjudicator not available. Skipping passive grants on play.');
+			return;
+		}
+		if (!this.objectFactory) {
+			console.warn('[GSM.handlePassives] ObjectFactory not available. Skipping passive grants on play.');
+			return;
+		}
+
+		const passiveGrants = this.ruleAdjudicator.getPassivesGrantingItemsOnPlay(
+			playedCardObject,
+			playingPlayerId,
+			this.state
+		);
+
+		if (passiveGrants.length > 0) {
+			console.log(`[GSM.handlePassives] Found ${passiveGrants.length} passive grants for ${playedCardObject.name} (ID: ${playedCardObject.objectId})`);
+		}
+
+		for (const passiveInfo of passiveGrants) {
+			let effectStep: IEffectStep;
+
+			if (passiveInfo.itemToGrant.type === 'counter') {
+				effectStep = {
+					verb: 'gain_counter', // Assuming EffectType.GainCounter maps to this string
+					target: { type: 'SpecificObject', objectId: playedCardObject.objectId }, // TargetType.SpecificObject
+					parameters: {
+						counterType: passiveInfo.itemToGrant.counterType,
+						amount: passiveInfo.itemToGrant.amount,
+						// The controllerId for the effect step itself. This defines who "performs" the gain.
+						// It could be the player playing the card, or the controller of the source of the passive.
+						// For gaining counters/status on the playedCardObject, this might be less critical than for other effects.
+						// Let's assume the effect is enacted by the controller of the passive source.
+						controllerId: passiveInfo.sourceObject.controllerId,
+					}
+				};
+			} else { // type === 'status'
+				effectStep = {
+					verb: 'gain_status', // Assuming EffectType.GainStatus maps to this string
+					target: { type: 'SpecificObject', objectId: playedCardObject.objectId }, // TargetType.SpecificObject
+					parameters: {
+						statusType: passiveInfo.itemToGrant.statusType,
+						controllerId: passiveInfo.sourceObject.controllerId,
+					}
+				};
+			}
+
+			const effectToBind: IEffect = {
+				steps: [effectStep],
+				sourceObjectId: passiveInfo.sourceObject.objectId, // The passive ability's source is the source of this effect
+			};
+
+			const triggerPayloadForEmblem = {
+				rule: '5.2.b',
+				originalPassiveAbilityId: passiveInfo.passiveAbility.abilityId,
+				sourceOfPassiveObjectId: passiveInfo.sourceObject.objectId,
+				targetCardBeingPlayedId: playedCardObject.objectId,
+				targetCardDefinitionId: playedCardObject.definitionId
+			};
+
+			// Create the Emblem-Reaction in Limbo
+			// The emblem is controlled by the controller of the object that has the passive.
+			const emblem = this.objectFactory.createReactionEmblem(
+				`emblem-passivegrant-${passiveInfo.sourceObject.objectId}-${playedCardObject.objectId}-${passiveInfo.passiveAbility.abilityId}`,
+				passiveInfo.sourceObject.controllerId, // Controller of the emblem
+				effectToBind,
+				passiveInfo.sourceObject, // The object that is the source of the passive ability
+				triggerPayloadForEmblem, // Detailed payload about the trigger
+				`Passive Grant: ${passiveInfo.itemToGrant.type} to ${playedCardObject.name} from ${passiveInfo.sourceObject.name}`
+			);
+
+			if (emblem) {
+				this.state.sharedZones.limbo.add(emblem);
+				console.log(`[GSM.handlePassives] Created Emblem-Reaction ${emblem.name} (ID: ${emblem.objectId}) in Limbo for passive grant.`);
+			} else {
+				console.error(`[GSM.handlePassives] Failed to create Emblem-Reaction for passive grant from ${passiveInfo.sourceObject.name}.`);
+			}
+		}
+		// No need to call resolveReactions here; CardPlaySystem will call it after this method returns.
+	}
+
+
+	/**
 	 * Add aliases for test compatibility
 	 */
 	public get cardDataRepository() {
