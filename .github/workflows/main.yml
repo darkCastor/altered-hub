@@ -3,19 +3,123 @@ on:
   push:
     branches:
       - master
-  pull_request: # Add this
-    branches:   # Add this
-      - master  # Add this
+  pull_request:
+    branches:
+      - master
+
 jobs:
-  build:
+  unit-tests: # Renamed from 'build'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Set up Bun
-        run: |
-          curl -fsSL https://bun.sh/install | bash
-          echo "$HOME/.bun/bin" >> $GITHUB_PATH
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest # or a specific version
+
+      - name: Cache Bun dependencies
+        uses: actions/cache@v3 # Use v4 when available and stable
+        id: bun-cache
+        with:
+          path: |
+            ~/.bun/install/cache
+            node_modules/.cache/bun # If using bun for scripting/bins in node_modules
+          key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lockb') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-
+
       - name: Install dependencies
-        run: bun install
-      - name: Run tests
+        run: bun install --frozen-lockfile
+        if: steps.bun-cache.outputs.cache-hit != 'true'
+
+      - name: Install dependencies (cached)
+        run: bun install --frozen-lockfile --prefer-offline
+        if: steps.bun-cache.outputs.cache-hit == 'true'
+
+      - name: Run unit tests
         run: bun test
+
+  lint:
+    runs-on: ubuntu-latest
+    needs: unit-tests # Optional: run after unit tests
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+
+      - name: Cache Bun dependencies
+        uses: actions/cache@v3
+        id: bun-cache-lint # Unique id for this job's cache step
+        with:
+          path: |
+            ~/.bun/install/cache
+            node_modules/.cache/bun
+          key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lockb') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+        if: steps.bun-cache-lint.outputs.cache-hit != 'true'
+
+      - name: Install dependencies (cached)
+        run: bun install --frozen-lockfile --prefer-offline
+        if: steps.bun-cache-lint.outputs.cache-hit == 'true'
+
+      - name: Run ESLint
+        run: bunx eslint . --fix --format=json --output-file eslint_report.json # Added --fix and output for potential artifact upload
+
+  playwright-tests:
+    runs-on: ubuntu-latest
+    needs: unit-tests # Optional: run after unit tests
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+
+      - name: Cache Bun dependencies
+        uses: actions/cache@v3
+        id: bun-cache-playwright # Unique id
+        with:
+          path: |
+            ~/.bun/install/cache
+            node_modules/.cache/bun
+          key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lockb') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+        if: steps.bun-cache-playwright.outputs.cache-hit != 'true'
+
+      - name: Install dependencies (cached)
+        run: bun install --frozen-lockfile --prefer-offline
+        if: steps.bun-cache-playwright.outputs.cache-hit == 'true'
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v3
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('**/bun.lockb') }} # Re-evaluate key if needed, maybe based on Playwright version
+          restore-keys: |
+            ${{ runner.os }}-playwright-
+
+      - name: Install Playwright browsers
+        run: bunx playwright install --with-deps # --with-deps installs system dependencies
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+
+      - name: Run Playwright tests
+        run: bunx playwright test
+
+      - name: Upload Playwright report
+        if: always() # Run this step even if tests fail
+        uses: actions/upload-artifact@v3
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 30
