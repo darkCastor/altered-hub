@@ -46,9 +46,19 @@ describe('EffectProcessor - Resupply Effect', () => {
 		cardDef2 = createMockCardDef('c2', 'Card 2');
 		cardDef3 = createMockCardDef('c3', 'Card 3');
 
-		const mockCardDefinitions = [cardDef1, cardDef2, cardDef3];
+		// Add a Hero card definition for proper game initialization
+		const heroDef = createMockCardDef('hero1', 'Test Hero');
+		heroDef.type = CardType.Hero;
+		heroDef.handCost = { total: 0 };
+		heroDef.reserveCost = { total: 0 };
 
-		gsm = new GameStateManager([player1Id], mockCardDefinitions, eventBus);
+		const mockCardDefinitions = [heroDef, cardDef1, cardDef2, cardDef3];
+
+		// Create player deck definitions map
+		const playerDeckDefinitions = new Map<string, ICardDefinition[]>();
+		playerDeckDefinitions.set(player1Id, mockCardDefinitions);
+
+		gsm = new GameStateManager(playerDeckDefinitions, eventBus);
 		await gsm.initializeGame(); // Initializes player, zones, etc.
 		effectProcessor = gsm.effectProcessor;
 

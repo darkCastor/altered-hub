@@ -162,4 +162,11 @@ export class ObjectFactory {
 
 		return emblem;
 	}
+
+	/**
+	 * For testing: Add a card definition to the available definitions
+	 */
+	public addCardDefinition(definition: ICardDefinition): void {
+		this.cardDefinitions.set(definition.id, definition);
+	}
 }

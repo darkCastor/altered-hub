@@ -8,7 +8,8 @@ import {
 	StatusType,
 	Faction,
 	GamePhase,
-	ZoneIdentifier
+	ZoneIdentifier,
+	AbilityType
 } from '../../src/engine/types/enums';
 import type { ICardDefinition } from '../../src/engine/types/cards';
 import type { IGameObject } from '../../src/engine/types/objects';
@@ -28,6 +29,21 @@ const mockManaDef: ICardDefinition = {
 	statistics: { forest: 0, mountain: 0, water: 0 },
 	abilities: [],
 	rarity: 'Common',
+	version: '1.0'
+};
+
+// Mock Hero card definition for proper game initialization
+const mockHeroDef: ICardDefinition = {
+	id: 'test-hero',
+	name: 'Test Hero',
+	type: CardType.Hero,
+	subTypes: [],
+	faction: Faction.Neutral,
+	handCost: { total: 0 },
+	reserveCost: { total: 0 },
+	statistics: { forest: 1, mountain: 1, water: 1 },
+	abilities: [],
+	rarity: 'Rare',
 	version: '1.0'
 };
 
@@ -77,8 +93,9 @@ describe('PlayerActionHandler', () => {
 
 	beforeEach(async () => {
 		eventBus = new EventBus();
-		// Include the default mana definition and a generic test card for other actions
+		// Include the default mana definition, hero, and a generic test card for other actions
 		mockCardDefinitions = [
+			mockHeroDef, // Hero card is required for game initialization
 			mockManaDef,
 			{
 				id: 'test-card',
@@ -94,7 +111,12 @@ describe('PlayerActionHandler', () => {
 				version: '1.0'
 			}
 		];
-		gameStateManager = new GameStateManager(['player1', 'player2'], mockCardDefinitions, eventBus);
+		// Create player deck definitions map
+		const playerDeckDefinitions = new Map<string, ICardDefinition[]>();
+		playerDeckDefinitions.set('player1', mockCardDefinitions);
+		playerDeckDefinitions.set('player2', mockCardDefinitions);
+
+		gameStateManager = new GameStateManager(playerDeckDefinitions, eventBus);
 		turnManager = new TurnManager(gameStateManager, eventBus); // PAH needs TurnManager for pass
 		gameStateManager.turnManager = turnManager; // Link turn manager
 		playerActionHandler = gameStateManager.actionHandler; // Get from GSM
@@ -114,7 +136,7 @@ describe('PlayerActionHandler', () => {
 	});
 
 	describe('Convert Mana Actions', () => {
-		test('getAvailableActions includes "Convert Mana" action when conditions are met', () => {
+		test('getAvailableActions includes "Convert Mana" action when conditions are met', async () => {
 			const player = gameStateManager.getPlayer('player1')!;
 			// Ensure player's turn
 			gameStateManager.state.currentPlayerId = 'player1';
@@ -123,7 +145,7 @@ describe('PlayerActionHandler', () => {
 			const readyOrb1 = addTestManaOrb(gameStateManager, 'player1', 'ready1', false);
 			const exhaustedOrb1 = addTestManaOrb(gameStateManager, 'player1', 'exhausted1', true);
 
-			const actions = playerActionHandler.getAvailableActions('player1');
+			const actions = await playerActionHandler.getAvailableActions('player1');
 			const convertAction = actions.find(
 				(a) =>
 					a.type === 'convertMana' &&
@@ -135,8 +157,8 @@ describe('PlayerActionHandler', () => {
 			if (convertAction) {
 				expect(convertAction.sourceObjectId).toBe(readyOrb1.objectId);
 				expect(convertAction.targetObjectId).toBe(exhaustedOrb1.objectId);
-				expect(convertAction.description).toContain(readyOrb1.objectId);
-				expect(convertAction.description).toContain(exhaustedOrb1.objectId);
+				expect(convertAction.description).toContain('ready1');
+				expect(convertAction.description).toContain('exhausted1');
 			}
 		});
 
@@ -169,38 +191,38 @@ describe('PlayerActionHandler', () => {
 			expect(formerlyExhausted.statuses.has(StatusType.Exhausted)).toBe(false);
 		});
 
-		test('getAvailableActions provides no "Convert Mana" if only ready orbs', () => {
+		test('getAvailableActions provides no "Convert Mana" if only ready orbs', async () => {
 			gameStateManager.state.currentPlayerId = 'player1';
 			gameStateManager.state.currentPhase = GamePhase.Afternoon;
 			addTestManaOrb(gameStateManager, 'player1', 'ready1', false);
 			addTestManaOrb(gameStateManager, 'player1', 'ready2', false);
 
-			const actions = playerActionHandler.getAvailableActions('player1');
+			const actions = await playerActionHandler.getAvailableActions('player1');
 			const convertAction = actions.find((a) => a.type === 'convertMana');
 			expect(convertAction).toBeUndefined();
 		});
 
-		test('getAvailableActions provides no "Convert Mana" if only exhausted orbs', () => {
+		test('getAvailableActions provides no "Convert Mana" if only exhausted orbs', async () => {
 			gameStateManager.state.currentPlayerId = 'player1';
 			gameStateManager.state.currentPhase = GamePhase.Afternoon;
 			addTestManaOrb(gameStateManager, 'player1', 'exhausted1', true);
 			addTestManaOrb(gameStateManager, 'player1', 'exhausted2', true);
 
-			const actions = playerActionHandler.getAvailableActions('player1');
+			const actions = await playerActionHandler.getAvailableActions('player1');
 			const convertAction = actions.find((a) => a.type === 'convertMana');
 			expect(convertAction).toBeUndefined();
 		});
 
-		test('getAvailableActions provides no "Convert Mana" if no orbs', () => {
+		test('getAvailableActions provides no "Convert Mana" if no orbs', async () => {
 			gameStateManager.state.currentPlayerId = 'player1';
 			gameStateManager.state.currentPhase = GamePhase.Afternoon;
 			// No orbs added
 
-			const actions = playerActionHandler.getAvailableActions('player1');
+			const actions = await playerActionHandler.getAvailableActions('player1');
 			const convertAction = actions.find((a) => a.type === 'convertMana');
 			expect(convertAction).toBeUndefined();
 		});
-		test('getAvailableActions provides no "Convert Mana" for the same orb', () => {
+		test('getAvailableActions provides no "Convert Mana" for the same orb', async () => {
 			gameStateManager.state.currentPlayerId = 'player1';
 			gameStateManager.state.currentPhase = GamePhase.Afternoon;
 			// This scenario is practically impossible if IDs are unique and an orb is either ready or exhausted.
@@ -214,7 +236,7 @@ describe('PlayerActionHandler', () => {
 			// Instead, let's rely on the fact that readyOrbs and exhaustedOrbs are mutually exclusive sets for the same physical orb.
 			// The condition `readyOrb.objectId !== exhaustedOrb.objectId` is what prevents an orb from converting itself.
 			// No specific setup needed if the main logic is sound.
-			const actions = playerActionHandler.getAvailableActions('player1');
+			const actions = await playerActionHandler.getAvailableActions('player1');
 			const convertAction = actions.find(
 				(a) =>
 					a.type === 'convertMana' &&
@@ -233,7 +255,7 @@ describe('PlayerActionHandler', () => {
 
 		const qaAbility = {
 			abilityId: 'qa1',
-			abilityType: 'quickAction',
+			abilityType: AbilityType.QuickAction,
 			text: 'Test Quick Action',
 			isSupportAbility: false,
 			cost: { mana: 1 },
@@ -242,7 +264,7 @@ describe('PlayerActionHandler', () => {
 
 		const supportQaAbility = {
 			abilityId: 'supportQa1',
-			abilityType: 'quickAction',
+			abilityType: AbilityType.QuickAction,
 			text: 'Test Support Quick Action',
 			isSupportAbility: true,
 			cost: { mana: 1 }, // Support QAs can have costs
@@ -299,9 +321,9 @@ describe('PlayerActionHandler', () => {
 			};
 
 			// Add these definitions to GSM's known definitions for this test suite
-			gameStateManager.cardDefinitions.set(heroDef.id, heroDef);
-			gameStateManager.cardDefinitions.set(nonHeroDef.id, nonHeroDef);
-			gameStateManager.cardDefinitions.set(supportAbilityDef.id, supportAbilityDef);
+			gameStateManager.addCardDefinition(heroDef);
+			gameStateManager.addCardDefinition(nonHeroDef);
+			gameStateManager.addCardDefinition(supportAbilityDef);
 
 			// Ensure player has mana if costs are checked (though PlayerActionHandler doesn't check mana for getAvailableActions)
 			// ManaSystem mock in PlayerActionHandler tests currently doesn't exist, but canPayMana is called.
@@ -309,7 +331,7 @@ describe('PlayerActionHandler', () => {
 			// If PlayerActionHandler's canPayAllCosts becomes more stringent and uses ManaSystem directly,
 			// we might need to mock ManaSystem or give player mana.
 			// The current PAH checks `this.gsm.manaSystem.canPayMana`
-			vi.spyOn(gameStateManager.manaSystem, 'canPayMana').mockReturnValue(true);
+			vi.spyOn(gameStateManager.manaSystem, 'canPayMana').mockImplementation(() => true);
 		});
 
 		const createAndPlaceObject = (

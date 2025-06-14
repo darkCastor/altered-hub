@@ -143,9 +143,9 @@ export class PlayerActionHandler {
 				for (const exhaustedOrb of exhaustedOrbs) {
 					if (readyOrb.objectId !== exhaustedOrb.objectId) {
 						actions.push({
-							type: 'convertManaOrb',
-							sourceOrbId: readyOrb.objectId,
-							targetOrbId: exhaustedOrb.objectId,
+							type: 'convertMana',
+							sourceObjectId: readyOrb.objectId,
+							targetObjectId: exhaustedOrb.objectId,
 							description: `Exhaust ${readyOrb.name || 'Orb'} to ready ${exhaustedOrb.name || 'Orb'}`
 						});
 					}
@@ -317,7 +317,7 @@ export class PlayerActionHandler {
 		// Basic check, more nuanced checks per action type might be needed
 		if (
 			this.gsm.state.currentPlayerId !== playerId &&
-			action.type !== 'convertManaOrb' && // Allow mana conversion if applicable out of turn
+			action.type !== 'convertMana' && // Allow mana conversion if applicable out of turn
 			action.type !== 'expandMana' // Expand mana is phase-specific, not turn-specific necessarily
 		) {
 			// Most actions require it to be the player's turn.
@@ -388,14 +388,14 @@ export class PlayerActionHandler {
 				turnEnds = false;
 				break;
 
-			case 'convertManaOrb':
-				if (!action.sourceOrbId || !action.targetOrbId) {
-					throw new Error('Action convertManaOrb missing sourceOrbId or targetOrbId.');
+			case 'convertMana':
+				if (!action.sourceObjectId || !action.targetObjectId) {
+					throw new Error('Action convertMana missing sourceObjectId or targetObjectId.');
 				}
 				const converted = this.gsm.manaSystem.convertMana(
 					playerId,
-					action.sourceOrbId,
-					action.targetOrbId
+					action.sourceObjectId,
+					action.targetObjectId
 				);
 				if (!converted) {
 					console.warn(`[PlayerActionHandler] Mana conversion failed for player ${playerId}.`);

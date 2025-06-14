@@ -9,6 +9,7 @@ import type {
 	IEmblemObject,
 	ICurrentCharacteristics
 } from '../../src/engine/types/objects';
+import type { ICardDefinition } from '../../src/engine/types/cards';
 import type { IAbility, ITrigger, IEffectStep } from '../../src/engine/types/abilities';
 import { AbilityType, CardType, ZoneIdentifier } from '../../src/engine/types/enums';
 import { GenericZone } from '../../src/engine/Zone';
@@ -68,7 +69,10 @@ describe('AdvancedTriggerHandler', () => {
 		mockLimboZone = new GenericZone('limbo', ZoneIdentifier.Limbo, 'visible');
 		jest.spyOn(mockLimboZone, 'add'); // Spy on add method of this specific instance
 
-		gsm = new GameStateManager([], [], eventBus) as jest.Mocked<GameStateManager>;
+		// Create empty player deck definitions map for testing
+		const playerDeckDefinitions = new Map<string, ICardDefinition[]>();
+
+		gsm = new GameStateManager(playerDeckDefinitions, eventBus) as jest.Mocked<GameStateManager>;
 		gsm.objectFactory = objectFactory;
 		gsm.state = {
 			sharedZones: { limbo: mockLimboZone }

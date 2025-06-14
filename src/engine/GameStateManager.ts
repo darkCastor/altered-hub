@@ -1715,4 +1715,12 @@ export class GameStateManager {
 		);
 		return choice;
 	}
+
+	/**
+	 * For testing: Add a card definition to the available definitions
+	 */
+	public addCardDefinition(definition: ICardDefinition): void {
+		this.allCardDefinitions.set(definition.id, definition);
+		this.objectFactory.addCardDefinition(definition);
+	}
 }
