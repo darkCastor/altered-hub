@@ -3,10 +3,9 @@ on:
   push:
     branches:
       - master
-  pull_request:
-    branches:
-      - master
-
+  pull_request: # Add this
+    branches: # Add this
+      - master # Add this
 jobs:
   unit-tests: # Renamed from 'build'
     runs-on: ubuntu-latest
